@@ -340,8 +340,9 @@ breaks, details are written to `%APPDATA%\TaskBarGame Harvest Edition\error.log`
 | Breaking, fortune, crafting and offline rules | `src/TaskBarGame.Core/GameEngine.cs` |
 | Bazaar prices, trades and orders | `src/TaskBarGame.Core/Bazaar.cs` |
 | How the farmer walks the row and teleports | `src/TaskBarGame.Core/FarmerAgent.cs` |
-| **Pixel art** (crops, farmer, icons) | `src/TaskBarGame.Core/Assets/sprites.txt`, a plain text file with one letter per pixel |
-| Tier colours of tools, armour and talismans | `src/TaskBarGame.App/SpriteCache.cs` |
+| **Pixel art** (crops, farmer, hats, visitors, rare finds, icons) | `src/TaskBarGame.Core/Assets/sprites.txt`, a plain text file with one letter per pixel |
+| **Tool, armour and talisman pictures** (16x16 PNGs) | `src/TaskBarGame.App/Assets/Tools`, `Assets/Armour` and `Assets/Talismans` (which file each one uses: `Equipment.cs`) |
+| Tools' blade colours per tier, outfit colours | `src/TaskBarGame.App/SpriteCache.cs` |
 | The strip above the taskbar | `src/TaskBarGame.App/StripWindow.xaml.cs` |
 | The panel | `src/TaskBarGame.App/PanelWindow.xaml` + `ViewModels/` |
 | Colours and button styles | `src/TaskBarGame.App/Theme.xaml` |

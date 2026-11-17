@@ -10,22 +10,6 @@ namespace TaskBarGame.App;
 public sealed class SpriteCache
 {
     // Light and dark colour for each tier, as 0xAARRGGBB. Index 0 = not owned.
-    private static readonly (uint Light, uint Dark)[] ArmourColours =
-    {
-        (0xFF8A8A8A, 0xFF4A4A4A), // none
-        (0xFFF2D36B, 0xFFB8892A), // Straw
-        (0xFFF39A3C, 0xFFB0561A), // Harvester
-        (0xFF6FE08F, 0xFF1F8A4A), // Verdant
-    };
-
-    private static readonly Dictionary<TalismanFamily, (uint Light, uint Dark)> TalismanColours = new()
-    {
-        [TalismanFamily.Clover] = (0xFF7FE08A, 0xFF2F9A4A),
-        [TalismanFamily.Swiftstep] = (0xFF8EE8FF, 0xFF2A8AB8),
-        [TalismanFamily.Merchant] = (0xFFFFE066, 0xFFB8860B),
-        [TalismanFamily.Scholar] = (0xFFC9A0FF, 0xFF6A3FB0),
-    };
-
     private readonly SpriteSheet _sheet;
     private readonly Dictionary<string, BitmapSource> _images = new();
     private readonly Dictionary<string, IReadOnlyList<Brush>> _particles = new();
@@ -154,11 +138,7 @@ public sealed class SpriteCache
         string key = $"tool:{crop.Id}#{tier}";
         if (_images.TryGetValue(key, out var image)) return image;
 
-        var source = new BitmapImage(new Uri($"pack://application:,,,/Assets/Tools/{Tools.Texture(crop)}.png"));
-        var converted = new FormatConvertedBitmap(source, PixelFormats.Bgra32, null, 0);
-        int width = converted.PixelWidth, height = converted.PixelHeight;
-        var pixels = new uint[width * height];
-        converted.CopyPixels(pixels, width * 4, 0);
+        var pixels = LoadPicture("Tools", Tools.Texture(crop), out int width, out int height);
 
         var swaps = new Dictionary<uint, uint>();
         for (int i = 0; i < BladeBlues.Length; i++) swaps[BladeBlues[i]] = BladeColours[tier][i];
@@ -182,19 +162,40 @@ public sealed class SpriteCache
         return (argb & 0xFF000000) | (y << 16) | (y << 8) | y;
     }
 
-    public BitmapSource ArmourIcon(ArmourSlot slot, int tier)
+    /// <summary>An armour piece's picture (from Assets/Armour); tier 0 (not crafted yet) is faded and grey.</summary>
+    public BitmapSource ArmourIcon(ArmourSlot slot, int tier) =>
+        Picture("Armour", Armour.Texture(slot, tier), faded: tier <= 0);
+
+    /// <summary>A talisman's picture (from Assets/Talismans); tier 0 (not crafted yet) is faded and grey.</summary>
+    public BitmapSource TalismanIcon(TalismanFamily family, int tier) =>
+        Picture("Talismans", Talismans.Texture(family, tier), faded: tier <= 0);
+
+    /// <summary>A 16x16 picture from the app's Assets folder, optionally faded to grey.</summary>
+    private BitmapSource Picture(string folder, string name, bool faded)
     {
-        var (light, dark) = ArmourColours[Math.Clamp(tier, 0, Armour.MaxTier)];
-        return Recolored("icon_" + slot.ToString().ToLowerInvariant(), $"t{tier}",
-            new Dictionary<char, uint> { ['A'] = light, ['a'] = dark });
+        string key = $"{folder}/{name}#{(faded ? "faded" : "")}";
+        if (_images.TryGetValue(key, out var image)) return image;
+
+        var pixels = LoadPicture(folder, name, out int width, out int height);
+        if (faded)
+            for (int i = 0; i < pixels.Length; i++)
+                if (pixels[i] >> 24 != 0) pixels[i] = (Grey(pixels[i]) & 0x00FFFFFF) | 0x99000000;
+
+        image = BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null, pixels, width * 4);
+        image.Freeze();
+        _images[key] = image;
+        return image;
     }
 
-    /// <summary>Charm, Ring or Relic shape, in the talisman's own colour (tier 0 shows a grey charm).</summary>
-    public BitmapSource TalismanIcon(TalismanFamily family, int tier)
+    private static uint[] LoadPicture(string folder, string name, out int width, out int height)
     {
-        string shape = tier switch { 2 => "icon_ring", 3 => "icon_relic", _ => "icon_charm" };
-        var (light, dark) = tier <= 0 ? (0xFF8A8A8Au, 0xFF4A4A4Au) : TalismanColours[family];
-        return Recolored(shape, $"{family}{tier}", new Dictionary<char, uint> { ['E'] = light, ['Z'] = dark });
+        var source = new BitmapImage(new Uri($"pack://application:,,,/Assets/{folder}/{name}.png"));
+        var converted = new FormatConvertedBitmap(source, PixelFormats.Bgra32, null, 0);
+        width = converted.PixelWidth;
+        height = converted.PixelHeight;
+        var pixels = new uint[width * height];
+        converted.CopyPixels(pixels, width * 4, 0);
+        return pixels;
     }
 
     /// <summary>The Compactor: grey when you don't have one, iron for the Compactor, purple for the Dense Compactor.</summary>

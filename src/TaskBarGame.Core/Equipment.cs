@@ -73,6 +73,24 @@ public static class Armour
 
     public static int Fortune(int tier) => FortunePerPiece[Math.Clamp(tier, 0, MaxTier)];
 
+    /// <summary>
+    /// The piece's picture in the app's Assets/Armour folder (without ".png"): a farm hat, overalls,
+    /// trousers or work boots, yellow for Straw, orange for Harvester and green for Verdant.
+    /// Tier 0 uses the Straw picture (the game shows it faded).
+    /// </summary>
+    public static string Texture(ArmourSlot slot, int tier)
+    {
+        string piece = slot switch
+        {
+            ArmourSlot.Helmet => "hat",
+            ArmourSlot.Chestplate => "overalls",
+            ArmourSlot.Leggings => "trousers",
+            _ => "workboots",
+        };
+        string colour = Math.Clamp(tier, 1, MaxTier) switch { 1 => "yellow", 2 => "orange", _ => "green" };
+        return $"farm_{piece}_{colour}";
+    }
+
     /// <summary>The bonus for wearing a full set of this tier.</summary>
     public static StatBonus SetBonus(int tier) => tier switch
     {
@@ -120,6 +138,23 @@ public static class Talismans
             TalismanFamily.Scholar => new StatBonus(Xp: amount),
             _ => new StatBonus(),
         };
+    }
+
+    /// <summary>
+    /// The talisman's picture in the app's Assets/Talismans folder (without ".png"): a necklace
+    /// (Charm), ring (Ring) or star (Relic), in the family's colour. Tier 0 uses the Charm (shown faded).
+    /// </summary>
+    public static string Texture(TalismanFamily family, int tier)
+    {
+        string shape = Math.Clamp(tier, 1, MaxTier) switch { 1 => "necklace", 2 => "ring", _ => "talisman" };
+        string colour = family switch
+        {
+            TalismanFamily.Clover => "green",
+            TalismanFamily.Swiftstep => "cyan",
+            TalismanFamily.Merchant => "gold",
+            _ => "purple",
+        };
+        return $"{shape}_{colour}";
     }
 
     /// <summary>What this kind of talisman does, e.g. "Harvest Fortune".</summary>
