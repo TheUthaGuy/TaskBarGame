@@ -11,6 +11,7 @@ public sealed class SpriteCache
 {
     private readonly SpriteSheet _sheet;
     private readonly Dictionary<string, BitmapSource> _images = new();
+    private readonly Dictionary<string, IReadOnlyList<Brush>> _particles = new();
 
     public SpriteCache(SpriteSheet sheet) => _sheet = sheet;
 
@@ -34,6 +35,32 @@ public sealed class SpriteCache
     }
 
     public BitmapSource CropIcon(CropDef crop) => this[crop.RipeSprite];
+
+    /// <summary>
+    /// Colours for the little bits that fly out when a crop breaks: one brush per coloured pixel
+    /// of the ripe crop, so picking one at random matches the crop's look.
+    /// </summary>
+    public IReadOnlyList<Brush> ParticleBrushes(CropDef crop)
+    {
+        if (_particles.TryGetValue(crop.Id, out var brushes)) return brushes;
+
+        var byColour = new Dictionary<uint, Brush>();
+        var list = new List<Brush>();
+        foreach (uint argb in _sheet[crop.RipeSprite].Pixels)
+        {
+            if (argb >> 24 == 0) continue;
+            if (!byColour.TryGetValue(argb, out var brush))
+            {
+                var colour = Color.FromArgb((byte)(argb >> 24), (byte)(argb >> 16), (byte)(argb >> 8), (byte)argb);
+                brush = new SolidColorBrush(colour);
+                brush.Freeze();
+                byColour[argb] = brush;
+            }
+            list.Add(brush);
+        }
+        _particles[crop.Id] = list;
+        return list;
+    }
 
     /// <summary>The picture for a plot's crop at its current growth stage, or null if empty.</summary>
     public BitmapSource? ForPlot(PlotState plot)

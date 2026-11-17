@@ -46,6 +46,8 @@ public partial class StripWindow : Window
     private readonly GameHost _host;
     private readonly List<PlotView> _plots = new();
     private readonly List<Floater> _floaters = new();
+    private readonly List<Particle> _particles = new();
+    private readonly Random _rng = new();
     private readonly Queue<Toast> _toastQueue = new();
     private readonly DispatcherTimer _collapseTimer;
     private readonly ScaleTransform _farmerFlip = new(1, 1);
@@ -194,6 +196,7 @@ public partial class StripWindow : Window
         Root.Children.Clear();
         _plots.Clear();
         _floaters.Clear();
+        _particles.Clear();
 
         _stripLayer = new Canvas();
         _homeLayer = new Canvas();
@@ -482,6 +485,7 @@ public partial class StripWindow : Window
         _lockBob.Y = _lockReady ? -Math.Round(Math.Abs(Math.Sin(_time * 3)) * 2) * _unit : 0;
         UpdateFarmer();
         UpdateFloaters(dt);
+        UpdateParticles(dt);
         UpdateToast(dt);
 
         _slowTimer += dt;
@@ -539,12 +543,11 @@ public partial class StripWindow : Window
         }
         else
         {
-            frame = farmer.Action switch
-            {
-                FarmerAction.Walking => (int)(farmer.ActionTime / 0.16) % 2 == 0 ? "farmer_walk1" : "farmer_walk2",
-                FarmerAction.Harvesting => "farmer_harvest",
-                _ => blink ? "farmer_blink" : "farmer_idle",
-            };
+            bool step = (int)(farmer.ActionTime / 0.14) % 2 == 0;
+            frame = farmer.IsSwinging ? "farmer_swing"
+                : farmer.Action != FarmerAction.Walking ? (blink ? "farmer_blink" : "farmer_idle")
+                : farmer.IsFarming ? (step ? "farmer_farm1" : "farmer_farm2")
+                : (step ? "farmer_walk1" : "farmer_walk2");
             x = Math.Round((PlotLeft(0) + farmer.Position * (_tile + _gap)) / _unit) * _unit;
             facing = farmer.Facing;
         }
@@ -771,8 +774,10 @@ public partial class StripWindow : Window
 
     private void OnHarvested(HarvestResult result)
     {
-        if (!Settings.ShowFloatingText || !_expanded || _hiddenForFullscreen) return;
-        if (result.PlotIndex >= _plots.Count) return;
+        if (!_expanded || _hiddenForFullscreen || result.PlotIndex >= _plots.Count) return;
+
+        SpawnBreakParticles(result.PlotIndex, result.Crop);
+        if (!Settings.ShowFloatingText) return;
 
         double centerX = PlotLeft(result.PlotIndex) + _tile / 2;
         AddTextFloater($"+{result.Drops} {result.Crop.Name}", centerX, _tileTop - _unit, CropBrush(result.Crop));
@@ -827,6 +832,62 @@ public partial class StripWindow : Window
             double eased = 1 - (1 - t) * (1 - t);
             Canvas.SetTop(f.Element, f.StartY - f.Rise * eased);
             f.Element.Opacity = t < 0.65 ? 1 : 1 - (t - 0.65) / 0.35;
+        }
+    }
+
+    // ================================================================== crop break particles
+
+    /// <summary>Little bits of crop that pop out and fall when a crop is broken.</summary>
+    private void SpawnBreakParticles(int plotIndex, CropDef crop)
+    {
+        if (_unit <= 0) return;
+        var brushes = _host.Sprites.ParticleBrushes(crop);
+        if (brushes.Count == 0) return;
+
+        double left = PlotLeft(plotIndex);
+        for (int i = 0; i < 10; i++)
+        {
+            double size = _rng.NextDouble() < 0.4 ? 2 * _unit : _unit;
+            var shape = new Rectangle
+            {
+                Width = size,
+                Height = size,
+                Fill = brushes[_rng.Next(brushes.Count)],
+                IsHitTestVisible = false,
+            };
+            var particle = new Particle(shape)
+            {
+                X = left + _tile * (0.2 + 0.6 * _rng.NextDouble()),
+                Y = _tileTop + _tile * (0.25 + 0.5 * _rng.NextDouble()),
+                Vx = (_rng.NextDouble() * 2 - 1) * 14 * _unit,
+                Vy = -(10 + _rng.NextDouble() * 18) * _unit,
+                Life = 0.45 + _rng.NextDouble() * 0.3,
+            };
+            Place(_fxLayer, shape, particle.X, particle.Y);
+            _particles.Add(particle);
+        }
+    }
+
+    private void UpdateParticles(double dt)
+    {
+        double gravity = 120 * _unit;
+        for (int i = _particles.Count - 1; i >= 0; i--)
+        {
+            var p = _particles[i];
+            p.Age += dt;
+            if (p.Age >= p.Life)
+            {
+                _fxLayer.Children.Remove(p.Shape);
+                _particles.RemoveAt(i);
+                continue;
+            }
+            p.Vy += gravity * dt;
+            p.X += p.Vx * dt;
+            p.Y += p.Vy * dt;
+            Canvas.SetLeft(p.Shape, p.X);
+            Canvas.SetTop(p.Shape, p.Y);
+            double t = p.Age / p.Life;
+            p.Shape.Opacity = t < 0.6 ? 1 : 1 - (t - 0.6) / 0.4;
         }
     }
 
@@ -959,6 +1020,17 @@ public partial class StripWindow : Window
         public double Rise { get; } = rise;
         public double Life { get; } = life;
         public double Age { get; set; } = age;
+    }
+
+    private sealed class Particle(Rectangle shape)
+    {
+        public Rectangle Shape { get; } = shape;
+        public double X { get; set; }
+        public double Y { get; set; }
+        public double Vx { get; set; }
+        public double Vy { get; set; }
+        public double Age { get; set; }
+        public double Life { get; set; }
     }
 
     private sealed class Toast(string title, string body, Brush accent, double seconds)

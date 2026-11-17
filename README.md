@@ -2,7 +2,8 @@
 
 A little farming game that lives just above your Windows taskbar while you work.
 
-A farmer walks along a strip of crop plots, harvesting whatever is ripe. You earn coins, level up
+A farmer works a strip of crop plots: they sweep back and forth along the row with their hoe,
+breaking every ripe crop they pass, just like farming a row by hand. You earn coins, level up
 your **Farming** skill and your **Garden**, unlock new crops and buy more plots. You can also click
 crops yourself to farm faster.
 
@@ -35,8 +36,10 @@ GitHub Actions also builds the `.exe` on every push. Download it from the **Acti
 | Right-click the farmer or the strip | Quick menu: sell crops, strip size, position, show-on-hover, quit |
 | Click the **lock** | Buy the next plot (when you have the coins and Garden level) |
 
-The farmer harvests ripe crops automatically, even while the game is closed: at half speed, for up to
-12 hours. When you come back, a popup tells you what they did.
+Whenever something is ripe, the farmer sweeps side to side along the row, swinging their hoe and
+breaking each ripe crop they walk over (bits of crop fly out), then turns around at the end of the row.
+When nothing is ripe they take a break. They keep farming even while the game is closed: at half speed,
+for up to 12 hours. When you come back, a popup tells you what they did.
 
 ### Progression
 
@@ -81,7 +84,7 @@ details are written to `%APPDATA%\TaskBarGame\error.log`.
 | Crop speed, price, XP, unlock level | `src/TaskBarGame.Core/Crops.cs` |
 | Level XP tables, plot prices, collection tiers | `src/TaskBarGame.Core/Progression.cs` |
 | Harvest/tend/offline rules | `src/TaskBarGame.Core/GameEngine.cs` |
-| How the farmer walks | `src/TaskBarGame.Core/FarmerAgent.cs` |
+| How the farmer sweeps the row | `src/TaskBarGame.Core/FarmerAgent.cs` |
 | **Pixel art** (crops, farmer, icons) | `src/TaskBarGame.Core/Assets/sprites.txt`, a plain text file with one letter per pixel |
 | The strip above the taskbar | `src/TaskBarGame.App/StripWindow.xaml.cs` |
 | The garden panel | `src/TaskBarGame.App/PanelWindow.xaml` + `ViewModels/` |

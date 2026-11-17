@@ -93,7 +93,8 @@ public class SpriteSheetTests
         string[] required =
         {
             "soil", "soil_locked", "lock", "stage0", "stage1", "stage2",
-            "farmer_idle", "farmer_blink", "farmer_walk1", "farmer_walk2", "farmer_harvest",
+            "farmer_idle", "farmer_blink", "farmer_walk1", "farmer_walk2",
+            "farmer_farm1", "farmer_farm2", "farmer_swing",
             "coin", "sparkle",
         };
         foreach (var name in required.Concat(Crops.All.Select(c => c.RipeSprite)))
