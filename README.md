@@ -133,19 +133,13 @@ stand-in for it.
 1. Set the new version in `src/TaskBarGame.App/TaskBarGame.App.csproj` (`<Version>`) and in the
    [Download](#download) section below.
 2. Write the release notes in `docs/releases/v<version>.md` (copy the previous one).
-3. Tag the commit and push the tag:
+3. On GitHub, open **Actions → Release → Run workflow**, type the version (for example `0.2.0`) and
+   click **Run workflow**.
 
-   ```bash
-   git tag v0.2.0
-   ```
-
-   ```bash
-   git push origin v0.2.0
-   ```
-
-The **Release** workflow then builds `TaskBarGame.exe` on Windows and publishes it on the
+About two minutes later `TaskBarGame.exe` is on the
 [Releases](https://github.com/TheUthaGuy/TaskBarGame/releases) page. The download links below always
-point at the newest release, so they never need changing.
+point at the newest release, so they never need changing. (Publishing a release from the Releases
+page, or pushing a `v0.2.0` tag, also works: the workflow adds the game files either way.)
 
 ### Project layout
 
