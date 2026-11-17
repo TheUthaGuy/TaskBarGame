@@ -131,7 +131,7 @@ public sealed partial class GameEngine
         return tool;
     }
 
-    /// <summary>The hoe the farmer is holding: always the one for the planted crop.</summary>
+    /// <summary>The tool the farmer is holding: always the one for the planted crop.</summary>
     public ToolState ActiveTool => GetTool(FieldCrop);
 
     public int GetArmourTier(ArmourSlot slot) => State.Armour.GetValueOrDefault(slot);
@@ -175,7 +175,7 @@ public sealed partial class GameEngine
             new($"Farming Level {FarmingLevel}", FarmingLevel * FarmingSkill.FortunePerLevel),
             new($"{crop.Name} collection", GetCollectionTier(crop) * CollectionTiers.FortunePerTier),
             new(Tools.Name(crop, tool.Tier), Tools.Fortune(tool.Tier)),
-            new($"{crop.Name} Hoe counter ({tool.Breaks:N0} broken)", Tools.CounterFortune(tool.Breaks)),
+            new($"{Tools.ToolName(crop)} counter ({tool.Breaks:N0} broken)", Tools.CounterFortune(tool.Breaks)),
         };
         foreach (var slot in Armour.Slots)
             sources.Add(new StatSource(Armour.Name(slot, GetArmourTier(slot)), Armour.Fortune(GetArmourTier(slot))));

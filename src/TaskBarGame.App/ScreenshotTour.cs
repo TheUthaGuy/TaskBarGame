@@ -84,7 +84,7 @@ internal sealed class ScreenshotTour
         state.Inventory["carrot"] = 120;
         state.Inventory["potato"] = 95;
         state.Inventory["packed_melon"] = 9;
-        state.Inventory["sugarcane"] = 75; // enough for a Sugar Cane Hoe: shows "Upgrades 1"
+        state.Inventory["sugarcane"] = 75; // enough for a Cane Cutter: shows "Upgrades 1"
         state.Stats.TotalBreaks = 18_730;
         state.Stats.HandBreaks = 412;
         state.Stats.CoinsEarned = 96_420;

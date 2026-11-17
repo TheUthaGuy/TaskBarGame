@@ -39,7 +39,7 @@ public sealed class CropChoiceRow : ObservableObject
     }
 }
 
-/// <summary>One hoe, armour slot or talisman in the Upgrades tab: what you have and what's next.</summary>
+/// <summary>One tool, armour slot or talisman in the Upgrades tab: what you have and what's next.</summary>
 public sealed class UpgradeRow : ObservableObject
 {
     private readonly GameHost _host;
@@ -131,7 +131,7 @@ public sealed class UpgradeRow : ObservableObject
 
     private ImageSource IconFor(int tier) => Kind switch
     {
-        UpgradeKind.Tool => tier > 0 ? _host.Sprites.ToolIcon(tier) : _host.Sprites.CropIcon(Crops.Get(Target)),
+        UpgradeKind.Tool => _host.Sprites.ToolIcon(Crops.Get(Target), tier),
         UpgradeKind.Armour => _host.Sprites.ArmourIcon(Enum.Parse<ArmourSlot>(Target), tier),
         UpgradeKind.Compactor => _host.Sprites.CompactorIcon(tier),
         _ => _host.Sprites.TalismanIcon(Enum.Parse<TalismanFamily>(Target), tier),

@@ -75,6 +75,8 @@ public partial class StripWindow : Window
     private Canvas _homeLayer = new();
     private Canvas _fxLayer = new();
     private Image _farmer = new();
+    private Image _tool = new();                       // the crop's tool, in the farmer's hand
+    private readonly RotateTransform _toolSwing = new();
     private Rectangle _farmerHit = new();
     private Grid? _lockSlot;
     private TextBlock? _lockTip;
@@ -437,6 +439,13 @@ public partial class StripWindow : Window
 
     private void BuildFarmer()
     {
+        // The tool goes behind the farmer, so their hand is drawn over the handle (gripping it).
+        _tool = SpriteImage(null, _tile);
+        _tool.IsHitTestVisible = false;
+        _tool.RenderTransform = _toolSwing;
+        _tool.Visibility = Visibility.Hidden;
+        Root.Children.Add(_tool);
+
         _farmer = SpriteImage(_host.Sprites["farmer_idle"], _tile);
         _farmer.IsHitTestVisible = false;
         _farmer.RenderTransformOrigin = new Point(0.5, 0.5);
@@ -634,10 +643,10 @@ public partial class StripWindow : Window
             facing = farmer.Facing;
         }
 
-        // The hoe in the farmer's hands matches the hoe you own for the planted crop, and they wear
-        // the hat and outfit picked in the Wardrobe.
+        // The farmer wears the hat and outfit picked in the Wardrobe. While farming, they hold the
+        // tool for the planted crop (drawn separately below, so it can swing).
         bool holdsHoe = frame is "farmer_swing" or "farmer_farm1" or "farmer_farm2";
-        var source = _host.Sprites.Farmer(frame, holdsHoe ? Engine.ActiveTool.Tier : -1, _hatId, _outfitId);
+        var source = _host.Sprites.Farmer(frame, holdsHoe ? 0 : -1, _hatId, _outfitId);
         if (!ReferenceEquals(_farmer.Source, source)) _farmer.Source = source;
         _farmerFlip.ScaleX = facing;
         Canvas.SetLeft(_farmer, x);
@@ -660,6 +669,48 @@ public partial class StripWindow : Window
             _teleportArrivalShown = false;
         }
         _farmer.Opacity = opacity;
+        UpdateTool(frame, x, facing, opacity);
+    }
+
+    /// <summary>Where the farmer's hand is in each farming frame (sprite pixels).</summary>
+    private static (int X, int Y) HandIn(string frame) => frame switch
+    {
+        "farmer_swing" => (13, 10),
+        "farmer_farm2" => (12, 12),
+        _ => (12, 11),
+    };
+
+    /// <summary>
+    /// The tool in the farmer's hand: held up and forward while they walk the row, and swung down
+    /// onto each crop they break (a quick chop, then back up).
+    /// </summary>
+    private void UpdateTool(string frame, double farmerX, int facing, double opacity)
+    {
+        int tier = Engine.ActiveTool.Tier;
+        bool farming = frame is "farmer_swing" or "farmer_farm1" or "farmer_farm2";
+        if (!_expanded || !farming || tier <= 0 || facing <= 0)
+        {
+            _tool.Visibility = Visibility.Hidden;
+            return;
+        }
+
+        // Every tool picture has its handle in the bottom-left corner; the hand holds it here.
+        const double gripX = 4.5, gripY = 11.5;
+        var (handX, handY) = HandIn(frame);
+        var source = _host.Sprites.ToolIcon(Engine.FieldCrop, tier);
+        if (!ReferenceEquals(_tool.Source, source)) _tool.Source = source;
+        Canvas.SetLeft(_tool, farmerX + (handX + 0.5 - gripX) * _unit);
+        Canvas.SetTop(_tool, _tileTop + (handY + 0.5 - gripY) * _unit);
+
+        _toolSwing.CenterX = gripX * _unit;
+        _toolSwing.CenterY = gripY * _unit;
+        var farmer = _host.Farmer;
+        double t = farmer.IsSwinging ? Math.Clamp(farmer.SinceSwing / FarmerAgent.SwingDuration, 0, 1) : 1;
+        const double down = 95; // degrees: the blade comes down in front of the farmer
+        _toolSwing.Angle = t < 0.35 ? down * t / 0.35 : down * (1 - (t - 0.35) / 0.65);
+
+        _tool.Opacity = opacity;
+        _tool.Visibility = Visibility.Visible;
     }
 
     /// <summary>Things that don't need updating 30 times a second.</summary>

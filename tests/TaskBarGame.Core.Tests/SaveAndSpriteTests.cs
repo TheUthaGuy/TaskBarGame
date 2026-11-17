@@ -145,7 +145,7 @@ public class SpriteSheetTests
             "farmer_idle", "farmer_blink", "farmer_walk1", "farmer_walk2",
             "farmer_farm1", "farmer_farm2", "farmer_swing",
             "coin", "sparkle", "sack", "crate",
-            "icon_hoe", "icon_helmet", "icon_chestplate", "icon_leggings", "icon_boots",
+            "icon_helmet", "icon_chestplate", "icon_leggings", "icon_boots",
             "icon_charm", "icon_ring", "icon_relic", "icon_compactor",
             "hat_cap", "hat_bandana", "hat_tophat", "hat_flowers", "hat_crown",
         };
@@ -158,6 +158,24 @@ public class SpriteSheetTests
             Assert.Equal(16, sheet[name].Width);
             Assert.Equal(16, sheet[name].Height);
         }
+    }
+
+    [Fact]
+    public void Every_crop_has_a_tool_with_a_picture()
+    {
+        // The pictures live in the app (src/TaskBarGame.App/Assets/Tools); find them from the test's folder.
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "TaskBarGame.sln"))) dir = dir.Parent;
+        Assert.NotNull(dir);
+        string tools = Path.Combine(dir!.FullName, "src", "TaskBarGame.App", "Assets", "Tools");
+
+        foreach (var crop in Crops.All)
+        {
+            Assert.True(File.Exists(Path.Combine(tools, Tools.Texture(crop) + ".png")), $"{crop.Name}: missing {Tools.Texture(crop)}.png");
+            Assert.DoesNotContain("Hoe", Tools.Name(crop, 1).Replace("Carrot Hoe", ""));
+        }
+        Assert.Equal("Reinforced Pumpkin Dicer", Tools.Name(Crops.Pumpkin, 2));
+        Assert.Equal(Crops.All.Count, Crops.All.Select(Tools.Texture).Distinct().Count());
     }
 
     [Fact]

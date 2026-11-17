@@ -17,6 +17,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- The farming tools' pictures (16x16), one per crop. -->
+    <Resource Include="Assets\Tools\*.png" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\TaskBarGame.Core\TaskBarGame.Core.csproj" />
   </ItemGroup>
 

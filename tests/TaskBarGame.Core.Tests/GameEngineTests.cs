@@ -341,7 +341,7 @@ public class GameEngineTests
         var engine = NewEngine();
         var recipe = engine.NextRecipe(UpgradeKind.Tool, "wheat")!;
         Assert.Equal(1, recipe.Tier);
-        Assert.Equal("Basic Wheat Hoe", recipe.ResultName);
+        Assert.Equal("Basic Wheat Sickle", recipe.ResultName);
 
         Assert.False(engine.TryCraft(recipe, out var reason));
         Assert.Contains("more Wheat", reason);

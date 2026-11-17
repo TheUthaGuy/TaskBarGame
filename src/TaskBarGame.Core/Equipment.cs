@@ -1,8 +1,9 @@
 namespace TaskBarGame.Core;
 
 /// <summary>
-/// Hoes: every crop has its own hoe, in three tiers. A hoe only helps with its own crop,
-/// and the farmer automatically uses the right one for whatever is planted.
+/// Farming tools: every crop has its own tool (a sickle for wheat, a dicer for pumpkins...), in
+/// three tiers: iron, gold and blue. A tool only helps with its own crop, and the farmer
+/// automatically uses the right one for whatever is planted.
 /// </summary>
 public static class Tools
 {
@@ -11,19 +12,40 @@ public static class Tools
     private static readonly string[] TierNames = { "", "Basic", "Reinforced", "Masterwork" };
     private static readonly int[] TierFortune = { 0, 10, 30, 60 };
 
-    /// <summary>Every this many crops broken with a crop's hoe adds +1 Harvest Fortune for that crop.</summary>
+    /// <summary>Each crop's tool, and its picture in the app's Assets/Tools folder (without ".png").</summary>
+    private static readonly Dictionary<string, (string Name, string Texture)> ByCrop = new()
+    {
+        ["wheat"] = ("Wheat Sickle", "wheat_sickle"),
+        ["carrot"] = ("Carrot Hoe", "carrot_hoe"),
+        ["potato"] = ("Potato Shovel", "potato_shovel"),
+        ["sugarcane"] = ("Cane Cutter", "cane_cutter"),
+        ["pumpkin"] = ("Pumpkin Dicer", "pumpkin_dicer"),
+        ["melon"] = ("Melon Dicer", "melon_dicer"),
+        ["cocoa"] = ("Cocoa Chopper", "cocoa_chopper"),
+        ["cactus"] = ("Cactus Knife", "cactus_knife"),
+        ["mushroom"] = ("Fungi Cutter", "fungi_cutter"),
+        ["moonbloom"] = ("Eclipse Sickle", "eclipse_sickle"),
+    };
+
+    /// <summary>Every this many crops broken with a crop's tool adds +1 Harvest Fortune for that crop.</summary>
     public const int BreaksPerCounterFortune = 1_000;
 
     public const int MaxCounterFortune = 30;
 
     public static string TierName(int tier) => TierNames[Math.Clamp(tier, 0, MaxTier)];
 
+    /// <summary>"Wheat Sickle", "Pumpkin Dicer"...</summary>
+    public static string ToolName(CropDef crop) => ByCrop.TryGetValue(crop.Id, out var tool) ? tool.Name : crop.Name + " Hoe";
+
+    /// <summary>The tool's picture: "wheat_sickle" for Assets/Tools/wheat_sickle.png.</summary>
+    public static string Texture(CropDef crop) => ByCrop.TryGetValue(crop.Id, out var tool) ? tool.Texture : "carrot_hoe";
+
     public static string Name(CropDef crop, int tier) =>
-        tier <= 0 ? "No hoe" : $"{TierName(tier)} {crop.Name} Hoe";
+        tier <= 0 ? "No tool" : $"{TierName(tier)} {ToolName(crop)}";
 
     public static int Fortune(int tier) => TierFortune[Math.Clamp(tier, 0, MaxTier)];
 
-    /// <summary>The hoe gets better the more of its crop it breaks.</summary>
+    /// <summary>The tool gets better the more of its crop it breaks.</summary>
     public static int CounterFortune(long breaks) =>
         (int)Math.Min(MaxCounterFortune, Math.Max(0, breaks) / BreaksPerCounterFortune);
 }
@@ -208,7 +230,7 @@ public static class Recipes
     {
         var list = new List<Recipe>();
 
-        // ------------------------------------------------ hoes: one per crop, made from that crop
+        // ------------------------------------------------ tools: one per crop, made from that crop
         foreach (var crop in Crops.All)
         {
             list.Add(new Recipe(UpgradeKind.Tool, crop.Id, 1, new[] { Raw(crop, 48) }, 100,

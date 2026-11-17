@@ -20,7 +20,7 @@
         UseLayoutRounding="True">
 
     <Window.Resources>
-        <!-- One upgrade (hoe, armour piece or talisman): what you have now and what's next. -->
+        <!-- One upgrade (tool, armour piece or talisman): what you have now and what's next. -->
         <DataTemplate x:Key="UpgradeRowTemplate">
             <Border Style="{StaticResource Row}" Padding="10,8">
                 <Grid>
@@ -227,7 +227,7 @@
                                 <StackPanel>
                                     <TextBlock Text="Crop guide" Style="{StaticResource H3}" />
                                     <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="0,2,0,6" TextWrapping="Wrap"
-                                               Text="Coins an hour: roughly what the farmer makes farming only that crop and selling it to the Market, with your hoes, Fortune and speed." />
+                                               Text="Coins an hour: roughly what the farmer makes farming only that crop and selling it to the Market, with your tools, Fortune and speed." />
                                     <ItemsControl ItemsSource="{Binding CropGuide}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
@@ -289,9 +289,9 @@
                             <TextBlock Style="{StaticResource Muted}" Margin="2,0,0,10"
                                        Text="Upgrades are crafted from packed crops (160 crops = 1 Packed, 160 Packed = 1 Dense). Pack crops in the Inventory tab, or press Buy missing to get them from the Bazaar." />
 
-                            <TextBlock Text="Hoes" Style="{StaticResource H3}" Margin="2,0,0,2" />
+                            <TextBlock Text="Tools" Style="{StaticResource H3}" Margin="2,0,0,2" />
                             <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="2,0,0,8"
-                                       Text="Each crop has its own hoe. The farmer switches to the right one automatically." />
+                                       Text="Each crop has its own tool: a sickle for wheat, a dicer for pumpkins and so on. Iron, then gold, then blue. The farmer switches to the right one automatically." />
                             <ItemsControl ItemsSource="{Binding UnlockedToolRows}" ItemTemplate="{StaticResource UpgradeRowTemplate}" />
 
                             <TextBlock Text="Armour" Style="{StaticResource H3}" Margin="2,12,0,2" />
@@ -576,7 +576,7 @@
                                     </DockPanel>
                                     <CheckBox Content="Keep enough crops for my next upgrades when selling to the Market"
                                               IsChecked="{Binding KeepForUpgrades}" Margin="0,10,0,0"
-                                              ToolTip="Sell, Sell all crops and auto-sell keep back what your next hoes, armour, talismans and Compactor need, including crops you still have to pack." />
+                                              ToolTip="Sell, Sell all crops and auto-sell keep back what your next tools, armour, talismans and Compactor need, including crops you still have to pack." />
                                     <TextBlock Text="{Binding KeptSummary}" Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,0"
                                                TextWrapping="Wrap" Visibility="{Binding KeptSummary, Converter={StaticResource TextToVisibility}}" />
                                 </StackPanel>

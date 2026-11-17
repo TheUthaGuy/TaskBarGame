@@ -386,10 +386,10 @@ public sealed partial class PanelViewModel : ObservableObject
         FieldText = $"The farmer laps the row every {Format.Number(Engine.LapSeconds, 1)}s (it regrows in "
                     + $"{Format.Number(crop.RegrowSeconds, 1)}s) · {Format.Number(Engine.GetFortune(crop, false))} Harvest Fortune";
         int toolTier = Engine.ActiveTool.Tier;
-        ActiveToolIcon = toolTier > 0 ? _host.Sprites.ToolIcon(toolTier) : _host.Sprites.ToolIcon(0);
+        ActiveToolIcon = _host.Sprites.ToolIcon(crop, toolTier);
         ActiveToolText = toolTier > 0
             ? $"The farmer is using the {Tools.Name(crop, toolTier)} (+{Tools.Fortune(toolTier)} Fortune, +{Tools.CounterFortune(Engine.ActiveTool.Breaks)} from {Format.Number(Engine.ActiveTool.Breaks)} broken)."
-            : $"The farmer has no {crop.Name} Hoe yet. Craft one in Upgrades for more crops.";
+            : $"The farmer has no {Tools.ToolName(crop)} yet. Craft one in Upgrades for more crops.";
         foreach (var row in CropChoices) row.Update(Engine);
 
         CanExpand = Engine.CanExpandField(out var next, out string reason);

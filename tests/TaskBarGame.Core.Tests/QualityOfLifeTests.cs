@@ -48,7 +48,7 @@ public class QualityOfLifeTests
     [Fact]
     public void Market_selling_keeps_what_the_next_upgrades_need()
     {
-        var engine = NewEngine(); // Garden 1: the next upgrade is a Basic Wheat Hoe (48 Wheat)
+        var engine = NewEngine(); // Garden 1: the next upgrade is a Basic Wheat Sickle (48 Wheat)
         Give(engine, Wheat, 100);
 
         Assert.Equal(48, engine.KeptForUpgrades(Wheat));
@@ -69,7 +69,7 @@ public class QualityOfLifeTests
         Give(engine, PackedWheat, 5);
 
         // Garden 2: Straw armour (2 + 4 + 3 + 2 Packed Wheat), a Scholar's Charm (4 Packed Wheat)
-        // and a Basic Wheat Hoe (48 Wheat). You have 5 of the 15 Packed Wheat, so 10 more to pack.
+        // and a Basic Wheat Sickle (48 Wheat). You have 5 of the 15 Packed Wheat, so 10 more to pack.
         var needs = engine.UpgradeNeeds(Crops.Wheat);
         Assert.Equal(new CropNeeds(Raw: 48 + 10 * 160, Packed: 15, Dense: 0), needs);
         Assert.Equal(5, engine.KeptForUpgrades(PackedWheat)); // you can't keep more than you have
@@ -170,7 +170,7 @@ public class QualityOfLifeTests
     [Fact]
     public void The_compactor_leaves_crops_an_upgrade_needs_unpacked()
     {
-        var engine = NewEngine(); // the Basic Wheat Hoe needs 48 plain Wheat
+        var engine = NewEngine(); // the Basic Wheat Sickle needs 48 plain Wheat
         engine.State.Compactor = 1;
         Give(engine, Wheat, 200);
 
@@ -231,7 +231,7 @@ public class QualityOfLifeTests
 
         Give(engine, Wheat, 48);
         var ready = Assert.Single(engine.ReadyRecipes());
-        Assert.Equal("Basic Wheat Hoe", ready.ResultName);
+        Assert.Equal("Basic Wheat Sickle", ready.ResultName);
     }
 
     [Fact]
