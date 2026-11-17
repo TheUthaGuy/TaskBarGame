@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Windows.Input;
 using System.Windows.Media;
 using TaskBarGame.Core;
@@ -50,6 +51,10 @@ public sealed class UpgradeRow : ObservableObject
     private string _status = "";
     private bool _canCraft;
     private bool _hasNext;
+    private bool _hasMissing;
+    private bool _canBuyMissing;
+    private string _buyMissingText = "";
+    private string _buyMissingTip = "";
     private Recipe? _next;
 
     public UpgradeRow(GameHost host, UpgradeKind kind, string target)
@@ -61,11 +66,22 @@ public sealed class UpgradeRow : ObservableObject
         {
             if (_next is not null && _host.Engine.TryCraft(_next, out _)) _host.Save();
         });
+        BuyMissingCommand = new RelayCommand(() =>
+        {
+            if (_next is not null && _host.Engine.BuyMissingIngredients(_next, out _) > 0) _host.Save();
+        });
     }
 
     public UpgradeKind Kind { get; }
     public string Target { get; }
     public ICommand CraftCommand { get; }
+    public ICommand BuyMissingCommand { get; }
+
+    /// <summary>The next upgrade is only missing ingredients (which the Bazaar sells).</summary>
+    public bool HasMissing { get => _hasMissing; private set => Set(ref _hasMissing, value); }
+    public bool CanBuyMissing { get => _canBuyMissing; private set => Set(ref _canBuyMissing, value); }
+    public string BuyMissingText { get => _buyMissingText; private set => Set(ref _buyMissingText, value); }
+    public string BuyMissingTip { get => _buyMissingTip; private set => Set(ref _buyMissingTip, value); }
     public ImageSource? Icon { get => _icon; private set => Set(ref _icon, value); }
     public string Title { get => _title; private set => Set(ref _title, value); }
     public string Effect { get => _effect; private set => Set(ref _effect, value); }
@@ -90,7 +106,7 @@ public sealed class UpgradeRow : ObservableObject
         {
             NextTitle = "Fully upgraded!";
             NextEffect = Cost = Status = "";
-            CanCraft = false;
+            CanCraft = HasMissing = false;
             return;
         }
         NextTitle = "Next: " + _next.ResultName;
@@ -98,12 +114,25 @@ public sealed class UpgradeRow : ObservableObject
         Cost = Describe.Cost(engine, _next);
         CanCraft = engine.CanCraft(_next, out string reason);
         Status = CanCraft ? "Ready to craft!" : reason;
+
+        var missing = engine.MissingIngredients(_next);
+        HasMissing = missing.Count > 0 && engine.CraftBlocker(_next) is null;
+        if (HasMissing)
+        {
+            long cost = engine.MissingIngredientsCost(_next);
+            long coins = engine.State.Coins;
+            CanBuyMissing = coins >= cost;
+            BuyMissingText = $"Buy missing · {Format.Number(cost)}";
+            BuyMissingTip = $"Buy {Describe.Items(missing)} on the Bazaar for {Format.Coins(cost)}."
+                            + (CanBuyMissing ? "" : $" You need {Format.Number(cost - coins)} more coins.");
+        }
     }
 
     private ImageSource IconFor(int tier) => Kind switch
     {
         UpgradeKind.Tool => tier > 0 ? _host.Sprites.ToolIcon(tier) : _host.Sprites.CropIcon(Crops.Get(Target)),
         UpgradeKind.Armour => _host.Sprites.ArmourIcon(Enum.Parse<ArmourSlot>(Target), tier),
+        UpgradeKind.Compactor => _host.Sprites.CompactorIcon(tier),
         _ => _host.Sprites.TalismanIcon(Enum.Parse<TalismanFamily>(Target), tier),
     };
 
@@ -111,6 +140,7 @@ public sealed class UpgradeRow : ObservableObject
     {
         UpgradeKind.Tool => Tools.Name(Crops.Get(Target), tier) + (tier == 0 ? $" for {Crops.Get(Target).Name}" : ""),
         UpgradeKind.Armour => Armour.Name(Enum.Parse<ArmourSlot>(Target), tier),
+        UpgradeKind.Compactor => Compactors.Name(tier),
         _ => Talismans.Name(Enum.Parse<TalismanFamily>(Target), tier),
     };
 }
@@ -125,6 +155,7 @@ public sealed class CropGuideRow : ObservableObject
     private string _badge = "";
     private Brush _badgeBrush = Muted;
     private double _rowOpacity = 1;
+    private bool _isBest;
 
     public CropGuideRow(CropDef crop, ImageSource icon)
     {
@@ -140,16 +171,22 @@ public sealed class CropGuideRow : ObservableObject
     public Brush BadgeBrush { get => _badgeBrush; private set => Set(ref _badgeBrush, value); }
     public double RowOpacity { get => _rowOpacity; private set => Set(ref _rowOpacity, value); }
 
-    public void Update(GameEngine engine)
+    /// <summary>The unlocked crop that makes the most coins an hour.</summary>
+    public bool IsBest { get => _isBest; private set => Set(ref _isBest, value); }
+
+    public void Update(GameEngine engine, CropDef best)
     {
         double drops = engine.ExpectedDrops(Crop, handBreak: false);
         Details = $"{Format.Number(drops, 1)} per crop broken (worth {Format.Number(drops * engine.MarketPrice(Items.Raw(Crop)), 1)} coins) · "
                   + $"{Crop.FarmingXp} Farming XP";
 
         bool unlocked = engine.IsCropUnlocked(Crop);
-        Badge = unlocked ? $"{Format.Coins(Crop.CoinsPerBreak)} per crop broken" : $"Garden Level {Crop.UnlockGardenLevel}";
+        Badge = unlocked
+            ? $"≈ {Format.Number((long)Math.Round(engine.CoinsPerHour(Crop)))} coins an hour"
+            : $"Garden Level {Crop.UnlockGardenLevel}";
         BadgeBrush = unlocked ? Gold : Muted;
         RowOpacity = unlocked ? 1 : 0.5;
+        IsBest = unlocked && Crop == best;
     }
 }
 
@@ -201,21 +238,25 @@ public sealed class CollectionRow : ObservableObject
     }
 }
 
-/// <summary>One stack of items in the Market tab: crops, packed crops or dense crops.</summary>
+/// <summary>One stack of items in the Inventory tab: crops, packed crops or dense crops.</summary>
 public sealed class InventoryRow : ObservableObject
 {
+    private readonly GameHost _host;
     private string _countText = "";
+    private string _keptText = "";
     private string _sellText = "";
-    private string _packText = "";
+    private bool _canSell;
     private bool _canPack;
+    private string _packTip = "";
+    private bool _isLocked;
 
-    public InventoryRow(ItemDef item, ImageSource icon, ImageSource? container, ICommand sell, ICommand pack)
+    public InventoryRow(GameHost host, ItemDef item, ImageSource icon, ImageSource? container, ICommand sell)
     {
+        _host = host;
         Item = item;
         Icon = icon;
         Container = container;
         SellCommand = sell;
-        PackCommand = pack;
     }
 
     public ItemDef Item { get; }
@@ -227,21 +268,136 @@ public sealed class InventoryRow : ObservableObject
     public bool HasContainer => Container is not null;
     public string Name => Item.Name;
     public ICommand SellCommand { get; }
-    public ICommand PackCommand { get; }
     public string CountText { get => _countText; private set => Set(ref _countText, value); }
+
+    /// <summary>"Keeping 240 for upgrades", or "" when nothing is kept.</summary>
+    public string KeptText { get => _keptText; private set => Set(ref _keptText, value); }
+
+    public bool HasKeptText => KeptText.Length > 0;
     public string SellText { get => _sellText; private set => Set(ref _sellText, value); }
-    public string PackText { get => _packText; private set => Set(ref _packText, value); }
+    public bool CanSell { get => _canSell; private set => Set(ref _canSell, value); }
     public bool CanPack { get => _canPack; private set => Set(ref _canPack, value); }
+    public string PackTip { get => _packTip; private set => Set(ref _packTip, value); }
+
+    /// <summary>Locked items are never sold, by any button.</summary>
+    public bool IsLocked
+    {
+        get => _isLocked;
+        set
+        {
+            if (!Set(ref _isLocked, value)) return;
+            _host.Engine.SetLocked(Item, value);
+            _host.Save();
+        }
+    }
+
+    /// <summary>How many you could pack right now.</summary>
+    public long MaxPacks { get; private set; }
+
+    /// <summary>The choices in the Pack menu: (label, how many to make).</summary>
+    public IReadOnlyList<(string Label, long Count)> PackChoices
+    {
+        get
+        {
+            var choices = new List<(string, long)>();
+            if (Item.PacksInto is not { } into || MaxPacks <= 0) return choices;
+            foreach (long n in new long[] { 1, 5, 10, 25, 50, 100 })
+                if (n < MaxPacks) choices.Add(($"{Format.Number(n)} {into.Name}  (uses {Format.Number(n * ItemDef.PackSize)})", n));
+            choices.Add(($"All: {Format.Number(MaxPacks)} {into.Name}  (uses {Format.Number(MaxPacks * ItemDef.PackSize)})", MaxPacks));
+            return choices;
+        }
+    }
 
     public void Update(GameEngine engine)
     {
         long count = engine.GetItem(Item);
         double price = engine.MarketPrice(Item);
         CountText = $"x{Format.Number(count)} · {Format.Price(Math.Round(price, 1))} coins each at the Market";
-        SellText = $"Sell for {Format.Number((long)Math.Floor(count * price))}";
-        long packs = Item.PacksInto is null ? 0 : count / ItemDef.PackSize;
-        CanPack = packs > 0;
-        PackText = Item.PacksInto is null ? "" : $"Pack into {Format.Number(packs)} {Item.PacksInto.Name}";
+
+        Set(ref _isLocked, engine.IsLocked(Item), nameof(IsLocked));
+        long kept = engine.KeptForUpgrades(Item);
+        KeptText = IsLocked ? "Locked: never sold"
+            : kept > 0 ? (kept == count ? "All kept for your next upgrades" : $"Keeping {Format.Number(kept)} for your next upgrades")
+            : "";
+        Raise(nameof(HasKeptText));
+
+        long sellable = engine.SellableAmount(Item);
+        CanSell = sellable > 0;
+        SellText = IsLocked ? "Locked"
+            : sellable <= 0 ? "Kept for upgrades"
+            : sellable == count ? $"Sell for {Format.Number((long)Math.Floor(count * price))}"
+            : $"Sell {Format.Number(sellable)} for {Format.Number((long)Math.Floor(sellable * price))}";
+
+        MaxPacks = Item.PacksInto is null ? 0 : count / ItemDef.PackSize;
+        CanPack = MaxPacks > 0;
+        PackTip = Item.PacksInto is null ? "" : $"Pack {ItemDef.PackSize} {Item.Name} into 1 {Item.PacksInto.Name}. Choose how many.";
+    }
+}
+
+/// <summary>One crop in the Inventory tab's "Auto-sell &amp; Compactor" list.</summary>
+public sealed class CropSettingRow : ObservableObject
+{
+    private readonly GameHost _host;
+    private bool _autoSell;
+    private bool _compact;
+    private bool _isUnlocked;
+    private bool _hasCompactor;
+    private string _keptText = "";
+
+    public CropSettingRow(GameHost host, CropDef crop, ImageSource icon)
+    {
+        _host = host;
+        Crop = crop;
+        Icon = icon;
+    }
+
+    public CropDef Crop { get; }
+    public ImageSource Icon { get; }
+    public string Name => Crop.Name;
+    public bool IsUnlocked { get => _isUnlocked; private set => Set(ref _isUnlocked, value); }
+    public bool HasCompactor { get => _hasCompactor; private set => Set(ref _hasCompactor, value); }
+    public string KeptText { get => _keptText; private set => Set(ref _keptText, value); }
+
+    public bool AutoSell
+    {
+        get => _autoSell;
+        set
+        {
+            if (!Set(ref _autoSell, value)) return;
+            _host.Engine.SetAutoSell(Crop, value);
+            _host.Save();
+        }
+    }
+
+    public bool Compact
+    {
+        get => _compact;
+        set
+        {
+            if (!Set(ref _compact, value)) return;
+            _host.Engine.SetCompacting(Crop, value);
+            _host.Save();
+        }
+    }
+
+    public void Update(GameEngine engine)
+    {
+        IsUnlocked = engine.IsCropUnlocked(Crop);
+        HasCompactor = engine.State.Compactor > 0;
+        Set(ref _autoSell, engine.IsAutoSelling(Crop), nameof(AutoSell));
+        Set(ref _compact, engine.IsCompacting(Crop), nameof(Compact));
+
+        if (!engine.State.Settings.KeepForUpgrades)
+        {
+            KeptText = "";
+            return;
+        }
+        var needs = engine.UpgradeNeeds(Crop);
+        var parts = new List<string>();
+        if (needs.Raw > 0) parts.Add(Format.Number(needs.Raw));
+        if (needs.Packed > 0) parts.Add($"{Format.Number(needs.Packed)} Packed");
+        if (needs.Dense > 0) parts.Add($"{Format.Number(needs.Dense)} Dense");
+        KeptText = parts.Count == 0 ? "Nothing needed right now" : "Upgrades need " + string.Join(" + ", parts);
     }
 }
 
@@ -288,6 +444,10 @@ public sealed class BazaarRow : ObservableObject
     public string TrendText { get => _trendText; private set => Set(ref _trendText, value); }
     public Brush TrendBrush { get => _trendBrush; private set => Set(ref _trendBrush, value); }
     public bool IsSelected { get => _isSelected; set => Set(ref _isSelected, value); }
+
+    /// <summary>For the search box: "mel" finds Melon, Packed Melon and Dense Melon.</summary>
+    public bool Matches(string search) =>
+        string.IsNullOrWhiteSpace(search) || Name.Contains(search.Trim(), StringComparison.OrdinalIgnoreCase);
 
     public void Update(GameEngine engine)
     {

@@ -13,8 +13,40 @@ public sealed class BoolToVisibilityConverter : IValueConverter
 {
     public bool Invert { get; set; }
 
+    /// <summary>Hidden keeps the space (so things beside it don't move); Collapsed doesn't.</summary>
+    public bool HideInsteadOfCollapse { get; set; }
+
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
-        (value is true) != Invert ? Visibility.Visible : Visibility.Collapsed;
+        (value is true) != Invert ? Visibility.Visible
+            : HideInsteadOfCollapse ? Visibility.Hidden : Visibility.Collapsed;
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>true → false and false → true.</summary>
+public sealed class NotConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) => value is not true;
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => value is not true;
+}
+
+/// <summary>Visible when a number is above zero.</summary>
+public sealed class CountToVisibilityConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+        value is int n && n > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>Visible when a string isn't empty.</summary>
+public sealed class TextToVisibilityConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+        value is string { Length: > 0 } ? Visibility.Visible : Visibility.Collapsed;
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
         throw new NotSupportedException();
@@ -22,11 +54,38 @@ public sealed class BoolToVisibilityConverter : IValueConverter
 
 internal static class Format
 {
-    public static string Number(long value) => value.ToString("N0", CultureInfo.CurrentCulture);
+    /// <summary>Show big numbers as "12.3K" and "1.23M" (the Short numbers setting).</summary>
+    public static bool ShortNumbers { get; set; }
 
-    /// <summary>A Bazaar price: "2.4", "1,280", "51,200.5".</summary>
+    /// <summary>"1,234", or "12.3K" with short numbers on (numbers under 10,000 are always shown in full).</summary>
+    public static string Number(long value) =>
+        ShortNumbers && Math.Abs(value) >= 10_000 ? Short(value) : value.ToString("N0", CultureInfo.CurrentCulture);
+
+    /// <summary>A Bazaar price: "2.4", "1,280", "51,200.5" (or "51.2K" with short numbers on).</summary>
     public static string Price(double value) =>
-        value.ToString(value % 1 == 0 ? "N0" : "N1", CultureInfo.CurrentCulture);
+        ShortNumbers && Math.Abs(value) >= 10_000 ? Short(value)
+            : value.ToString(value % 1 == 0 ? "N0" : "N1", CultureInfo.CurrentCulture);
+
+    /// <summary>"12.3K", "456K", "1.23M", "7.5B": three significant digits at most.</summary>
+    public static string Short(double value)
+    {
+        string[] suffixes = { "", "K", "M", "B", "T" };
+        double n = value;
+        int i = 0;
+        while (Math.Abs(n) >= 1_000 && i < suffixes.Length - 1)
+        {
+            n /= 1_000;
+            i++;
+        }
+        // Round to 3 significant digits; 999.95K rounds up to 1M.
+        double rounded = Math.Abs(n) >= 100 ? Math.Round(n) : Math.Abs(n) >= 10 ? Math.Round(n, 1) : Math.Round(n, 2);
+        if (Math.Abs(rounded) >= 1_000 && i < suffixes.Length - 1)
+        {
+            rounded /= 1_000;
+            i++;
+        }
+        return rounded.ToString("0.##", CultureInfo.CurrentCulture) + suffixes[i];
+    }
 
     /// <summary>"▲ 4%", "▼ 2%", "–".</summary>
     public static string Trend(double change) =>

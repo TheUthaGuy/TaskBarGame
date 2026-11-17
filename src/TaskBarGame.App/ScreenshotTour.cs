@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using TaskBarGame.Core;
@@ -63,6 +64,10 @@ internal sealed class ScreenshotTour
         state.Talismans[TalismanFamily.Clover] = 2;
         state.Talismans[TalismanFamily.Swiftstep] = 1;
         state.Talismans[TalismanFamily.Scholar] = 1;
+        state.Compactor = 1;
+        state.Settings.AutoSellCrops.Add("potato");
+        state.Settings.LockedItems.Add("packed_melon");
+        state.Settings.CompactorSkips.Add("carrot");
 
         state.Collections["wheat"] = 52_000;
         state.Collections["carrot"] = 30_000;
@@ -77,6 +82,7 @@ internal sealed class ScreenshotTour
         state.Inventory["carrot"] = 120;
         state.Inventory["potato"] = 95;
         state.Inventory["packed_melon"] = 9;
+        state.Inventory["sugarcane"] = 75; // enough for a Sugar Cane Hoe: shows "Upgrades 1"
         state.Stats.TotalBreaks = 18_730;
         state.Stats.HandBreaks = 412;
         state.Stats.CoinsEarned = 96_420;
@@ -106,11 +112,21 @@ internal sealed class ScreenshotTour
         await Wait(0.8);
         var panel = _strip.Panel ?? throw new InvalidOperationException("The garden panel didn't open.");
         string[] tabs = { "field", "farming", "upgrades", "collections", "bazaar", "inventory", "settings" };
+        string[] alsoScrolledDown = { "farming", "upgrades", "inventory", "settings" };
         for (int i = 0; i < tabs.Length; i++)
         {
             panel.Tabs.SelectedIndex = i;
             await Wait(0.5);
             SaveElement((FrameworkElement)panel.Content, $"panel-{tabs[i]}.png");
+
+            // ...and the bottom of the longer tabs (the crop guide, the Compactor, auto-sell, pop-ups).
+            if (Array.IndexOf(alsoScrolledDown, tabs[i]) >= 0 && panel.Tabs.SelectedContent is ScrollViewer scroller)
+            {
+                scroller.ScrollToEnd();
+                await Wait(0.4);
+                SaveElement((FrameworkElement)panel.Content, $"panel-{tabs[i]}-bottom.png");
+                scroller.ScrollToHome();
+            }
         }
         panel.Close();
 

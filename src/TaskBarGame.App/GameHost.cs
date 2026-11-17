@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Windows;
 using System.Windows.Threading;
 using TaskBarGame.Core;
 
@@ -17,6 +18,9 @@ public sealed class GameHost : IDisposable
 
     /// <summary>A gap longer than this (PC asleep, app frozen) counts as offline time.</summary>
     private static readonly TimeSpan SleepGap = TimeSpan.FromSeconds(20);
+
+    /// <summary>Milliseconds between game updates: normal, on battery (with Battery saver on), and while the strip is hidden.</summary>
+    private const int NormalFrameMs = 33, BatteryFrameMs = 66, HiddenFrameMs = 250;
 
     private readonly DispatcherTimer _timer;
     private readonly Stopwatch _clock = new();
@@ -36,8 +40,9 @@ public sealed class GameHost : IDisposable
         Farmer = new FarmerAgent();
         Sprites = new SpriteCache(SpriteSheet.LoadDefault());
 
-        _timer = new DispatcherTimer(DispatcherPriority.Normal) { Interval = TimeSpan.FromMilliseconds(33) };
+        _timer = new DispatcherTimer(DispatcherPriority.Normal) { Interval = TimeSpan.FromMilliseconds(NormalFrameMs) };
         _timer.Tick += OnTick;
+        Format.ShortNumbers = Settings.ShortNumbers;
     }
 
     public GameEngine Engine { get; }
@@ -46,7 +51,10 @@ public sealed class GameHost : IDisposable
     public SpriteCache Sprites { get; }
     public GameSettings Settings => Engine.State.Settings;
 
-    /// <summary>Raised about 30 times a second, after the game has been updated. Argument = seconds passed.</summary>
+    /// <summary>True while the laptop is running on battery and Battery saver is on.</summary>
+    public bool SavingBattery { get; private set; }
+
+    /// <summary>Raised about 30 times a second (less when saving battery), after the game has been updated. Argument = seconds passed.</summary>
     public event Action<double>? Frame;
 
     /// <summary>Raised after catching up on time the PC spent asleep.</summary>
@@ -68,8 +76,29 @@ public sealed class GameHost : IDisposable
     /// <summary>Call after changing anything in <see cref="Settings"/>.</summary>
     public void ApplySettings()
     {
+        Format.ShortNumbers = Settings.ShortNumbers;
+        UpdateFrameRate(_stripHidden);
         Save();
         SettingsChanged?.Invoke();
+    }
+
+    private bool _stripHidden;
+
+    /// <summary>
+    /// Battery saver: the game updates less often while nothing is on screen (a fullscreen app is in
+    /// front) and, if that setting is on, while the laptop is unplugged. Crops and the farmer keep
+    /// going at the same speed either way; only the animation gets choppier.
+    /// </summary>
+    public void UpdateFrameRate(bool stripHidden)
+    {
+        _stripHidden = stripHidden;
+        bool onBattery;
+        try { onBattery = SystemParameters.PowerLineStatus == PowerLineStatus.Offline; }
+        catch (Exception) { onBattery = false; }
+        SavingBattery = Settings.BatterySaver && onBattery;
+
+        int ms = stripHidden ? HiddenFrameMs : SavingBattery ? BatteryFrameMs : NormalFrameMs;
+        if ((int)_timer.Interval.TotalMilliseconds != ms) _timer.Interval = TimeSpan.FromMilliseconds(ms);
     }
 
     public void Save()
@@ -106,7 +135,7 @@ public sealed class GameHost : IDisposable
             dt = 0;
         }
 
-        dt = Math.Clamp(dt, 0, 0.25);
+        dt = Math.Clamp(dt, 0, Math.Max(0.25, 2 * _timer.Interval.TotalSeconds));
         Engine.Tick(dt);
         Farmer.Tick(dt, Engine);
 

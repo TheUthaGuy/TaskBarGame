@@ -20,6 +20,10 @@
 
     <local:BoolToVisibilityConverter x:Key="BoolToVisibility" />
     <local:BoolToVisibilityConverter x:Key="InverseBoolToVisibility" Invert="True" />
+    <local:BoolToVisibilityConverter x:Key="BoolToHidden" HideInsteadOfCollapse="True" />
+    <local:CountToVisibilityConverter x:Key="CountToVisibility" />
+    <local:TextToVisibilityConverter x:Key="TextToVisibility" />
+    <local:NotConverter x:Key="Not" />
 
     <!-- ============================================================ text -->
     <Style x:Key="H2" TargetType="TextBlock">
