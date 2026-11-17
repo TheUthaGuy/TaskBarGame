@@ -37,6 +37,9 @@ public sealed class GameState
 
     public BazaarState Bazaar { get; set; } = new();
 
+    /// <summary>Visitors, the Visitor Shop, the Composter and timed boosts.</summary>
+    public GardenState Garden { get; set; } = new();
+
     /// <summary>Hats and outfits whose unlocking you've been told about.</summary>
     public HashSet<string> UnlockedCosmetics { get; set; } = new();
 
@@ -66,6 +69,7 @@ public sealed class GameState
         Talismans ??= new();
         Bazaar ??= new();
         UnlockedCosmetics ??= new();
+        Garden ??= new();
         Settings ??= new();
         Stats ??= new();
 
@@ -96,6 +100,7 @@ public sealed class GameState
 
         Field.Normalize();
         Bazaar.Normalize();
+        Garden.Normalize();
         Settings.Normalize();
 
         if (LastSavedUtc > DateTime.UtcNow || LastSavedUtc == default)

@@ -61,6 +61,7 @@ public sealed class SpriteCache
         ["meadow"] = (0xFFF5F1E6, 0xFF4A9E3F, 0xFF2E6B2E),
         ["twilight"] = (0xFFC9A0FF, 0xFF4B3F8C, 0xFF2E2660),
         ["golden"] = (0xFFFFF0A0, 0xFFE8B923, 0xFFA87B16),
+        ["wanderer"] = (0xFF59C7EE, 0xFF6E6E6E, 0xFF444444),
     };
 
     /// <summary>

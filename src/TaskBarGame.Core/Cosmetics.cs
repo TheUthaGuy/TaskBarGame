@@ -35,6 +35,8 @@ public static class Cosmetics
         new("flowers", CosmeticSlot.Hat, "Flower Crown", "Max out any collection (Tier X)",
             e => (Crops.All.Max(e.GetCollectionTier), CollectionTiers.MaxTier)),
         new("crown", CosmeticSlot.Hat, "Golden Crown", "Reach Farming Level 50", e => (e.FarmingLevel, FarmingSkill.MaxLevel)),
+        Bought("hood", CosmeticSlot.Hat, "Traveller's Hood"),
+        Bought("starhat", CosmeticSlot.Hat, "Stargazer's Hat"),
     };
 
     public static readonly IReadOnlyList<Cosmetic> Outfits = new Cosmetic[]
@@ -44,7 +46,16 @@ public static class Cosmetics
         new("meadow", CosmeticSlot.Outfit, "Meadow Green", "Break 1,000 crops by hand", e => (e.State.Stats.HandBreaks, 1_000)),
         new("twilight", CosmeticSlot.Outfit, "Twilight Purple", "Reach Garden Level 10", e => (e.GardenLevel, 10)),
         new("golden", CosmeticSlot.Outfit, "Golden Harvest", "Wear a full Verdant armour set", e => (e.FullSetTier, Armour.MaxTier)),
+        Bought("wanderer", CosmeticSlot.Outfit, "Wanderer's Garb"),
     };
+
+    /// <summary>A cosmetic sold in the Visitor Shop for Garden Tokens.</summary>
+    private static Cosmetic Bought(string id, CosmeticSlot slot, string name)
+    {
+        long price = Garden.Shop.First(i => i.Target == id).Cost;
+        return new Cosmetic(id, slot, name, $"Buy it in the Visitor Shop ({price} tokens)",
+            e => (e.State.Garden.OwnedCosmetics.Contains(id) ? 1 : 0, 1));
+    }
 
     public static IEnumerable<Cosmetic> All => Hats.Concat(Outfits);
 

@@ -147,7 +147,7 @@ public class SpriteSheetTests
             "coin", "sparkle", "sack", "crate",
             "icon_helmet", "icon_chestplate", "icon_leggings", "icon_boots",
             "icon_charm", "icon_ring", "icon_relic", "icon_compactor",
-            "hat_cap", "hat_bandana", "hat_tophat", "hat_flowers", "hat_crown",
+            "hat_cap", "hat_bandana", "hat_tophat", "hat_flowers", "hat_crown", "hat_hood", "hat_starhat",
         };
         foreach (var name in required.Concat(Crops.All.Select(c => c.RipeSprite)))
             Assert.True(sheet.Contains(name), $"sprites.txt is missing [sprite {name}]");
