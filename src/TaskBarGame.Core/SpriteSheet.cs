@@ -21,7 +21,14 @@ public sealed class SpriteSheet
 {
     private readonly Dictionary<string, Sprite> _sprites;
 
-    private SpriteSheet(Dictionary<string, Sprite> sprites) => _sprites = sprites;
+    private SpriteSheet(Dictionary<string, Sprite> sprites, Dictionary<char, uint> palette)
+    {
+        _sprites = sprites;
+        Palette = palette;
+    }
+
+    /// <summary>The colours from [palette], by character (0xAARRGGBB).</summary>
+    public IReadOnlyDictionary<char, uint> Palette { get; }
 
     public IReadOnlyCollection<Sprite> All => _sprites.Values;
 
@@ -124,7 +131,7 @@ public sealed class SpriteSheet
             }
         }
         FinishSprite();
-        return new SpriteSheet(sprites);
+        return new SpriteSheet(sprites, palette);
     }
 
     private static char ParsePaletteKey(string line, Func<string, FormatException> error)

@@ -17,34 +17,37 @@ using TaskBarGame.Core;
 namespace TaskBarGame.App;
 
 /// <summary>
-/// The garden strip above the taskbar: plots, the walking farmer, a small coins/levels display,
-/// floating "+3 Wheat" numbers and level-up popups.
+/// The field strip above the taskbar: one long row of crops, the farmer sweeping it with their hoe,
+/// a small coins/levels display, floating "+12 Wheat" numbers and level-up popups.
 /// </summary>
 public partial class StripWindow : Window
 {
     /// <summary>See-through space above the strip where popups float up.</summary>
     private const double PopupSpace = 140;
 
-    /// <summary>The window is at least this wide so popups have room even with few plots.</summary>
+    /// <summary>The window is at least this wide so popups have room even with a short row.</summary>
     private const double MinWindowWidth = 360;
 
     /// <summary>Gap between the strip and the left/right edge of the screen.</summary>
     private const double ScreenMargin = 8;
 
+    /// <summary>The farmer's crops are added up and shown as one "+N" this often.</summary>
+    private const double FloaterInterval = 0.9;
+
     private static readonly Brush StripBrush = Format.Brush("#E61B231C");
     private static readonly Brush GrassBrush = Format.Brush("#5C8A45");
     private static readonly Brush HoverBrush = Format.Brush("#30FFFFFF");
-    private static readonly Brush TrackBrush = Format.Brush("#50000000");
     private static readonly Brush TextBrush = Format.Brush("#EEF3EA");
     private static readonly Brush GoldBrush = Format.Brush("#F5C542");
     private static readonly Brush XpBrush = Format.Brush("#5FD4E8");
     private static readonly Brush GardenBrush = Format.Brush("#7BC950");
+    private static readonly Brush CraftBrush = Format.Brush("#C9A0FF");
     private static readonly Brush DangerBrush = Format.Brush("#E5675A");
     private static readonly Brush ToastBrush = Format.Brush("#F21B231C");
     private static readonly Effect TextShadow = CreateTextShadow();
 
     private readonly GameHost _host;
-    private readonly List<PlotView> _plots = new();
+    private readonly List<TileView> _tiles = new();
     private readonly List<Floater> _floaters = new();
     private readonly List<Particle> _particles = new();
     private readonly Random _rng = new();
@@ -55,14 +58,13 @@ public partial class StripWindow : Window
 
     // Layout, in WPF units (1/96 inch). Recalculated by BuildLayout().
     private double _unit;        // size of one sprite pixel
-    private double _tile;        // size of one 16x16 sprite
-    private double _gap;         // space between plots
+    private double _tile;        // size of one 16x16 sprite = one crop in the row
     private double _pad;         // padding inside the strip
     private double _fontSize;
     private double _stripLeft;   // where the strip starts inside the window
     private double _stripWidth;
     private double _stripHeight;
-    private double _tileTop;     // y of the plots and the farmer
+    private double _tileTop;     // y of the crops and the farmer
     private double _homeX;       // where the farmer stands while the strip is tucked away
 
     private Canvas _stripLayer = new();
@@ -74,11 +76,9 @@ public partial class StripWindow : Window
     private TextBlock? _lockTip;
     private TextBlock _coinsText = new();
     private TextBlock _levelsText = new();
-    private Border _ripeBadge = new();
-    private TextBlock _ripeBadgeText = new();
 
     private IntPtr _hwnd;
-    private int _builtPlotCount = -1;
+    private int _builtLength = -1;
     private bool _expanded = true;
     private bool _menuOpen;
     private bool _hiddenForFullscreen;
@@ -91,9 +91,11 @@ public partial class StripWindow : Window
     private Toast? _toast;
     private PanelWindow? _panel;
 
-
-    /// <summary>The garden panel, if it's open.</summary>
-    public PanelWindow? Panel => _panel;
+    // The farmer's breaks since the last "+N" floater.
+    private CropDef? _pendingCrop;
+    private long _pendingDrops;
+    private long _pendingCoins;
+    private double _sinceFloater;
 
     public StripWindow(GameHost host)
     {
@@ -139,14 +141,18 @@ public partial class StripWindow : Window
             if (Settings.StripMode == StripMode.Always) SetExpanded(true);
             else if (!ShouldStayExpanded()) SetExpanded(false);
         };
-        Engine.Harvested += OnHarvested;
+        Engine.Broke += OnBroke;
         Engine.LeveledUp += OnLeveledUp;
         Engine.CollectionTierReached += OnCollectionTier;
+        Engine.Crafted += OnCrafted;
         Engine.Changed += () =>
         {
-            if (Engine.Plots.Count != _builtPlotCount) RequestLayout();
+            if (Engine.FieldLength != _builtLength) RequestLayout();
         };
     }
+
+    /// <summary>The panel, if it's open.</summary>
+    public PanelWindow? Panel => _panel;
 
     private GameEngine Engine => _host.Engine;
     private GameSettings Settings => _host.Settings;
@@ -170,33 +176,32 @@ public partial class StripWindow : Window
         });
     }
 
-    /// <summary>Creates every element of the strip. Called when plots, size, position or DPI change.</summary>
+    /// <summary>Creates every element of the strip. Called when the field length, size, position or DPI change.</summary>
     private void BuildLayout()
     {
         double dpi = VisualTreeHelper.GetDpi(this).DpiScaleX;
         _layoutDpi = dpi;
         double baseScale = Settings.Size switch
         {
-            StripSize.Small => 2,
-            StripSize.Large => 4,
-            _ => 3,
+            StripSize.Small => 1,
+            StripSize.Large => 3,
+            _ => 2,
         };
         // Round to whole screen pixels so the pixel art stays crisp at any Windows scaling.
         _unit = Math.Max(1, Math.Round(baseScale * dpi)) / dpi;
         _tile = 16 * _unit;
-        _gap = _unit;
-        _pad = 3 * _unit;
-        _fontSize = baseScale switch { 2 => 10, 3 => 12, _ => 14 };
+        _pad = Math.Max(3, 3 * _unit);
+        _fontSize = baseScale switch { 1 => 10, 2 => 12, _ => 14 };
 
-        int plotCount = Engine.Plots.Count;
-        bool hasLockSlot = GardenProgression.NextPlotUnlock(plotCount) is not null;
-        int slots = plotCount + (hasLockSlot ? 1 : 0);
-        double plotsWidth = slots * _tile + (slots - 1) * _gap;
+        int length = Engine.FieldLength;
+        bool canGrow = FieldProgression.Next(length) is not null;
+        double rowWidth = length * _tile;
+        double lockWidth = canGrow ? _tile + _pad : 0;
         double hudWidth = _fontSize * 10.5;
 
-        _stripWidth = _pad + plotsWidth + 2 * _pad + hudWidth + _pad;
-        _stripHeight = 21 * _unit; // 2 padding + 16 tile + 1 progress bar + 2 padding
-        _tileTop = PopupSpace + 2 * _unit;
+        _stripWidth = _pad + rowWidth + lockWidth + 2 * _pad + hudWidth + _pad;
+        _stripHeight = Math.Max(20 * _unit, _fontSize * 2.9 + 8);
+        _tileTop = PopupSpace + _stripHeight - _tile - 2 * _unit;
 
         double windowWidth = Math.Max(_stripWidth, MinWindowWidth);
         Width = windowWidth;
@@ -220,7 +225,7 @@ public partial class StripWindow : Window
         _homeX = homePadLeft + _pad;
 
         Root.Children.Clear();
-        _plots.Clear();
+        _tiles.Clear();
         _floaters.Clear();
         _particles.Clear();
 
@@ -230,20 +235,20 @@ public partial class StripWindow : Window
         Root.Children.Add(_stripLayer);
         Root.Children.Add(_homeLayer);
 
-        BuildStrip(plotCount, hasLockSlot, plotsWidth, hudWidth);
+        BuildStrip(length, canGrow, rowWidth + lockWidth, hudWidth);
         BuildHomePad(homePadLeft, homePadWidth);
         BuildFarmer();
         Root.Children.Add(_fxLayer);
 
-        _builtPlotCount = plotCount;
+        _builtLength = length;
         ApplyExpanded();
         Reposition();
-        UpdatePlots();
+        UpdateTiles();
         UpdateSlow();
         if (_toast is not null) ShowToastElement(_toast);
     }
 
-    private void BuildStrip(int plotCount, bool hasLockSlot, double plotsWidth, double hudWidth)
+    private void BuildStrip(int length, bool canGrow, double rowWidth, double hudWidth)
     {
         var panel = new Border
         {
@@ -257,32 +262,34 @@ public partial class StripWindow : Window
         panel.MouseRightButtonUp += (_, e) => { OpenMainMenu(panel); e.Handled = true; };
         Place(_stripLayer, panel, _stripLeft, PopupSpace);
 
-        for (int i = 0; i < plotCount; i++)
-            _plots.Add(BuildPlot(i));
+        for (int i = 0; i < length; i++)
+            _tiles.Add(BuildTile(i));
 
-        if (hasLockSlot)
-            BuildLockSlot(PlotLeft(plotCount));
+        if (canGrow)
+        {
+            BuildLockSlot(TileLeft(length) + _pad);
+        }
         else
         {
             _lockSlot = null;
             _lockTip = null;
         }
 
-        // Coins and levels, to the right of the plots. Clicking it opens the panel.
+        // Coins and levels, to the right of the row. Clicking it opens the panel.
         _coinsText = new TextBlock
         {
             Foreground = GoldBrush,
             FontWeight = FontWeights.Bold,
             FontSize = _fontSize + 1,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(_unit * 1.5, 0, 0, 0),
+            Margin = new Thickness(Math.Max(3, _unit * 1.5), 0, 0, 0),
         };
         _levelsText = new TextBlock
         {
             Foreground = TextBrush,
             FontSize = _fontSize - 1,
             TextTrimming = TextTrimming.CharacterEllipsis,
-            Margin = new Thickness(0, _unit * 0.5, 0, 0),
+            Margin = new Thickness(0, 1, 0, 0),
         };
         var coinRow = new StackPanel { Orientation = Orientation.Horizontal };
         coinRow.Children.Add(CropMenu.PixelImage(_host.Sprites["coin"], Math.Round(_fontSize * 1.1)));
@@ -291,30 +298,24 @@ public partial class StripWindow : Window
         var hud = new StackPanel
         {
             Width = hudWidth,
-            Height = _tile,
+            Height = _stripHeight - _unit,
             Background = Brushes.Transparent,
             Cursor = Cursors.Hand,
-            ToolTip = "Open your garden (right-click for options)",
+            ToolTip = "Open the panel (right-click for options)",
         };
-        hud.Children.Add(new Border { Height = Math.Max(0, (_tile - _fontSize * 2.9) / 2) });
+        hud.Children.Add(new Border { Height = Math.Max(0, (_stripHeight - _fontSize * 2.9) / 2 - _unit) });
         hud.Children.Add(coinRow);
         hud.Children.Add(_levelsText);
         hud.MouseLeftButtonUp += (_, e) => { TogglePanel(); e.Handled = true; };
         hud.MouseRightButtonUp += (_, e) => { OpenMainMenu(hud); e.Handled = true; };
-        Place(_stripLayer, hud, _stripLeft + _pad + plotsWidth + 2 * _pad, _tileTop);
+        Place(_stripLayer, hud, _stripLeft + _pad + rowWidth + 2 * _pad, PopupSpace + _unit);
     }
 
-    private PlotView BuildPlot(int index)
+    private TileView BuildTile(int index)
     {
-        double x = PlotLeft(index);
-        var hover = new Border { Background = HoverBrush, CornerRadius = new CornerRadius(_unit), Visibility = Visibility.Hidden };
+        double x = TileLeft(index);
+        var hover = new Border { Background = HoverBrush, Visibility = Visibility.Hidden };
         var crop = SpriteImage(null, _tile);
-        var sparkle = SpriteImage(_host.Sprites["sparkle"], 5 * _unit);
-        sparkle.HorizontalAlignment = HorizontalAlignment.Right;
-        sparkle.VerticalAlignment = VerticalAlignment.Top;
-        sparkle.Margin = new Thickness(0, 0, _unit, 0);
-        sparkle.Visibility = Visibility.Hidden;
-
         var tip = new TextBlock();
         var cell = new Grid
         {
@@ -324,23 +325,16 @@ public partial class StripWindow : Window
             Cursor = Cursors.Hand,
             ToolTip = new ToolTip { Content = tip },
         };
-        ToolTipService.SetInitialShowDelay(cell, 400);
+        ToolTipService.SetInitialShowDelay(cell, 500);
         cell.Children.Add(hover);
         cell.Children.Add(SpriteImage(_host.Sprites["soil"], _tile));
         cell.Children.Add(crop);
-        cell.Children.Add(sparkle);
         cell.MouseEnter += (_, _) => hover.Visibility = Visibility.Visible;
         cell.MouseLeave += (_, _) => hover.Visibility = Visibility.Hidden;
-        cell.MouseLeftButtonUp += (_, e) => { OnPlotClicked(index, cell); e.Handled = true; };
-        cell.MouseRightButtonUp += (_, e) => { OpenPlotMenu(index, cell); e.Handled = true; };
+        cell.MouseLeftButtonUp += (_, e) => { OnTileClicked(index); e.Handled = true; };
+        cell.MouseRightButtonUp += (_, e) => { OpenPlantMenu(cell); e.Handled = true; };
         Place(_stripLayer, cell, x, _tileTop);
-
-        var track = new Rectangle { Width = _tile, Height = _unit, Fill = TrackBrush };
-        var progress = new Rectangle { Width = 0, Height = _unit };
-        Place(_stripLayer, track, x, _tileTop + _tile);
-        Place(_stripLayer, progress, x, _tileTop + _tile);
-
-        return new PlotView(index, x, crop, sparkle, progress, tip);
+        return new TileView(index, crop, tip);
     }
 
     private void BuildLockSlot(double x)
@@ -365,7 +359,7 @@ public partial class StripWindow : Window
         Place(_stripLayer, _lockSlot, x, _tileTop);
     }
 
-    /// <summary>The small patch the farmer stands on while the strip is hidden (hover mode).</summary>
+    /// <summary>The small patch the farmer stands on while the strip is tucked away (hover mode).</summary>
     private void BuildHomePad(double left, double width)
     {
         var pad = new Border
@@ -377,7 +371,7 @@ public partial class StripWindow : Window
             BorderThickness = new Thickness(0, _unit, 0, 0),
             CornerRadius = new CornerRadius(3 * _unit, 3 * _unit, 0, 0),
             Cursor = Cursors.Hand,
-            ToolTip = "Hover to see your garden, click to open it",
+            ToolTip = "Hover to see your field, click to open the panel",
         };
         pad.MouseLeftButtonUp += (_, e) => { TogglePanel(); e.Handled = true; };
         pad.MouseRightButtonUp += (_, e) => { OpenMainMenu(pad); e.Handled = true; };
@@ -385,28 +379,6 @@ public partial class StripWindow : Window
         var soil = SpriteImage(_host.Sprites["soil"], _tile);
         soil.IsHitTestVisible = false;
         Place(_homeLayer, soil, _homeX, _tileTop);
-
-        // Gold bubble showing how many crops are ready.
-        _ripeBadgeText = new TextBlock
-        {
-            Foreground = Brushes.Black,
-            FontWeight = FontWeights.Bold,
-            FontSize = _fontSize - 1,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        _ripeBadge = new Border
-        {
-            Background = GoldBrush,
-            CornerRadius = new CornerRadius(_fontSize),
-            MinWidth = _fontSize * 1.4,
-            Height = _fontSize * 1.4,
-            Padding = new Thickness(3, 0, 3, 0),
-            Child = _ripeBadgeText,
-            IsHitTestVisible = false,
-            Visibility = Visibility.Collapsed,
-        };
-        Place(_homeLayer, _ripeBadge, left + width - _fontSize * 1.2, PopupSpace - _fontSize * 0.6);
     }
 
     private void BuildFarmer()
@@ -425,7 +397,7 @@ public partial class StripWindow : Window
             Height = 8 * _unit,
             Fill = Brushes.Transparent,
             Cursor = Cursors.Hand,
-            ToolTip = "Click me to open your garden!",
+            ToolTip = "Click me to open the panel!",
         };
         _farmerHit.MouseLeftButtonUp += (_, e) => { TogglePanel(); e.Handled = true; };
         _farmerHit.MouseRightButtonUp += (_, e) => { OpenMainMenu(_farmerHit); e.Handled = true; };
@@ -433,7 +405,7 @@ public partial class StripWindow : Window
         Canvas.SetTop(_farmerHit, _tileTop + 2 * _unit);
     }
 
-    private double PlotLeft(int index) => _stripLeft + _pad + index * (_tile + _gap);
+    private double TileLeft(int index) => _stripLeft + _pad + index * _tile;
 
     private Image SpriteImage(ImageSource? source, double size)
     {
@@ -507,12 +479,15 @@ public partial class StripWindow : Window
     {
         if (_unit <= 0) return; // not laid out yet
         _time += dt;
-        UpdatePlots();
-        _lockBob.Y = _lockReady ? -Math.Round(Math.Abs(Math.Sin(_time * 3)) * 2) * _unit : 0;
+        UpdateTiles();
         UpdateFarmer();
+        _lockBob.Y = _lockReady ? -Math.Round(Math.Abs(Math.Sin(_time * 3)) * 2) * _unit : 0;
         UpdateFloaters(dt);
         UpdateParticles(dt);
         UpdateToast(dt);
+
+        _sinceFloater += dt;
+        if (_sinceFloater >= FloaterInterval) FlushFarmerFloater();
 
         _slowTimer += dt;
         if (_slowTimer >= 0.25)
@@ -529,27 +504,21 @@ public partial class StripWindow : Window
         }
     }
 
-    private void UpdatePlots()
+    private void UpdateTiles()
     {
         if (!_expanded) return;
-        foreach (var view in _plots)
+        var crop = Engine.FieldCrop;
+        foreach (var view in _tiles)
         {
-            if (view.Index >= Engine.Plots.Count) continue;
-            var plot = Engine.Plots[view.Index];
-
-            var source = _host.Sprites.ForPlot(plot);
+            if (view.Index >= Engine.FieldLength) continue;
+            var source = Engine.GrowthStage(view.Index) switch
+            {
+                0 => _host.Sprites["stage0"],
+                1 => _host.Sprites["stage1"],
+                2 => _host.Sprites["stage2"],
+                _ => _host.Sprites.CropIcon(crop),
+            };
             if (!ReferenceEquals(view.Crop.Source, source)) view.Crop.Source = source;
-
-            bool ripe = GameEngine.IsRipe(plot);
-            bool sparkleOn = ripe && ((_time * 1.5 + view.Index * 0.37) % 1.0) < 0.5;
-            view.Sparkle.Visibility = sparkleOn ? Visibility.Visible : Visibility.Hidden;
-
-            double progress = GameEngine.GrowthProgress(plot);
-            view.Progress.Width = Math.Round(_tile * progress / _unit) * _unit;
-            var brush = ripe ? GoldBrush
-                : Crops.TryGet(plot.CropId, out var crop) ? CropBrush(crop)
-                : TrackBrush;
-            if (!ReferenceEquals(view.Progress.Fill, brush)) view.Progress.Fill = brush;
         }
     }
 
@@ -574,11 +543,14 @@ public partial class StripWindow : Window
                 : farmer.Action != FarmerAction.Walking ? (blink ? "farmer_blink" : "farmer_idle")
                 : farmer.IsFarming ? (step ? "farmer_farm1" : "farmer_farm2")
                 : (step ? "farmer_walk1" : "farmer_walk2");
-            x = Math.Round((PlotLeft(0) + farmer.Position * (_tile + _gap)) / _unit) * _unit;
+            x = Math.Round((TileLeft(0) + farmer.Position * _tile) / _unit) * _unit;
             facing = farmer.Facing;
         }
 
-        var source = _host.Sprites[frame];
+        // The hoe in the farmer's hands matches the hoe you own for the planted crop.
+        var source = frame is "farmer_swing" or "farmer_farm1" or "farmer_farm2"
+            ? _host.Sprites.FarmerWithHoe(frame, Engine.ActiveTool.Tier)
+            : _host.Sprites[frame];
         if (!ReferenceEquals(_farmer.Source, source)) _farmer.Source = source;
         _farmerFlip.ScaleX = facing;
         Canvas.SetLeft(_farmer, x);
@@ -591,26 +563,19 @@ public partial class StripWindow : Window
         _coinsText.Text = Format.Number(Engine.State.Coins);
         _levelsText.Text = $"Farming {Engine.FarmingLevel} · Garden {Engine.GardenLevel}";
 
-        foreach (var view in _plots)
-        {
-            if (view.Index < Engine.Plots.Count)
-                view.Tip.Text = DescribePlot(view.Index);
-        }
+        foreach (var view in _tiles)
+            if (view.Index < Engine.FieldLength) view.Tip.Text = DescribeTile(view.Index);
 
         if (_lockSlot is not null && _lockTip is not null)
         {
-            bool canUnlock = Engine.CanUnlockNextPlot(out var cost, out string reason);
-            _lockTip.Text = cost is null
-                ? "All plots unlocked"
-                : $"Plot {Engine.Plots.Count + 1}: {Format.Number(cost.Coins)} coins, Garden Level {cost.GardenLevel}\n"
-                  + (canUnlock ? "Click to unlock!" : reason);
-            _lockSlot.Opacity = canUnlock ? 1 : 0.7;
-            _lockReady = canUnlock;
+            bool canGrow = Engine.CanExpandField(out var next, out string reason);
+            _lockTip.Text = next is null
+                ? "Your field is as long as it gets"
+                : $"Expand the field to {next.Length} crops: {Format.Number(next.Coins)} coins, Garden Level {next.GardenLevel}\n"
+                  + (canGrow ? "Click to expand!" : reason);
+            _lockSlot.Opacity = canGrow ? 1 : 0.7;
+            _lockReady = canGrow;
         }
-
-        int ripe = Engine.Plots.Count(GameEngine.IsRipe);
-        _ripeBadgeText.Text = ripe.ToString();
-        _ripeBadge.Visibility = !_expanded && ripe > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     /// <summary>Keeps the strip on top, in place, and out of the way of fullscreen apps.</summary>
@@ -631,48 +596,37 @@ public partial class StripWindow : Window
         NativeMethods.KeepOnTop(_hwnd);
     }
 
-    private string DescribePlot(int index)
+    private string DescribeTile(int index)
     {
-        var plot = Engine.Plots[index];
-        if (!Crops.TryGet(plot.CropId, out var crop))
-            return $"Plot {index + 1}: empty\nClick to plant something";
+        var crop = Engine.FieldCrop;
+        string tool = Tools.Name(crop, Engine.ActiveTool.Tier);
+        if (Engine.IsGrown(index))
+            return $"{crop.Name}: grown!\nClick to break it yourself (+{GameEngine.HandBreakFortuneBonus} Harvest Fortune)\n"
+                   + $"Right-click to plant something else · Farmer's tool: {tool}";
 
-        if (GameEngine.IsRipe(plot))
-            return $"{crop.Name}: ready!\nClick to harvest (+{GameEngine.HandHarvestFortuneBonus} Harvest Fortune)";
-
-        return $"{crop.Name}: ripe in {Format.Duration(GameEngine.SecondsUntilRipe(plot))}\n"
-               + "Click to tend it (grows faster) · Right-click to change crop";
+        double left = (crop.RegrowSeconds - Engine.Tiles[index]) / (1 + Engine.RegrowPercent / 100.0);
+        return $"{crop.Name}: grows back in {Format.Duration(left)}\nClick to tend it · Right-click to plant something else";
     }
 
     // ================================================================== clicks & menus
 
-    private void OnPlotClicked(int index, FrameworkElement cell)
+    private void OnTileClicked(int index)
     {
-        if (index >= Engine.Plots.Count) return;
-        var plot = Engine.Plots[index];
+        if (index >= Engine.FieldLength) return;
+        if (Engine.Break(index, handBreak: true) is not null) return; // OnBroke shows the numbers
 
-        if (plot.CropId is null)
+        if (Engine.Tend(index))
         {
-            OpenPlotMenu(index, cell);
-        }
-        else if (GameEngine.IsRipe(plot))
-        {
-            Engine.Harvest(index, handHarvest: true); // OnHarvested shows the numbers
-        }
-        else if (Engine.Tend(index))
-        {
-            var sparkle = SpriteImage(_host.Sprites["sparkle"], 5 * _unit);
-            AddFloater(sparkle, PlotLeft(index) + _tile / 2, _tileTop + 4 * _unit, life: 0.6, rise: 6 * _unit);
+            var sparkle = SpriteImage(_host.Sprites["sparkle"], 5 * Math.Max(1, _unit));
+            AddFloater(sparkle, TileLeft(index) + _tile / 2, _tileTop, life: 0.6, rise: 6 * _unit + 6);
         }
     }
 
     private void OnLockClicked(double x)
     {
-        int plotNumber = Engine.Plots.Count + 1;
-        if (Engine.TryUnlockNextPlot(out string reason))
+        if (Engine.TryExpandField(out string reason))
         {
-            string crop = Crops.Get(Engine.Plots[^1].CropId!).Name;
-            QueueToast($"PLOT {plotNumber} UNLOCKED", $"Planted with {crop}. Right-click it to change.", GardenBrush, 4);
+            QueueToast("FIELD EXPANDED", $"Your row is now {Engine.FieldLength} crops long.", GardenBrush, 4);
             _host.Save();
         }
         else
@@ -681,37 +635,42 @@ public partial class StripWindow : Window
         }
     }
 
-    private void OpenPlotMenu(int index, FrameworkElement target)
+    private void OpenPlantMenu(FrameworkElement target)
     {
-        if (index >= Engine.Plots.Count) return;
-        var menu = CropMenu.Create(_host, $"Plot {index + 1}: choose a crop", Engine.Plots[index].CropId,
-            crop => Engine.Plant(index, crop.Id));
+        var menu = CropMenu.Create(_host, "Plant the field with...", Engine.FieldCrop.Id,
+            crop => Engine.PlantField(crop.Id));
         menu.Items.Add(new Separator());
-        menu.Items.Add(MakeItem("Plant on every plot...", () => OpenPlantAllMenu(target)));
-        menu.Items.Add(MakeItem("Open garden", TogglePanel));
-        ShowMenu(menu, target);
-    }
-
-    private void OpenPlantAllMenu(FrameworkElement target)
-    {
-        var menu = CropMenu.Create(_host, "Plant on every plot", null, crop => Engine.PlantAll(crop.Id));
+        menu.Items.Add(MakeItem("Open the panel", TogglePanel));
         ShowMenu(menu, target);
     }
 
     private void OpenMainMenu(FrameworkElement target)
     {
         var menu = new ContextMenu();
-        var open = MakeItem(_panel is null ? "Open garden" : "Close garden", TogglePanel);
+        var open = MakeItem(_panel is null ? "Open the panel" : "Close the panel", TogglePanel);
         open.FontWeight = FontWeights.Bold;
         menu.Items.Add(open);
 
-        long value = Engine.InventoryValue();
-        var sell = MakeItem($"Sell all crops (+{Format.Number(value)} coins)", () => Engine.SellAll());
+        var plant = new MenuItem { Header = "Plant the field with" };
+        foreach (var crop in Crops.All)
+        {
+            bool unlocked = Engine.IsCropUnlocked(crop);
+            var item = MakeItem(unlocked ? crop.Name : $"{crop.Name}  (Garden Level {crop.UnlockGardenLevel})",
+                () => Engine.PlantField(crop.Id));
+            item.Icon = CropMenu.PixelImage(_host.Sprites.CropIcon(crop), 16);
+            item.IsEnabled = unlocked;
+            item.FontWeight = crop == Engine.FieldCrop ? FontWeights.Bold : FontWeights.Normal;
+            plant.Items.Add(item);
+        }
+        menu.Items.Add(plant);
+
+        long value = Engine.CropsValue();
+        var sell = MakeItem($"Sell all crops (+{Format.Number(value)} coins)", () => Engine.SellAllCrops());
         sell.IsEnabled = value > 0;
         menu.Items.Add(sell);
         menu.Items.Add(new Separator());
 
-        menu.Items.Add(CheckItem("Always show the garden", Settings.StripMode == StripMode.Always,
+        menu.Items.Add(CheckItem("Always show the field", Settings.StripMode == StripMode.Always,
             () => Settings.StripMode = StripMode.Always));
         menu.Items.Add(CheckItem("Only show it when I hover", Settings.StripMode == StripMode.OnHover,
             () => Settings.StripMode = StripMode.OnHover));
@@ -726,7 +685,7 @@ public partial class StripWindow : Window
             position.Items.Add(CheckItem(option.ToString(), Settings.Anchor == option, () => Settings.Anchor = option));
         menu.Items.Add(position);
 
-        menu.Items.Add(CheckItem("Farmer harvests by themselves", Settings.FarmerAutoHarvest,
+        menu.Items.Add(CheckItem("Farmer farms by themselves", Settings.FarmerAutoHarvest,
             () => Settings.FarmerAutoHarvest = !Settings.FarmerAutoHarvest));
         menu.Items.Add(new Separator());
         menu.Items.Add(MakeItem("Quit TaskBarGame", () => ((App)Application.Current).Quit()));
@@ -765,7 +724,7 @@ public partial class StripWindow : Window
         menu.IsOpen = true;
     }
 
-    // ================================================================== the big panel
+    // ================================================================== the panel
 
     public void TogglePanel()
     {
@@ -796,21 +755,43 @@ public partial class StripWindow : Window
         _panel.Activate();
     }
 
-    // ================================================================== floating numbers
+    // ================================================================== breaking crops: numbers & bits
 
-    private void OnHarvested(HarvestResult result)
+    private void OnBroke(BreakResult result)
     {
-        if (!_expanded || _hiddenForFullscreen || result.PlotIndex >= _plots.Count) return;
+        if (!_expanded || _hiddenForFullscreen || result.TileIndex < 0 || result.TileIndex >= _tiles.Count) return;
 
-        SpawnBreakParticles(result.PlotIndex, result.Crop);
+        SpawnBreakParticles(result.TileIndex, result.Crop);
         if (!Settings.ShowFloatingText) return;
 
-        double centerX = PlotLeft(result.PlotIndex) + _tile / 2;
-        AddTextFloater($"+{result.Drops} {result.Crop.Name}", centerX, _tileTop - _unit, CropBrush(result.Crop));
-        if (result.CoinsFromAutoSell > 0)
-            AddTextFloater($"+{Format.Number(result.CoinsFromAutoSell)} coins", centerX, _tileTop + _fontSize, GoldBrush, delay: 0.25);
-        if (result.HandHarvest)
-            AddTextFloater($"+{result.FarmingXp} Farming XP", centerX, _tileTop + _fontSize, XpBrush, delay: 0.15);
+        if (result.HandBreak)
+        {
+            double centerX = TileLeft(result.TileIndex) + _tile / 2;
+            AddTextFloater($"+{result.Drops} {result.Crop.Name}", centerX, _tileTop - _unit, CropBrush(result.Crop));
+            AddTextFloater($"+{Format.Number(result.FarmingXp, 1)} Farming XP", centerX, _tileTop + _fontSize, XpBrush, delay: 0.15);
+            return;
+        }
+
+        // The farmer breaks several crops a second: add them up and show one number now and then.
+        if (_pendingCrop is not null && _pendingCrop != result.Crop) FlushFarmerFloater();
+        _pendingCrop = result.Crop;
+        _pendingDrops += result.Drops;
+        _pendingCoins += result.CoinsFromAutoSell;
+    }
+
+    private void FlushFarmerFloater()
+    {
+        _sinceFloater = 0;
+        if (_pendingCrop is null || _pendingDrops == 0) return;
+
+        double centerX = TileLeft(0) + _host.Farmer.Position * _tile + _tile / 2;
+        AddTextFloater($"+{Format.Number(_pendingDrops)} {_pendingCrop.Name}", centerX, _tileTop - _unit, CropBrush(_pendingCrop));
+        if (_pendingCoins > 0)
+            AddTextFloater($"+{Format.Number(_pendingCoins)} coins", centerX, _tileTop + _fontSize, GoldBrush, delay: 0.2);
+
+        _pendingCrop = null;
+        _pendingDrops = 0;
+        _pendingCoins = 0;
     }
 
     private void AddTextFloater(string text, double centerX, double y, Brush brush, double life = 1.3, double delay = 0)
@@ -861,19 +842,18 @@ public partial class StripWindow : Window
         }
     }
 
-    // ================================================================== crop break particles
-
     /// <summary>Little bits of crop that pop out and fall when a crop is broken.</summary>
-    private void SpawnBreakParticles(int plotIndex, CropDef crop)
+    private void SpawnBreakParticles(int tile, CropDef crop)
     {
         if (_unit <= 0) return;
         var brushes = _host.Sprites.ParticleBrushes(crop);
         if (brushes.Count == 0) return;
 
-        double left = PlotLeft(plotIndex);
-        for (int i = 0; i < 10; i++)
+        double left = TileLeft(tile);
+        double pixel = Math.Max(2, _unit);
+        for (int i = 0; i < 6; i++)
         {
-            double size = _rng.NextDouble() < 0.4 ? 2 * _unit : _unit;
+            double size = _rng.NextDouble() < 0.4 ? 2 * pixel : pixel;
             var shape = new Rectangle
             {
                 Width = size,
@@ -885,8 +865,8 @@ public partial class StripWindow : Window
             {
                 X = left + _tile * (0.2 + 0.6 * _rng.NextDouble()),
                 Y = _tileTop + _tile * (0.25 + 0.5 * _rng.NextDouble()),
-                Vx = (_rng.NextDouble() * 2 - 1) * 14 * _unit,
-                Vy = -(10 + _rng.NextDouble() * 18) * _unit,
+                Vx = (_rng.NextDouble() * 2 - 1) * 14 * pixel,
+                Vy = -(10 + _rng.NextDouble() * 18) * pixel,
                 Life = 0.45 + _rng.NextDouble() * 0.3,
             };
             Place(_fxLayer, shape, particle.X, particle.Y);
@@ -896,7 +876,7 @@ public partial class StripWindow : Window
 
     private void UpdateParticles(double dt)
     {
-        double gravity = 120 * _unit;
+        double gravity = 120 * Math.Max(2, _unit);
         for (int i = _particles.Count - 1; i >= 0; i--)
         {
             var p = _particles[i];
@@ -937,12 +917,16 @@ public partial class StripWindow : Window
             CropBrush(tierUp.Crop), 4);
     }
 
+    private void OnCrafted(Recipe recipe)
+    {
+        QueueToast($"CRAFTED {recipe.ResultName.ToUpperInvariant()}", Describe.Effect(Engine, recipe), CraftBrush, 4);
+    }
+
     public void ShowOfflineReport(OfflineReport report)
     {
-        long crops = report.Drops.Values.Sum();
-        string body = $"Your farmer harvested {Format.Number(report.Harvests)} times while you were away "
-                      + $"({Format.Duration(report.Away.TotalSeconds)}): +{Format.Number(crops)} crops, "
-                      + $"+{Format.Number(report.FarmingXp)} Farming XP.";
+        string body = $"Your farmer broke {Format.Number(report.Breaks)} crops while you were away "
+                      + $"({Format.Duration(report.Away.TotalSeconds)}): +{Format.Number(report.Drops)} items, "
+                      + $"+{Format.Number((long)report.FarmingXp)} Farming XP.";
         if (report.FarmingLevelAfter > report.FarmingLevelBefore)
             body += $" Farming {report.FarmingLevelBefore} → {report.FarmingLevelAfter}!";
         if (report.GardenLevelAfter > report.GardenLevelBefore)
@@ -999,7 +983,7 @@ public partial class StripWindow : Window
 
         double width = border.DesiredSize.Width;
         double x = Math.Clamp(_stripLeft + (_stripWidth - width) / 2, 0, Math.Max(0, Width - width));
-        double y = Math.Max(0, PopupSpace - border.DesiredSize.Height - 4 * _unit - _fontSize);
+        double y = Math.Max(0, PopupSpace - border.DesiredSize.Height - 4 * _unit - _fontSize - 8);
         Place(_fxLayer, border, x, y);
         toast.Element = border;
         if (toast.Age == 0) border.Opacity = 0;
@@ -1021,14 +1005,7 @@ public partial class StripWindow : Window
 
     // ================================================================== small helpers
 
-    private static readonly Dictionary<string, Brush> CropBrushes = new();
-
-    private static Brush CropBrush(CropDef crop)
-    {
-        if (!CropBrushes.TryGetValue(crop.Id, out var brush))
-            CropBrushes[crop.Id] = brush = Format.Brush(crop.ColorHex);
-        return brush;
-    }
+    private static Brush CropBrush(CropDef crop) => ViewModels.CropBrushes.Get(crop);
 
     private static Effect CreateTextShadow()
     {
@@ -1037,7 +1014,7 @@ public partial class StripWindow : Window
         return shadow;
     }
 
-    private sealed record PlotView(int Index, double X, Image Crop, Image Sparkle, Rectangle Progress, TextBlock Tip);
+    private sealed record TileView(int Index, Image Crop, TextBlock Tip);
 
     private sealed class Floater(FrameworkElement element, double startY, double rise, double life, double age)
     {

@@ -1,28 +1,32 @@
-# TaskBarGame
+# TaskBarGame: Harvest Edition
 
-A little farming game that lives just above your Windows taskbar while you work.
+> **This is the `harvest-edition` branch**, a version of TaskBarGame that plays more like Skyblock-style
+> farming. It isn't merged into `main`; the original game lives there. The two editions keep separate
+> saves, so you can play both.
 
-A farmer works a strip of crop plots: they sweep back and forth along the row with their hoe,
-breaking every ripe crop they pass, just like farming a row by hand. You earn coins, level up
-your **Farming** skill and your **Garden**, unlock new crops and buy more plots. You can also click
-crops yourself to farm faster.
+A farming game that lives just above your Windows taskbar while you work. Your field is **one long row
+of crops**. Your farmer walks it end to end with their hoe, breaking every grown crop as they pass, then
+turns around and comes back. Crops regrow in seconds. You level up, unlock crops, craft better
+**hoes**, **armour** and **talismans** from your crops, and make the row longer.
 
-![The garden strip: the farmer breaks a pumpkin, crop bits fly out, and a level-up popup appears above](docs/screenshots/strip.png)
+![The field: the farmer sweeps a row of wheat, crop bits fly out, and a level-up popup appears above](docs/screenshots/strip.png)
 
-Click the farmer (or your coins) to open the garden panel:
+Click the farmer (or your coins) to open the panel:
 
 <p>
-  <img src="docs/screenshots/panel-garden.png" width="32%" alt="Garden tab: Garden level and every plot with its growth timer">
-  <img src="docs/screenshots/panel-farming.png" width="32%" alt="Farming tab: Farming level, Harvest Fortune and the crop guide">
-  <img src="docs/screenshots/panel-collections.png" width="32%" alt="Collections tab: tier progress for every crop">
+  <img src="docs/screenshots/panel-field.png" width="32%" alt="Field tab: Garden level, your row, the hoe in use, and which crop to plant">
+  <img src="docs/screenshots/panel-upgrades.png" width="32%" alt="Upgrades tab: hoes, armour and talismans with what each needs">
+  <img src="docs/screenshots/panel-farming.png" width="32%" alt="Farming tab: Farming level and where your Harvest Fortune comes from">
 </p>
 
 ## Running it
 
-The easiest way is to grab `TaskBarGame.exe` from [Download](#download) at the bottom of this page
-and run it. Nothing to install.
+Build the `.exe` yourself, or download the one GitHub builds for this branch: open
+[Actions → Build](https://github.com/TheUthaGuy/TaskBarGame/actions/workflows/build.yml?query=branch%3Aharvest-edition),
+click the newest run, and download **TaskBarGame-win-x64** under **Artifacts** (you need to be signed
+in to GitHub). The [Download](#download) links at the bottom give the original edition, not this one.
 
-To run it from the source code instead, you need **Windows 10 or 11** and the free
+To run it from the source code, you need **Windows 10 or 11** and the free
 [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0).
 
 ```bash
@@ -37,74 +41,119 @@ To make a standalone `TaskBarGame.exe` you can share:
 dotnet publish src/TaskBarGame.App -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o publish
 ```
 
-GitHub Actions also builds the `.exe` on every push. Download it from the **Actions** tab under **Artifacts**.
-
 ## How to play
 
 | Do this | What happens |
 |---|---|
-| Click a **ripe** crop (it sparkles) | Harvest it yourself: +25 Harvest Fortune and you see the XP you earned |
-| Click a **growing** crop | Tend it: it grows 4% faster per click |
-| Right-click a plot | Choose what to plant there |
-| Click the **farmer's head** or the **coins** | Open the garden panel |
-| Right-click the farmer or the strip | Quick menu: sell crops, strip size, position, show-on-hover, quit |
-| Click the **lock** | Buy the next plot (when you have the coins and Garden level) |
+| Click a **grown** crop | Break it yourself: +25 Harvest Fortune, and you see the XP you earned |
+| Click a **growing** crop | Tend it: it regrows faster |
+| Right-click the row | Choose which crop to plant (the whole row changes) |
+| Click the **farmer's head** or the **coins** | Open the panel |
+| Right-click the farmer or the strip | Quick menu: plant, sell crops, strip size, position, show-on-hover, quit |
+| Click the **lock** at the end of the row | Make the row longer (when you have the coins and Garden level) |
 
-Whenever something is ripe, the farmer sweeps side to side along the row, swinging their hoe and
-breaking each ripe crop they walk over (bits of crop fly out), then turns around at the end of the row.
-When nothing is ripe they take a break. They keep farming even while the game is closed: at half speed,
-for up to 12 hours. When you come back, a popup tells you what they did.
+The farmer farms the row the way you would by hand: walking it end to end, breaking every grown crop,
+and turning around at the ends. They keep working while the game is closed, at half speed, for up to 12
+hours. When you come back, a popup tells you what they did.
+
+### Stats
+
+- **Harvest Fortune:** every 100 Fortune is one extra set of drops per crop broken (150 = 2.5x drops).
+  It comes from your Farming level, that crop's collection, its hoe (and the hoe's counter), armour and
+  the Clover talisman.
+- **Farming Speed:** how fast the farmer walks the row (Swiftstep talisman, Straw set bonus).
+- **Regrow Speed:** how fast broken crops grow back (Sprout talisman, Harvester set bonus).
+- **Farming XP:** bonus Farming XP from every crop (Scholar's talisman, Verdant set bonus).
 
 ### Progression
 
-- **Farming skill (levels 0-50):** XP from every harvest. Each level gives **+4 Harvest Fortune** and coins.
-- **Harvest Fortune:** every 100 Fortune is one extra set of crops per harvest (150 = 2.5x crops).
-- **Garden level (1-15):** Garden XP from every harvest and every collection tier. Garden levels unlock
-  new crops and let you buy more plots (up to 12).
-- **Collections:** every crop item you harvest counts. Each of the 10 tiers per crop gives +2 Fortune for
-  that crop and Garden XP.
-- **Market:** sell crops for coins, or turn on auto-sell.
+- **Farming skill (levels 0-50):** XP from every crop broken. Each level gives **+4 Harvest Fortune** and coins.
+- **Garden level (1-15):** Garden XP from every crop broken and every collection tier. Garden levels
+  unlock crops, upgrades and field expansions.
+- **Field:** starts at 10 crops and expands up to 24.
+- **Collections:** 10 tiers per crop, each giving +2 Fortune for that crop and Garden XP.
+- **Packing:** 160 crops pack into 1 **Packed** crop, and 160 Packed into 1 **Dense** crop. Packed crops
+  sell for the same as the crops inside, but you need them for crafting.
 
-| Crop | Garden level | Grows in | Sells for |
+| Crop | Garden level | Regrows in | Drops | Sells for |
+|---|---|---|---|---|
+| Wheat | 1 | 5s | 1 | 2 |
+| Carrot | 2 | 6s | 3 | 1 |
+| Potato | 3 | 6s | 4 | 1 |
+| Sugar Cane | 4 | 7s | 2 | 3 |
+| Pumpkin | 5 | 9s | 1 | 9 |
+| Melon | 6 | 9s | 5 | 2 |
+| Cocoa Beans | 8 | 11s | 3 | 5 |
+| Cactus | 10 | 12s | 2 | 9 |
+| Mushroom | 12 | 14s | 1 | 24 |
+| Moonbloom | 15 | 20s | 1 | 40 |
+
+### Upgrades (crafted in the Upgrades tab)
+
+**Hoes:** every crop has its own hoe, and the farmer automatically holds the one for the crop that's
+planted. Its colour in the farmer's hands shows its tier.
+
+| Tier | Fortune for its crop | Made from |
+|---|---|---|
+| Basic | +10 | 48 of the crop + 100 coins |
+| Reinforced | +30 | 8 Packed of the crop + 5,000 coins (Garden 4) |
+| Masterwork | +60 | 1 Dense of the crop + 100,000 coins (Garden 10) |
+
+Every 1,000 crops a hoe breaks adds +1 Fortune for that crop (up to +30).
+
+**Armour:** four pieces, each upgraded Straw → Harvester → Verdant. Wearing a full set gives a bonus.
+
+| Set | Fortune per piece | Full set bonus | Made from |
 |---|---|---|---|
-| Wheat | 1 | 30s | 2 |
-| Carrot | 2 | 40s | 2 |
-| Potato | 3 | 50s | 3 |
-| Sugar Cane | 4 | 1m | 5 |
-| Pumpkin | 5 | 1m 30s | 18 |
-| Melon | 6 | 1m 40s | 5 |
-| Cocoa Beans | 8 | 2m | 15 |
-| Cactus | 10 | 2m 30s | 16 |
-| Mushroom | 12 | 3m | 35 |
-| Moonbloom | 15 | 8m | 160 |
+| Straw | +4 | +5% Farming Speed | Packed Wheat (Garden 2) |
+| Harvester | +10 | +10% Regrow Speed | Packed Pumpkin, Melon, Sugar Cane, Potato (Garden 6) |
+| Verdant | +20 | +25 Fortune, +10% Farming XP | Dense Cocoa, Cactus, Mushroom, Moonbloom (Garden 12-15) |
+
+**Talismans:** four kinds, each upgraded Charm → Ring → Relic (+5 / +10 / +20). Owning one is enough.
+
+| Talisman | Gives | Made from |
+|---|---|---|
+| Clover | Harvest Fortune | Carrot |
+| Swiftstep | Farming Speed % | Sugar Cane |
+| Sprout | Regrow Speed % | Potato, then Melon |
+| Scholar's | Farming XP % | Wheat, then Pumpkin, then Cocoa |
+
+<p>
+  <img src="docs/screenshots/panel-market.png" width="32%" alt="Market tab: crops, packed crops in sacks and dense crops in crates">
+  <img src="docs/screenshots/panel-collections.png" width="32%" alt="Collections tab: tier progress for every crop">
+  <img src="docs/screenshots/panel-settings.png" width="32%" alt="Settings tab">
+</p>
 
 ### Settings
 
 In the panel's **Settings** tab (or the right-click menu):
 
-- **Only show it when I hover:** the strip tucks away and only the farmer stays visible, with a badge
-  showing how many crops are ready. Hover over the farmer to show the strip.
+- **Only show it when I hover:** the strip tucks away and only the farmer stays visible. Hover over the
+  farmer to show the field. The farmer keeps working either way.
 
   <img src="docs/screenshots/strip-hover-mode.png" width="72" alt="Hover mode: only the farmer is shown">
 
 - **Size:** Small / Normal / Large.
 - **Position:** Left / Center / Right of the screen.
-- Farmer auto-harvest, auto-sell, floating numbers, hide during fullscreen apps, start with Windows.
+- Farmer auto-farming, auto-sell, floating numbers, hide during fullscreen apps, start with Windows.
 
-Your save file is `%APPDATA%\TaskBarGame\save.json` (with a `.bak` backup). If something breaks,
-details are written to `%APPDATA%\TaskBarGame\error.log`.
+Your save file is `%APPDATA%\TaskBarGame Harvest Edition\save.json` (with a `.bak` backup). If something
+breaks, details are written to `%APPDATA%\TaskBarGame Harvest Edition\error.log`.
 
 ## Changing the game
 
 | I want to change... | Edit |
 |---|---|
-| Crop speed, price, XP, unlock level | `src/TaskBarGame.Core/Crops.cs` |
-| Level XP tables, plot prices, collection tiers | `src/TaskBarGame.Core/Progression.cs` |
-| Harvest/tend/offline rules | `src/TaskBarGame.Core/GameEngine.cs` |
+| Crop regrow time, drops, price, XP, unlock level | `src/TaskBarGame.Core/Crops.cs` |
+| Hoe, armour and talisman stats, and every crafting recipe | `src/TaskBarGame.Core/Equipment.cs` |
+| Packed and Dense crops | `src/TaskBarGame.Core/Items.cs` |
+| Level XP tables, field expansions, collection tiers | `src/TaskBarGame.Core/Progression.cs` |
+| Breaking, fortune, crafting and offline rules | `src/TaskBarGame.Core/GameEngine.cs` |
 | How the farmer sweeps the row | `src/TaskBarGame.Core/FarmerAgent.cs` |
 | **Pixel art** (crops, farmer, icons) | `src/TaskBarGame.Core/Assets/sprites.txt`, a plain text file with one letter per pixel |
+| Tier colours of hoes, armour and talismans | `src/TaskBarGame.App/SpriteCache.cs` |
 | The strip above the taskbar | `src/TaskBarGame.App/StripWindow.xaml.cs` |
-| The garden panel | `src/TaskBarGame.App/PanelWindow.xaml` + `ViewModels/` |
+| The panel | `src/TaskBarGame.App/PanelWindow.xaml` + `ViewModels/` |
 | Colours and button styles | `src/TaskBarGame.App/Theme.xaml` |
 | The screenshots in this README | see [Screenshots](#screenshots) below |
 
@@ -116,7 +165,7 @@ dotnet test
 
 ### Screenshots
 
-The game has a screenshot mode that plays a demo garden (it never touches your save), saves pictures
+The game has a screenshot mode that plays a demo field (it never touches your save), saves pictures
 of the strip and every panel tab, then quits:
 
 ```bash
@@ -129,6 +178,9 @@ except for the font: Wine has no Segoe UI, so the script uses Selawik, Microsoft
 stand-in for it.
 
 ### Making a release
+
+Releases are for the original edition on `main`. **Don't publish one from this branch**: the
+download links always give the newest release, so it would replace the original game's download.
 
 1. Set the new version in `src/TaskBarGame.App/TaskBarGame.App.csproj` (`<Version>`) and in the
    [Download](#download) section below.
@@ -153,10 +205,14 @@ docs/screenshots/         The pictures in this README.
 
 ## Coming next
 
-- **Visitors:** characters who stop by the garden and ask for crops in exchange for rewards.
-- **Composter and upgrades:** turn spare crops into compost, buy better tools and crop upgrades.
+- **Bazaar:** buy and sell crops and packed crops at prices that move with supply and demand.
+- **Auction house:** buy and sell hoes, armour and talismans.
+- **Talismans that raise sell prices.**
 
 ## Download
+
+These links give the **original edition** (the `main` branch), not the Harvest Edition. For the
+Harvest Edition, see [Running it](#running-it).
 
 **Latest version: v0.1.0** (Farming and the Garden)
 

@@ -10,220 +10,441 @@ internal sealed class FixedRandom(double value) : Random
 
 public class GameEngineTests
 {
-    private static GameEngine NewEngine(double roll = 0.99) =>
-        new(GameState.CreateNew(), new FixedRandom(roll));
+    private static GameEngine NewEngine(double roll = 0.99) => new(GameState.CreateNew(), new FixedRandom(roll));
 
-    private static void Ripen(GameEngine engine) => engine.Tick(10_000);
-
-    [Fact]
-    public void New_game_has_three_wheat_plots_and_nothing_else()
+    private static GameEngine RichEngine(int gardenLevel = GardenProgression.MaxLevel)
     {
         var engine = NewEngine();
-        Assert.Equal(3, engine.Plots.Count);
-        Assert.All(engine.Plots, p => Assert.Equal("wheat", p.CropId));
-        Assert.Equal(0, engine.State.Coins);
-        Assert.Equal(0, engine.FarmingLevel);
+        engine.State.GardenXp = GardenProgression.TotalXpFor(gardenLevel);
+        engine.State.Coins = 10_000_000;
+        return engine;
+    }
+
+    private static void GrowAll(GameEngine engine) => engine.Tick(1_000);
+
+    private static void Give(GameEngine engine, ItemDef item, long count) =>
+        engine.State.Inventory[item.Id] = engine.GetItem(item) + count;
+
+    // ------------------------------------------------------------------ the field
+
+    [Fact]
+    public void New_game_has_a_row_of_wheat_and_no_equipment()
+    {
+        var engine = NewEngine();
+        Assert.Equal(Crops.Wheat, engine.FieldCrop);
+        Assert.Equal(FieldProgression.StartLength, engine.FieldLength);
+        Assert.Equal(FieldProgression.StartLength, engine.Tiles.Count);
+        Assert.All(engine.Tiles, t => Assert.Equal(0, t));
+        Assert.Equal(0, engine.ActiveTool.Tier);
+        Assert.Equal(0, engine.FullSetTier);
+        Assert.True(engine.EquipmentBonus.IsEmpty);
         Assert.Equal(1, engine.GardenLevel);
-        Assert.Equal(new[] { Crops.Wheat }, engine.UnlockedCrops);
+        Assert.Equal(0, engine.FarmingLevel);
     }
 
     [Fact]
-    public void Crops_grow_through_stages_and_ripen_on_time()
+    public void Crops_regrow_through_stages()
     {
         var engine = NewEngine();
-        var plot = engine.Plots[0];
-        Assert.Equal(0, GameEngine.GrowthStage(plot));
+        double regrow = Crops.Wheat.RegrowSeconds;
+        Assert.Equal(0, engine.GrowthStage(0));
 
-        engine.Tick(Crops.Wheat.GrowSeconds * 0.3);
-        Assert.Equal(1, GameEngine.GrowthStage(plot));
+        engine.Tick(regrow * 0.3);
+        Assert.Equal(1, engine.GrowthStage(0));
+        engine.Tick(regrow * 0.4);
+        Assert.Equal(2, engine.GrowthStage(0));
+        Assert.False(engine.IsGrown(0));
 
-        engine.Tick(Crops.Wheat.GrowSeconds * 0.4);
-        Assert.Equal(2, GameEngine.GrowthStage(plot));
-        Assert.False(GameEngine.IsRipe(plot));
-
-        engine.Tick(Crops.Wheat.GrowSeconds);
-        Assert.True(GameEngine.IsRipe(plot));
-        Assert.Equal(3, GameEngine.GrowthStage(plot));
-        Assert.Equal(Crops.Wheat.GrowSeconds, plot.Growth); // capped, doesn't keep counting
+        engine.Tick(regrow);
+        Assert.True(engine.IsGrown(0));
+        Assert.Equal(3, engine.GrowthStage(0));
+        Assert.Equal(regrow, engine.Tiles[0]);
+        Assert.Equal(engine.FieldLength, engine.GrownCount);
     }
 
     [Fact]
-    public void Unripe_crops_cannot_be_harvested()
+    public void Only_grown_crops_break()
     {
         var engine = NewEngine();
-        engine.Tick(5);
-        Assert.Null(engine.Harvest(0, handHarvest: true));
-        Assert.Equal(0, engine.State.FarmingXp);
+        engine.Tick(1);
+        Assert.Null(engine.Break(0, handBreak: true));
+        Assert.Equal(0, engine.State.Stats.TotalBreaks);
     }
 
     [Fact]
-    public void Harvest_gives_items_xp_and_replants()
+    public void Breaking_gives_items_and_xp_and_regrows()
     {
-        var engine = NewEngine(roll: 0.99); // never wins the "extra drop" roll
-        Ripen(engine);
+        var engine = NewEngine(roll: 0.99);
+        GrowAll(engine);
 
-        var result = engine.Harvest(0, handHarvest: false);
+        var result = engine.Break(3, handBreak: false)!;
 
-        Assert.NotNull(result);
-        Assert.Equal(3, result!.Drops); // 3 base drops, 0 fortune at level 0
-        Assert.Equal(3, engine.GetInventory(Crops.Wheat));
-        Assert.Equal(3, engine.GetCollection(Crops.Wheat));
+        Assert.Equal(3, result.TileIndex);
+        Assert.Equal(Crops.Wheat.DropsPerBreak, result.Drops);
+        Assert.Equal(result.Drops, engine.GetItem(Items.Raw(Crops.Wheat)));
+        Assert.Equal(result.Drops, engine.GetCollection(Crops.Wheat));
         Assert.Equal(Crops.Wheat.FarmingXp, engine.State.FarmingXp);
-        Assert.Equal(Crops.Wheat.GardenXp, engine.State.GardenXp);
-        Assert.Equal(0, engine.Plots[0].Growth);
-        Assert.Equal("wheat", engine.Plots[0].CropId);
-        Assert.Equal(1, engine.State.Stats.TotalHarvests);
+        Assert.Equal(GardenProgression.XpPerBreak, engine.State.GardenXp);
+        Assert.Equal(0, engine.Tiles[3]);
+        Assert.False(engine.IsGrown(3));
+        Assert.True(engine.IsGrown(4));
     }
 
     [Fact]
-    public void Hand_harvest_adds_fortune_bonus()
+    public void Breaking_by_hand_adds_fortune()
     {
-        var engine = NewEngine(roll: 0.0); // always wins the extra drop roll
-        Assert.Equal(GameEngine.HandHarvestFortuneBonus, engine.GetFortune(Crops.Wheat, handHarvest: true));
+        var engine = NewEngine(roll: 0.0); // always wins the extra-drop roll
+        engine.PlantField("wheat");
+        GrowAll(engine);
 
-        Ripen(engine);
-        var result = engine.Harvest(0, handHarvest: true)!;
+        var result = engine.Break(0, handBreak: true)!;
 
-        // 3 * 1.25 = 3.75 -> 3 guaranteed + 1 from the lucky roll
-        Assert.Equal(4, result.Drops);
-        Assert.True(result.HandHarvest);
-        Assert.Equal(1, engine.State.Stats.HandHarvests);
+        Assert.Equal(2, result.Drops); // 1 * 1.25 = 1.25 → 1 + lucky roll
+        Assert.Equal(1, engine.State.Stats.HandBreaks);
     }
 
     [Fact]
-    public void Fortune_adds_farming_level_and_collection_tier()
-    {
-        var engine = NewEngine();
-        engine.State.FarmingXp = FarmingSkill.TotalXpFor(10);
-        engine.State.Collections["wheat"] = CollectionTiers.Thresholds(Crops.Wheat)[2]; // tier 3
-
-        Assert.Equal(10, engine.FarmingLevel);
-        Assert.Equal(3, engine.GetCollectionTier(Crops.Wheat));
-        Assert.Equal(10 * 4 + 3 * 2, engine.GetFortune(Crops.Wheat, handHarvest: false));
-        Assert.Equal(3 * 1.46, engine.ExpectedDrops(Crops.Wheat, handHarvest: false), precision: 6);
-    }
-
-    [Fact]
-    public void Tending_speeds_up_growth_but_not_past_ripe()
+    public void Tending_speeds_up_a_growing_crop()
     {
         var engine = NewEngine();
         Assert.True(engine.Tend(0));
-        Assert.Equal(Crops.Wheat.GrowSeconds * GameEngine.TendFraction, engine.Plots[0].Growth, precision: 6);
-
-        Ripen(engine);
+        Assert.Equal(Crops.Wheat.RegrowSeconds * GameEngine.TendFraction, engine.Tiles[0], precision: 6);
+        GrowAll(engine);
         Assert.False(engine.Tend(0));
-        Assert.False(engine.Tend(99));
+        Assert.False(engine.Tend(-1));
     }
 
     [Fact]
-    public void Locked_crops_cannot_be_planted()
+    public void Planting_a_new_crop_replants_the_whole_row()
     {
         var engine = NewEngine();
-        Assert.False(engine.Plant(0, "carrot"));
-        Assert.Equal("wheat", engine.Plots[0].CropId);
+        GrowAll(engine);
+        Assert.False(engine.PlantField("carrot")); // locked at Garden Level 1
 
         engine.State.GardenXp = GardenProgression.TotalXpFor(2);
-        Assert.True(engine.Plant(0, "carrot"));
-        Assert.Equal("carrot", engine.Plots[0].CropId);
-        Assert.Equal(0, engine.Plots[0].Growth);
-        Assert.Equal("carrot", engine.State.LastPlantedCrop);
+        Assert.True(engine.PlantField("carrot"));
+        Assert.Equal(Crops.Carrot, engine.FieldCrop);
+        Assert.All(engine.Tiles, t => Assert.Equal(0, t));
     }
 
     [Fact]
-    public void Plant_all_only_changes_plots_with_other_crops()
+    public void Expanding_the_field_needs_garden_level_and_coins()
     {
         var engine = NewEngine();
-        engine.State.GardenXp = GardenProgression.TotalXpFor(3);
-        engine.Plant(0, "potato");
-        engine.Tick(10);
-
-        Assert.Equal(2, engine.PlantAll("potato"));
-        Assert.All(engine.Plots, p => Assert.Equal("potato", p.CropId));
-        Assert.Equal(10, engine.Plots[0].Growth); // the one already growing potatoes kept its progress
-    }
-
-    [Fact]
-    public void Unlocking_a_plot_needs_garden_level_and_coins()
-    {
-        var engine = NewEngine();
-        var cost = GardenProgression.PlotUnlocks[0];
+        var first = FieldProgression.Expansions[0];
 
         engine.State.Coins = 1_000_000;
-        Assert.False(engine.TryUnlockNextPlot(out var reason));
+        Assert.False(engine.TryExpandField(out var reason));
         Assert.Contains("Garden Level", reason);
 
-        engine.State.GardenXp = GardenProgression.TotalXpFor(cost.GardenLevel);
-        engine.State.Coins = cost.Coins - 1;
-        Assert.False(engine.TryUnlockNextPlot(out reason));
+        engine.State.GardenXp = GardenProgression.TotalXpFor(first.GardenLevel);
+        engine.State.Coins = first.Coins - 1;
+        Assert.False(engine.TryExpandField(out reason));
         Assert.Contains("coins", reason);
 
-        engine.State.Coins = cost.Coins;
-        Assert.True(engine.TryUnlockNextPlot(out _));
-        Assert.Equal(4, engine.Plots.Count);
+        engine.State.Coins = first.Coins;
+        Assert.True(engine.TryExpandField(out _));
+        Assert.Equal(first.Length, engine.FieldLength);
+        Assert.Equal(first.Length, engine.Tiles.Count);
         Assert.Equal(0, engine.State.Coins);
     }
 
     [Fact]
-    public void Every_plot_can_eventually_be_unlocked()
+    public void The_field_can_be_expanded_to_its_full_length()
     {
-        var engine = NewEngine();
-        engine.State.GardenXp = GardenProgression.TotalXpFor(GardenProgression.MaxLevel);
-        engine.State.Coins = long.MaxValue / 2;
+        var engine = RichEngine();
+        while (engine.TryExpandField(out _)) { }
+        Assert.Equal(FieldProgression.MaxLength, engine.FieldLength);
+        Assert.False(engine.CanExpandField(out var next, out _));
+        Assert.Null(next);
+    }
 
-        while (engine.TryUnlockNextPlot(out _)) { }
+    // ------------------------------------------------------------------ fortune & stats
 
-        Assert.Equal(GardenProgression.MaxPlots, engine.Plots.Count);
-        Assert.False(engine.CanUnlockNextPlot(out var cost, out var reason));
-        Assert.Null(cost);
-        Assert.Equal("All plots unlocked", reason);
+    [Fact]
+    public void Fortune_adds_up_every_source()
+    {
+        var engine = RichEngine();
+        engine.State.FarmingXp = FarmingSkill.TotalXpFor(10);                          // +40
+        engine.State.Collections["wheat"] = CollectionTiers.Thresholds(Crops.Wheat)[2]; // tier 3: +6
+        engine.State.Tools["wheat"] = new ToolState { Tier = 2, Breaks = 4_500 };     // +30, counter +4
+        foreach (var slot in Armour.Slots) engine.State.Armour[slot] = 1;              // 4 x +4
+        engine.State.Talismans[TalismanFamily.Clover] = 2;                             // +10
+
+        int expected = 40 + 6 + 30 + 4 + 16 + 10;
+        Assert.Equal(expected, engine.GetFortune(Crops.Wheat, handBreak: false));
+        Assert.Equal(expected + GameEngine.HandBreakFortuneBonus, engine.GetFortune(Crops.Wheat, handBreak: true));
+        Assert.Equal(expected, engine.FortuneSources(Crops.Wheat).Sum(s => s.Amount));
+
+        // The wheat hoe doesn't help carrots.
+        Assert.Equal(40 + 16 + 10, engine.GetFortune(Crops.Carrot, handBreak: false));
     }
 
     [Fact]
-    public void Selling_turns_items_into_coins()
+    public void Full_armour_sets_give_their_bonus()
     {
-        var engine = NewEngine();
-        engine.State.Inventory["wheat"] = 10;
+        var engine = RichEngine();
+        foreach (var slot in Armour.Slots) engine.State.Armour[slot] = 3;
+        engine.State.Armour[ArmourSlot.Boots] = 2;
 
-        Assert.Equal(4 * Crops.Wheat.SellPrice, engine.Sell("wheat", 4));
-        Assert.Equal(6, engine.GetInventory(Crops.Wheat));
-        Assert.Equal(6 * Crops.Wheat.SellPrice, engine.Sell("wheat", 999));
-        Assert.Equal(0, engine.GetInventory(Crops.Wheat));
-        Assert.False(engine.State.Inventory.ContainsKey("wheat"));
-        Assert.Equal(10 * Crops.Wheat.SellPrice, engine.State.Coins);
-        Assert.Equal(0, engine.Sell("wheat", 1));
+        Assert.Equal(2, engine.FullSetTier); // a full set of Harvester or better
+        Assert.Equal(Armour.SetBonus(2).Regrow, engine.RegrowPercent);
+
+        engine.State.Armour[ArmourSlot.Boots] = 3;
+        Assert.Equal(3, engine.FullSetTier);
+        Assert.Equal(Armour.SetBonus(3).Xp, engine.XpPercent);
+        Assert.Equal(4 * Armour.Fortune(3) + Armour.SetBonus(3).Fortune, engine.EquipmentBonus.Fortune);
     }
 
     [Fact]
-    public void Sell_all_sells_every_crop()
+    public void Talismans_change_speed_regrow_and_xp()
+    {
+        var engine = RichEngine();
+        engine.State.Talismans[TalismanFamily.Swiftstep] = 3;
+        engine.State.Talismans[TalismanFamily.Sprout] = 2;
+        engine.State.Talismans[TalismanFamily.Scholar] = 1;
+
+        Assert.Equal(20, engine.SpeedPercent);
+        Assert.Equal(10, engine.RegrowPercent);
+        Assert.Equal(5, engine.XpPercent);
+        Assert.Equal(GameEngine.BaseFarmerSpeed * 1.2, engine.FarmerSpeed, precision: 6);
+        Assert.Equal(Crops.Wheat.RegrowSeconds / 1.1, engine.EffectiveRegrowSeconds, precision: 6);
+    }
+
+    [Fact]
+    public void Regrow_speed_makes_crops_grow_faster()
     {
         var engine = NewEngine();
-        engine.State.Inventory["wheat"] = 10;
-        engine.State.Inventory["pumpkin"] = 2;
+        engine.State.Talismans[TalismanFamily.Sprout] = 3; // +20%
+        engine.Tick(1);
+        Assert.Equal(1.2, engine.Tiles[0], precision: 6);
+    }
+
+    [Fact]
+    public void Farming_xp_bonus_boosts_xp_per_break()
+    {
+        var engine = NewEngine();
+        engine.State.Talismans[TalismanFamily.Scholar] = 3; // +20%
+        GrowAll(engine);
+        var result = engine.Break(0, handBreak: false)!;
+        Assert.Equal(Crops.Wheat.FarmingXp * 1.2, result.FarmingXp, precision: 6);
+    }
+
+    [Fact]
+    public void Hoes_count_the_crops_they_break()
+    {
+        var engine = NewEngine();
+        GrowAll(engine);
+        engine.Break(0, handBreak: false);
+        Assert.Equal(0, engine.ActiveTool.Breaks); // no hoe yet
+
+        engine.State.Tools["wheat"] = new ToolState { Tier = 1 };
+        engine.Break(1, handBreak: false);
+        engine.Break(2, handBreak: true);
+        Assert.Equal(2, engine.ActiveTool.Breaks);
+        Assert.Equal(0, Tools.CounterFortune(999));
+        Assert.Equal(1, Tools.CounterFortune(1_000));
+        Assert.Equal(Tools.MaxCounterFortune, Tools.CounterFortune(long.MaxValue));
+    }
+
+    [Fact]
+    public void The_farmer_holds_the_hoe_for_whatever_is_planted()
+    {
+        var engine = RichEngine();
+        engine.State.Tools["wheat"] = new ToolState { Tier = 3 };
+        engine.State.Tools["carrot"] = new ToolState { Tier = 1 };
+
+        Assert.Equal(3, engine.ActiveTool.Tier);
+        engine.PlantField("carrot");
+        Assert.Equal(1, engine.ActiveTool.Tier);
+        engine.PlantField("potato");
+        Assert.Equal(0, engine.ActiveTool.Tier);
+    }
+
+    // ------------------------------------------------------------------ packing & selling
+
+    [Fact]
+    public void Packing_turns_160_crops_into_one_packed_crop()
+    {
+        var engine = NewEngine();
+        var wheat = Items.Raw(Crops.Wheat);
+        Give(engine, wheat, 400);
+
+        Assert.Equal(2, engine.Pack(wheat.Id));
+        Assert.Equal(80, engine.GetItem(wheat));
+        Assert.Equal(2, engine.GetItem(Items.Packed(Crops.Wheat)));
+        Assert.Equal(0, engine.Pack(wheat.Id)); // not enough left
+
+        Give(engine, Items.Packed(Crops.Wheat), 158);
+        Assert.Equal(1, engine.Pack(Items.Packed(Crops.Wheat).Id));
+        Assert.Equal(1, engine.GetItem(Items.Dense(Crops.Wheat)));
+        Assert.Equal(0, engine.Pack(Items.Dense(Crops.Wheat).Id)); // dense is the top
+    }
+
+    [Fact]
+    public void Packed_crops_sell_for_the_same_as_their_crops()
+    {
+        var packed = Items.Packed(Crops.Melon);
+        Assert.Equal(160 * Crops.Melon.SellPrice, packed.SellPrice);
+        Assert.Equal(160L * 160 * Crops.Melon.SellPrice, Items.Dense(Crops.Melon).SellPrice);
+        Assert.Equal("Packed Melon", packed.Name);
+        Assert.Equal(30, Items.All.Count());
+    }
+
+    [Fact]
+    public void Selling_all_crops_keeps_packed_crops()
+    {
+        var engine = NewEngine();
+        Give(engine, Items.Raw(Crops.Wheat), 10);
+        Give(engine, Items.Raw(Crops.Pumpkin), 2);
+        Give(engine, Items.Packed(Crops.Wheat), 3);
         int changes = 0;
         engine.Changed += () => changes++;
 
-        long coins = engine.SellAll();
+        long coins = engine.SellAllCrops();
 
         Assert.Equal(10 * Crops.Wheat.SellPrice + 2 * Crops.Pumpkin.SellPrice, coins);
         Assert.Equal(coins, engine.State.Coins);
-        Assert.Empty(engine.State.Inventory);
+        Assert.Equal(3, engine.GetItem(Items.Packed(Crops.Wheat)));
         Assert.Equal(1, changes);
+
+        Assert.Equal(3 * Items.Packed(Crops.Wheat).SellPrice, engine.Sell("packed_wheat", 99));
+        Assert.Empty(engine.State.Inventory);
     }
 
     [Fact]
-    public void Auto_sell_pays_coins_instead_of_filling_inventory()
+    public void Auto_sell_pays_coins_instead_of_filling_the_inventory()
     {
         var engine = NewEngine();
         engine.State.Settings.AutoSell = true;
-        Ripen(engine);
+        GrowAll(engine);
 
-        var result = engine.Harvest(0, handHarvest: false)!;
+        var result = engine.Break(0, handBreak: false)!;
 
         Assert.Equal(result.Drops * Crops.Wheat.SellPrice, result.CoinsFromAutoSell);
         Assert.Equal(result.CoinsFromAutoSell, engine.State.Coins);
         Assert.Empty(engine.State.Inventory);
-        Assert.Equal(result.Drops, engine.GetCollection(Crops.Wheat)); // still counts for collections
+        Assert.Equal(result.Drops, engine.GetCollection(Crops.Wheat));
     }
+
+    // ------------------------------------------------------------------ crafting
+
+    [Fact]
+    public void Crafting_a_hoe_uses_up_crops_and_coins()
+    {
+        var engine = NewEngine();
+        var recipe = engine.NextRecipe(UpgradeKind.Tool, "wheat")!;
+        Assert.Equal(1, recipe.Tier);
+        Assert.Equal("Basic Wheat Hoe", recipe.ResultName);
+
+        Assert.False(engine.TryCraft(recipe, out var reason));
+        Assert.Contains("more Wheat", reason);
+
+        Give(engine, Items.Raw(Crops.Wheat), 50);
+        Assert.False(engine.TryCraft(recipe, out reason));
+        Assert.Contains("coins", reason);
+
+        engine.State.Coins = recipe.Coins;
+        var crafted = new List<Recipe>();
+        engine.Crafted += crafted.Add;
+        Assert.True(engine.TryCraft(recipe, out _));
+
+        Assert.Equal(1, engine.ActiveTool.Tier);
+        Assert.Equal(2, engine.GetItem(Items.Raw(Crops.Wheat)));
+        Assert.Equal(0, engine.State.Coins);
+        Assert.Equal(recipe, Assert.Single(crafted));
+        Assert.Equal(2, engine.NextRecipe(UpgradeKind.Tool, "wheat")!.Tier);
+    }
+
+    [Fact]
+    public void Upgrades_must_be_crafted_in_order()
+    {
+        var engine = RichEngine();
+        Give(engine, Items.Dense(Crops.Wheat), 5);
+        var masterwork = Recipes.Find(UpgradeKind.Tool, "wheat", 3)!;
+
+        Assert.False(engine.CanCraft(masterwork, out var reason));
+        Assert.Contains("first", reason);
+
+        engine.State.Tools["wheat"] = new ToolState { Tier = 2 };
+        Assert.True(engine.TryCraft(masterwork, out _));
+        Assert.Null(engine.NextRecipe(UpgradeKind.Tool, "wheat"));
+        Assert.False(engine.CanCraft(masterwork, out reason));
+        Assert.Equal("Already owned", reason);
+    }
+
+    [Fact]
+    public void Upgrades_can_need_a_garden_level()
+    {
+        var engine = RichEngine(gardenLevel: 1);
+        Give(engine, Items.Packed(Crops.Wheat), 10);
+        var helmet = engine.NextRecipe(UpgradeKind.Armour, nameof(ArmourSlot.Helmet))!;
+
+        Assert.False(engine.CanCraft(helmet, out var reason));
+        Assert.Contains("Garden Level", reason);
+
+        engine.State.GardenXp = GardenProgression.TotalXpFor(helmet.GardenLevel);
+        Assert.True(engine.TryCraft(helmet, out _));
+        Assert.Equal(1, engine.GetArmourTier(ArmourSlot.Helmet));
+        Assert.Equal("Straw Helmet", helmet.ResultName);
+    }
+
+    [Fact]
+    public void Talismans_upgrade_from_charm_to_relic()
+    {
+        var engine = RichEngine();
+        foreach (var item in Items.All) Give(engine, item, 1_000);
+
+        for (int tier = 1; tier <= Talismans.MaxTier; tier++)
+        {
+            var recipe = engine.NextRecipe(UpgradeKind.Talisman, nameof(TalismanFamily.Clover))!;
+            Assert.Equal(tier, recipe.Tier);
+            Assert.True(engine.TryCraft(recipe, out var reason), reason);
+        }
+
+        Assert.Equal(3, engine.GetTalismanTier(TalismanFamily.Clover));
+        Assert.Equal(20, engine.EquipmentBonus.Fortune);
+        Assert.Equal("Clover Relic", Talismans.Name(TalismanFamily.Clover, 3));
+        Assert.Null(engine.NextRecipe(UpgradeKind.Talisman, nameof(TalismanFamily.Clover)));
+    }
+
+    [Fact]
+    public void Every_upgrade_has_three_tiers_with_real_ingredients()
+    {
+        var targets = Crops.All.Select(c => (UpgradeKind.Tool, c.Id))
+            .Concat(Armour.Slots.Select(s => (UpgradeKind.Armour, s.ToString())))
+            .Concat(Talismans.Families.Select(f => (UpgradeKind.Talisman, f.ToString())));
+
+        foreach (var (kind, target) in targets)
+        {
+            for (int tier = 1; tier <= 3; tier++)
+            {
+                var recipe = Recipes.Find(kind, target, tier);
+                Assert.NotNull(recipe);
+                Assert.NotEmpty(recipe!.Ingredients);
+                Assert.All(recipe.Ingredients, i => Assert.True(Items.TryGet(i.ItemId, out _), i.ItemId));
+                Assert.InRange(recipe.GardenLevel, 1, GardenProgression.MaxLevel);
+                Assert.True(recipe.Coins > 0);
+            }
+            Assert.Null(Recipes.Find(kind, target, 4));
+        }
+        Assert.Equal(Recipes.All.Count, Recipes.All.Select(r => r.Id).Distinct().Count());
+    }
+
+    [Fact]
+    public void Everything_can_be_crafted_with_enough_crops()
+    {
+        var engine = RichEngine();
+        foreach (var item in Items.All) Give(engine, item, 100_000);
+
+        foreach (var recipe in Recipes.All.OrderBy(r => r.Tier))
+            Assert.True(engine.TryCraft(recipe, out var reason), $"{recipe.ResultName}: {reason}");
+
+        Assert.Equal(Recipes.All.Count, engine.State.Stats.ItemsCrafted);
+        Assert.Equal(3, engine.FullSetTier);
+    }
+
+    // ------------------------------------------------------------------ levels
 
     [Fact]
     public void Farming_level_up_raises_event_and_pays_coins()
@@ -233,91 +454,78 @@ public class GameEngineTests
         var levelUps = new List<LevelUp>();
         engine.LeveledUp += levelUps.Add;
 
-        Ripen(engine);
-        engine.Harvest(0, handHarvest: false);
+        GrowAll(engine);
+        engine.Break(0, handBreak: false);
 
         var farming = Assert.Single(levelUps, l => l.Skill == SkillKind.Farming);
-        Assert.Equal(0, farming.OldLevel);
         Assert.Equal(1, farming.NewLevel);
         Assert.Equal(FarmingSkill.CoinRewardPerLevel, engine.State.Coins);
     }
 
     [Fact]
-    public void Garden_level_up_announces_unlocked_crops()
+    public void Garden_level_up_announces_what_it_unlocked()
     {
         var engine = NewEngine();
         engine.State.GardenXp = GardenProgression.TotalXpFor(2) - 1;
         var levelUps = new List<LevelUp>();
         engine.LeveledUp += levelUps.Add;
 
-        Ripen(engine);
-        engine.Harvest(0, handHarvest: false);
+        GrowAll(engine);
+        engine.Break(0, handBreak: false);
 
         var garden = Assert.Single(levelUps, l => l.Skill == SkillKind.Garden);
         Assert.Equal(2, garden.NewLevel);
         Assert.Contains("Unlocked Carrot", garden.Rewards);
-        Assert.Contains(garden.Rewards, r => r.StartsWith("New plot available"));
-        Assert.True(engine.IsCropUnlocked(Crops.Carrot));
+        Assert.Contains(garden.Rewards, r => r.StartsWith("Field expansion available"));
+        Assert.Contains(garden.Rewards, r => r.Contains("new upgrade"));
     }
 
     [Fact]
     public void Reaching_a_collection_tier_gives_garden_xp()
     {
         var engine = NewEngine(roll: 0.99);
-        long firstTier = CollectionTiers.Thresholds(Crops.Wheat)[0];
-        engine.State.Collections["wheat"] = firstTier - 1;
+        engine.State.Collections["wheat"] = CollectionTiers.Thresholds(Crops.Wheat)[0] - 1;
         var tiers = new List<CollectionTierUp>();
         engine.CollectionTierReached += tiers.Add;
 
-        Ripen(engine);
-        var result = engine.Harvest(0, handHarvest: false)!;
+        GrowAll(engine);
+        var result = engine.Break(0, handBreak: false)!;
 
         Assert.Equal(1, Assert.Single(tiers).NewTier);
-        Assert.Equal(Crops.Wheat.GardenXp + CollectionTiers.GardenXpPerTier, result.GardenXp);
-        Assert.Equal(CollectionTiers.FortunePerTier, engine.GetFortune(Crops.Wheat, handHarvest: false));
+        Assert.Equal(GardenProgression.XpPerBreak + CollectionTiers.GardenXpPerTier, result.GardenXp);
     }
 
+    // ------------------------------------------------------------------ offline
+
     [Fact]
-    public void Offline_progress_harvests_at_reduced_speed()
+    public void Offline_progress_breaks_crops_at_reduced_speed()
     {
         var engine = NewEngine(roll: 0.99);
-        // 3 plots of wheat, all freshly planted. In "farmer time" one cycle is grow + walk.
-        double cycle = Crops.Wheat.GrowSeconds + GameEngine.OfflineWalkSeconds;
-        var away = TimeSpan.FromSeconds(cycle * 10 / GameEngine.OfflineEfficiency);
+        double rate = engine.OfflineBreaksPerSecond();
+        // 10 wheat regrowing in 5s = 2 per second, slower than walking 2.5 per second.
+        Assert.Equal(Math.Min(GameEngine.BaseFarmerSpeed, 10 / 5.0) * GameEngine.OfflineEfficiency, rate, precision: 6);
 
-        var report = engine.ApplyOfflineProgress(away);
+        var report = engine.ApplyOfflineProgress(TimeSpan.FromMinutes(10));
 
-        Assert.Equal(30, report.Harvests);
-        Assert.Equal(90, report.Drops["wheat"]);
-        Assert.Equal(90, engine.GetInventory(Crops.Wheat));
-        Assert.Equal(30 * Crops.Wheat.FarmingXp, report.FarmingXp);
-        Assert.Equal(engine.State.FarmingXp, report.FarmingXp);
+        Assert.Equal((long)(600 * rate), report.Breaks);
+        Assert.True(report.Drops >= report.Breaks);
+        Assert.Equal(engine.State.FarmingXp, report.FarmingXp, precision: 6);
         Assert.True(report.FarmingLevelAfter > report.FarmingLevelBefore);
-        Assert.False(report.IsEmpty);
+        Assert.Equal(engine.FieldLength, engine.GrownCount);
     }
 
     [Fact]
-    public void Offline_progress_is_capped()
-    {
-        var engine = NewEngine();
-        var report = engine.ApplyOfflineProgress(TimeSpan.FromDays(30));
-        Assert.Equal(GameEngine.MaxOfflineTime, report.Counted);
-        Assert.Equal(TimeSpan.FromDays(30), report.Away);
-    }
-
-    [Fact]
-    public void Offline_progress_does_not_raise_events()
+    public void Offline_progress_is_capped_and_quiet()
     {
         var engine = NewEngine();
         int events = 0;
-        engine.Harvested += _ => events++;
+        engine.Broke += _ => events++;
         engine.LeveledUp += _ => events++;
-        engine.CollectionTierReached += _ => events++;
 
-        engine.ApplyOfflineProgress(TimeSpan.FromHours(2));
+        var report = engine.ApplyOfflineProgress(TimeSpan.FromDays(30));
 
+        Assert.Equal(GameEngine.MaxOfflineTime, report.Counted);
         Assert.Equal(0, events);
-        Assert.True(engine.State.Stats.TotalHarvests > 0);
     }
 
     [Fact]
@@ -325,48 +533,44 @@ public class GameEngineTests
     {
         var engine = NewEngine();
         engine.State.Settings.FarmerAutoHarvest = false;
-
         var report = engine.ApplyOfflineProgress(TimeSpan.FromHours(1));
-
         Assert.True(report.IsEmpty);
-        Assert.All(engine.Plots, p => Assert.True(GameEngine.IsRipe(p)));
+        Assert.Equal(engine.FieldLength, engine.GrownCount);
     }
 
     [Fact]
     public void Reset_wipes_progress_but_keeps_settings()
     {
-        var engine = NewEngine();
-        engine.State.Coins = 500;
-        engine.State.FarmingXp = 5000;
-        engine.State.GardenXp = 5000;
-        engine.State.Inventory["wheat"] = 9;
-        engine.State.Collections["wheat"] = 9;
+        var engine = RichEngine();
+        foreach (var item in Items.All) Give(engine, item, 100_000);
+        foreach (var recipe in Recipes.All.OrderBy(r => r.Tier)) engine.TryCraft(recipe, out _);
+        engine.TryExpandField(out _);
         engine.State.Settings.StripMode = StripMode.OnHover;
-        engine.State.Coins += 1_000_000;
-        engine.TryUnlockNextPlot(out _);
 
         engine.ResetProgress();
 
         Assert.Equal(0, engine.State.Coins);
-        Assert.Equal(0, engine.FarmingLevel);
         Assert.Equal(1, engine.GardenLevel);
         Assert.Empty(engine.State.Inventory);
-        Assert.Empty(engine.State.Collections);
-        Assert.Equal(3, engine.Plots.Count);
+        Assert.Equal(FieldProgression.StartLength, engine.FieldLength);
+        Assert.True(engine.EquipmentBonus.IsEmpty);
+        Assert.Equal(0, engine.ActiveTool.Tier);
         Assert.Equal(StripMode.OnHover, engine.State.Settings.StripMode);
     }
 
+    // ------------------------------------------------------------------ balance
+
     [Fact]
-    public void Each_new_crop_earns_more_coins_per_minute()
+    public void Each_new_crop_is_worth_more()
     {
-        double Rate(CropDef c) => c.BaseDrops * c.SellPrice * 60 / c.GrowSeconds;
         for (int i = 1; i < Crops.All.Count; i++)
         {
-            Assert.True(Rate(Crops.All[i]) > Rate(Crops.All[i - 1]),
-                $"{Crops.All[i].Name} should earn more than {Crops.All[i - 1].Name}");
-            Assert.True(Crops.All[i].UnlockGardenLevel > Crops.All[i - 1].UnlockGardenLevel);
+            var (a, b) = (Crops.All[i - 1], Crops.All[i]);
+            Assert.True(b.CoinsPerBreak > a.CoinsPerBreak, $"{b.Name} should be worth more per break than {a.Name}");
+            Assert.True(b.CoinsPerBreak / b.RegrowSeconds > a.CoinsPerBreak / a.RegrowSeconds,
+                $"{b.Name} should earn more per second of regrowing than {a.Name}");
+            Assert.True(b.UnlockGardenLevel > a.UnlockGardenLevel);
         }
         Assert.Equal(Crops.All.Count, Crops.All.Select(c => c.Id).Distinct().Count());
-        Assert.True(Crops.All[^1].UnlockGardenLevel <= GardenProgression.MaxLevel);
     }
 }

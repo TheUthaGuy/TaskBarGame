@@ -16,7 +16,14 @@ public sealed class SaveManagerTests : IDisposable
     public void Missing_save_starts_a_new_game()
     {
         var state = new SaveManager(SavePath).LoadOrCreate();
-        Assert.Equal(3, state.Plots.Count);
+        Assert.Equal(FieldProgression.StartLength, state.Field.Tiles.Count);
+        Assert.Equal(2, state.Version);
+    }
+
+    [Fact]
+    public void Default_save_is_separate_from_the_original_game()
+    {
+        Assert.Contains("TaskBarGame Harvest Edition", new SaveManager().SavePath);
     }
 
     [Fact]
@@ -25,24 +32,31 @@ public sealed class SaveManagerTests : IDisposable
         var saves = new SaveManager(SavePath);
         var state = GameState.CreateNew();
         state.Coins = 1234;
-        state.FarmingXp = 999;
-        state.Inventory["carrot"] = 7;
-        state.Plots[1].CropId = "pumpkin";
-        state.Plots[1].Growth = 12.5;
+        state.FarmingXp = 999.5;
+        state.Inventory["packed_carrot"] = 7;
+        state.Field.CropId = "pumpkin";
+        state.Field.Tiles[2] = 4.5;
+        state.Tools["wheat"] = new ToolState { Tier = 2, Breaks = 4321 };
+        state.Armour[ArmourSlot.Chestplate] = 3;
+        state.Talismans[TalismanFamily.Swiftstep] = 1;
         state.Settings.StripMode = StripMode.OnHover;
-        state.Settings.Size = StripSize.Small;
 
         saves.Save(state);
         var loaded = saves.LoadOrCreate();
 
         Assert.Equal(1234, loaded.Coins);
-        Assert.Equal(999, loaded.FarmingXp);
-        Assert.Equal(7, loaded.Inventory["carrot"]);
-        Assert.Equal("pumpkin", loaded.Plots[1].CropId);
-        Assert.Equal(12.5, loaded.Plots[1].Growth);
+        Assert.Equal(999.5, loaded.FarmingXp);
+        Assert.Equal(7, loaded.Inventory["packed_carrot"]);
+        Assert.Equal("pumpkin", loaded.Field.CropId);
+        Assert.Equal(4.5, loaded.Field.Tiles[2]);
+        Assert.Equal(2, loaded.Tools["wheat"].Tier);
+        Assert.Equal(4321, loaded.Tools["wheat"].Breaks);
+        Assert.Equal(3, loaded.Armour[ArmourSlot.Chestplate]);
+        Assert.Equal(1, loaded.Talismans[TalismanFamily.Swiftstep]);
         Assert.Equal(StripMode.OnHover, loaded.Settings.StripMode);
-        Assert.Equal(StripSize.Small, loaded.Settings.Size);
-        Assert.Contains("\"OnHover\"", File.ReadAllText(SavePath)); // enums are readable in the file
+        string json = File.ReadAllText(SavePath);
+        Assert.Contains("\"Chestplate\"", json); // readable names in the file
+        Assert.Contains("\"Swiftstep\"", json);
     }
 
     [Fact]
@@ -66,20 +80,27 @@ public sealed class SaveManagerTests : IDisposable
         var state = new GameState
         {
             Coins = -5,
-            Plots = { new PlotState { CropId = "banana", Growth = 50 }, new PlotState { CropId = "WHEAT", Growth = 9999 } },
-            LastPlantedCrop = "banana",
+            Field = new FieldState { CropId = "banana", Length = 13, Tiles = { 99, double.NaN } },
+            Tools = { ["banana"] = new ToolState { Tier = 2 }, ["wheat"] = new ToolState { Tier = 9, Breaks = -3 } },
+            Armour = { [ArmourSlot.Boots] = 7 },
+            Talismans = { [TalismanFamily.Clover] = -1 },
         };
         state.Inventory["banana"] = 3;
+        state.Inventory["packed_wheat"] = 0;
 
         state.Normalize();
 
         Assert.Equal(0, state.Coins);
-        Assert.Equal(GardenProgression.StartingPlots, state.Plots.Count);
-        Assert.Null(state.Plots[0].CropId);
-        Assert.Equal("wheat", state.Plots[1].CropId);
-        Assert.Equal(Crops.Wheat.GrowSeconds, state.Plots[1].Growth);
+        Assert.Equal("wheat", state.Field.CropId);
+        Assert.Equal(12, state.Field.Length); // not a real length: back to the expansion below it
+        Assert.Equal(12, state.Field.Tiles.Count);
+        Assert.All(state.Field.Tiles, t => Assert.InRange(t, 0, Crops.Wheat.RegrowSeconds));
+        Assert.False(state.Tools.ContainsKey("banana"));
+        Assert.Equal(Tools.MaxTier, state.Tools["wheat"].Tier);
+        Assert.Equal(0, state.Tools["wheat"].Breaks);
+        Assert.Equal(Armour.MaxTier, state.Armour[ArmourSlot.Boots]);
+        Assert.Equal(0, state.Talismans[TalismanFamily.Clover]);
         Assert.Empty(state.Inventory);
-        Assert.Equal("wheat", state.LastPlantedCrop);
     }
 }
 
@@ -95,17 +116,27 @@ public class SpriteSheetTests
             "soil", "soil_locked", "lock", "stage0", "stage1", "stage2",
             "farmer_idle", "farmer_blink", "farmer_walk1", "farmer_walk2",
             "farmer_farm1", "farmer_farm2", "farmer_swing",
-            "coin", "sparkle",
+            "coin", "sparkle", "sack", "crate",
+            "icon_hoe", "icon_helmet", "icon_chestplate", "icon_leggings", "icon_boots",
+            "icon_charm", "icon_ring", "icon_relic",
         };
         foreach (var name in required.Concat(Crops.All.Select(c => c.RipeSprite)))
             Assert.True(sheet.Contains(name), $"sprites.txt is missing [sprite {name}]");
 
-        foreach (var name in required.Where(n => n.StartsWith("farmer") || n.StartsWith("stage") || n.StartsWith("soil"))
+        foreach (var name in required.Where(n => n.StartsWith("farmer") || n.StartsWith("stage") || n.StartsWith("soil") || n.StartsWith("icon"))
                      .Concat(Crops.All.Select(c => c.RipeSprite)))
         {
             Assert.Equal(16, sheet[name].Width);
             Assert.Equal(16, sheet[name].Height);
         }
+    }
+
+    [Fact]
+    public void Recolourable_palette_colours_are_defined()
+    {
+        var palette = SpriteSheet.LoadDefault().Palette;
+        foreach (char c in "AaIiEZNnb")
+            Assert.True(palette.ContainsKey(c), $"palette is missing '{c}'");
     }
 
     [Fact]

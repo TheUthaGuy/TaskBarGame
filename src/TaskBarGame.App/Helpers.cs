@@ -24,6 +24,9 @@ internal static class Format
 {
     public static string Number(long value) => value.ToString("N0", CultureInfo.CurrentCulture);
 
+    /// <summary>"1 coin", "5 coins".</summary>
+    public static string Coins(long value) => value == 1 ? "1 coin" : $"{Number(value)} coins";
+
     public static string Number(double value, int decimals) =>
         value.ToString("N" + decimals, CultureInfo.CurrentCulture);
 
@@ -88,7 +91,7 @@ internal static class CropMenu
 internal static class WindowsStartup
 {
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    private const string ValueName = "TaskBarGame";
+    private const string ValueName = "TaskBarGame Harvest Edition";
 
     public static bool IsEnabled
     {

@@ -9,7 +9,7 @@ using TaskBarGame.Core;
 namespace TaskBarGame.App;
 
 /// <summary>
-/// Plays a demo garden and saves screenshots of the strip and every panel tab, then quits.
+/// Plays a demo field and saves screenshots of the strip and every panel tab, then quits.
 /// Run with: TaskBarGame.exe --screenshots path\to\folder
 /// (Used to make the screenshots in docs/screenshots. Your real save file is never touched.)
 /// </summary>
@@ -34,36 +34,47 @@ internal sealed class ScreenshotTour
         return index + 1 < args.Length ? args[index + 1] : "screenshots";
     }
 
-    /// <summary>A garden a few hours in, with some crops ripe so the farmer has work to do.</summary>
+    /// <summary>A field a few hours in, with crops grown so the farmer has a row to sweep.</summary>
     public static GameState CreateDemoState()
     {
         var state = GameState.CreateNew();
-        state.GardenXp = 2_600;                                // Garden 7, halfway to 8
-        state.FarmingXp = FarmingSkill.TotalXpFor(13) - 3;     // the first harvest levels up
-        state.Coins = 12_345;
+        state.GardenXp = 32_000;                               // Garden 8
+        state.FarmingXp = FarmingSkill.TotalXpFor(18) - 2;     // the first crop broken levels up
+        state.Coins = 48_250;
 
-        (string Crop, double Progress)[] plots =
-        {
-            ("wheat", 1), ("carrot", 0.7), ("potato", 1), ("sugarcane", 0.4),
-            ("pumpkin", 1), ("melon", 0.85), ("wheat", 0.1), ("carrot", 1),
-        };
-        state.Plots.Clear();
-        foreach (var (crop, progress) in plots)
-            state.Plots.Add(new PlotState { CropId = crop, Growth = Crops.Get(crop).GrowSeconds * progress });
+        state.Field.CropId = "wheat";
+        state.Field.Length = 16;
+        state.Field.Tiles.Clear();
+        double[] growth = { 1, 1, 1, 0.2, 1, 1, 0.5, 1, 1, 1, 0.8, 1, 1, 0.1, 1, 1 };
+        foreach (double g in growth) state.Field.Tiles.Add(g * Crops.Wheat.RegrowSeconds);
 
-        state.Collections["wheat"] = 6_500;
-        state.Collections["carrot"] = 3_000;
-        state.Collections["potato"] = 900;
-        state.Collections["sugarcane"] = 300;
-        state.Collections["pumpkin"] = 60;
-        state.Collections["melon"] = 40;
-        state.Inventory["wheat"] = 412;
-        state.Inventory["carrot"] = 230;
-        state.Inventory["potato"] = 96;
-        state.Inventory["pumpkin"] = 18;
-        state.Stats.TotalHarvests = 1_873;
-        state.Stats.HandHarvests = 214;
-        state.Stats.CoinsEarned = 18_420;
+        state.Tools["wheat"] = new ToolState { Tier = 2, Breaks = 7_420 };
+        state.Tools["carrot"] = new ToolState { Tier = 1, Breaks = 2_310 };
+        state.Tools["potato"] = new ToolState { Tier = 1, Breaks = 1_150 };
+        foreach (var slot in Armour.Slots) state.Armour[slot] = 1;
+        state.Armour[ArmourSlot.Helmet] = 2;
+        state.Talismans[TalismanFamily.Clover] = 2;
+        state.Talismans[TalismanFamily.Swiftstep] = 1;
+        state.Talismans[TalismanFamily.Scholar] = 1;
+
+        state.Collections["wheat"] = 52_000;
+        state.Collections["carrot"] = 30_000;
+        state.Collections["potato"] = 20_000;
+        state.Collections["sugarcane"] = 4_000;
+        state.Collections["pumpkin"] = 900;
+        state.Collections["melon"] = 2_500;
+        state.Collections["cocoa"] = 50;
+        state.Inventory["wheat"] = 340;
+        state.Inventory["packed_wheat"] = 6;
+        state.Inventory["dense_wheat"] = 1;
+        state.Inventory["carrot"] = 120;
+        state.Inventory["packed_carrot"] = 14;
+        state.Inventory["potato"] = 95;
+        state.Inventory["packed_melon"] = 9;
+        state.Stats.TotalBreaks = 18_730;
+        state.Stats.HandBreaks = 412;
+        state.Stats.CoinsEarned = 96_420;
+        state.Stats.ItemsCrafted = 10;
 
         state.Settings.HideInFullscreen = false;
         state.LastSavedUtc = DateTime.UtcNow;
@@ -74,16 +85,16 @@ internal sealed class ScreenshotTour
     {
         Directory.CreateDirectory(_folder);
 
-        // Let the farmer get going, then catch the moment just after a crop breaks.
-        await Wait(1.4);
+        // Let the farmer get going (so a "+N" has floated up), then catch the moment a crop breaks.
+        await Wait(1.6);
         await NextHarvest(TimeSpan.FromSeconds(6));
-        await Wait(0.15);
+        await Wait(0.1);
         SaveStrip("strip.png");
 
         _strip.TogglePanel();
         await Wait(0.8);
         var panel = _strip.Panel ?? throw new InvalidOperationException("The garden panel didn't open.");
-        string[] tabs = { "garden", "farming", "collections", "market", "settings" };
+        string[] tabs = { "field", "farming", "upgrades", "collections", "market", "settings" };
         for (int i = 0; i < tabs.Length; i++)
         {
             panel.Tabs.SelectedIndex = i;
@@ -104,10 +115,10 @@ internal sealed class ScreenshotTour
     private Task NextHarvest(TimeSpan timeout)
     {
         var done = new TaskCompletionSource();
-        void OnHarvest(HarvestResult _) => done.TrySetResult();
-        _host.Engine.Harvested += OnHarvest;
+        void OnHarvest(BreakResult _) => done.TrySetResult();
+        _host.Engine.Broke += OnHarvest;
         return Task.WhenAny(done.Task, Task.Delay(timeout))
-            .ContinueWith(_ => _host.Engine.Harvested -= OnHarvest, TaskScheduler.FromCurrentSynchronizationContext());
+            .ContinueWith(_ => _host.Engine.Broke -= OnHarvest, TaskScheduler.FromCurrentSynchronizationContext());
     }
 
     /// <summary>Draws the strip (and anything floating above it) trimmed to the parts you can see.</summary>

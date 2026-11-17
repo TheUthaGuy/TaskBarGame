@@ -7,7 +7,7 @@
 <Window x:Class="TaskBarGame.App.StripWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="TaskBarGame"
+        Title="TaskBarGame: Harvest Edition"
         Width="360"
         Height="180"
         WindowStyle="None"

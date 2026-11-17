@@ -27,26 +27,27 @@ public class ProgressionTests
     public void Garden_levels_follow_the_xp_table()
     {
         Assert.Equal(1, GardenProgression.LevelForXp(0));
-        Assert.Equal(1, GardenProgression.LevelForXp(59));
-        Assert.Equal(2, GardenProgression.LevelForXp(60));
+        Assert.Equal(1, GardenProgression.LevelForXp(199));
+        Assert.Equal(2, GardenProgression.LevelForXp(200));
         Assert.Equal(GardenProgression.MaxLevel, GardenProgression.LevelForXp(long.MaxValue));
         for (int level = 2; level <= GardenProgression.MaxLevel; level++)
             Assert.True(GardenProgression.TotalXpFor(level) > GardenProgression.TotalXpFor(level - 1));
     }
 
     [Fact]
-    public void Plot_unlocks_get_more_expensive()
+    public void Field_expansions_get_longer_and_more_expensive()
     {
-        Assert.Equal(12, GardenProgression.MaxPlots);
-        var unlocks = GardenProgression.PlotUnlocks;
-        for (int i = 1; i < unlocks.Count; i++)
+        var expansions = FieldProgression.Expansions;
+        Assert.True(expansions[0].Length > FieldProgression.StartLength);
+        for (int i = 1; i < expansions.Count; i++)
         {
-            Assert.True(unlocks[i].Coins > unlocks[i - 1].Coins);
-            Assert.True(unlocks[i].GardenLevel >= unlocks[i - 1].GardenLevel);
+            Assert.True(expansions[i].Length > expansions[i - 1].Length);
+            Assert.True(expansions[i].Coins > expansions[i - 1].Coins);
+            Assert.True(expansions[i].GardenLevel >= expansions[i - 1].GardenLevel);
         }
-        Assert.All(unlocks, u => Assert.InRange(u.GardenLevel, 1, GardenProgression.MaxLevel));
-        Assert.Equal(unlocks[0], GardenProgression.NextPlotUnlock(3));
-        Assert.Null(GardenProgression.NextPlotUnlock(GardenProgression.MaxPlots));
+        Assert.All(expansions, e => Assert.InRange(e.GardenLevel, 1, GardenProgression.MaxLevel));
+        Assert.Equal(expansions[0], FieldProgression.Next(FieldProgression.StartLength));
+        Assert.Null(FieldProgression.Next(FieldProgression.MaxLength));
     }
 
     [Fact]

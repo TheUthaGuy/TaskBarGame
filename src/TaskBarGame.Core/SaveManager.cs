@@ -4,7 +4,8 @@ using System.Text.Json.Serialization;
 namespace TaskBarGame.Core;
 
 /// <summary>
-/// Loads and saves the game as JSON in %APPDATA%\TaskBarGame\save.json.
+/// Loads and saves the game as JSON in %APPDATA%\TaskBarGame Harvest Edition\save.json
+/// (separate from the original game's save, so both can be played).
 /// The previous save is kept as save.json.bak in case something goes wrong.
 /// </summary>
 public sealed class SaveManager
@@ -19,9 +20,12 @@ public sealed class SaveManager
     {
         SavePath = path ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "TaskBarGame",
+            FolderName,
             "save.json");
     }
+
+    /// <summary>The folder in %APPDATA% that holds the save file and error log.</summary>
+    public const string FolderName = "TaskBarGame Harvest Edition";
 
     public string SavePath { get; }
     public string BackupPath => SavePath + ".bak";

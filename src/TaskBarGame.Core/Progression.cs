@@ -48,52 +48,36 @@ public static class FarmingSkill
 }
 
 /// <summary>
-/// Garden level: earn Garden XP from harvests and collection milestones.
-/// Garden levels unlock new crops and let you buy more plots.
+/// Garden level: earn Garden XP from every crop you break and from collection milestones.
+/// Garden levels unlock new crops, upgrades and field expansions.
 /// </summary>
 public static class GardenProgression
 {
     public const int MaxLevel = 15;
 
-    /// <summary>Plots you start with.</summary>
-    public const int StartingPlots = 3;
+    /// <summary>Garden XP for breaking one crop.</summary>
+    public const int XpPerBreak = 1;
 
     /// <summary>Total Garden XP needed to reach each level. Index = level.</summary>
     private static readonly long[] TotalXpForLevel =
     {
-        0,      // (unused, level 0)
-        0,      // level 1
-        60,     // level 2
-        180,
-        400,
-        750,    // level 5
-        1_250,
-        2_000,
-        3_200,
-        5_000,
-        7_500,  // level 10
-        11_000,
-        15_500,
-        21_000,
-        28_000,
-        36_000, // level 15
+        0,        // (unused, level 0)
+        0,        // level 1
+        200,      // level 2
+        900,
+        2_500,
+        5_500,    // level 5
+        10_000,
+        17_000,
+        27_000,
+        41_000,
+        60_000,   // level 10
+        85_000,
+        117_000,
+        157_000,
+        207_000,
+        270_000,  // level 15
     };
-
-    /// <summary>Cost to unlock each extra plot, in order (plot 4, plot 5, ...).</summary>
-    public static readonly IReadOnlyList<PlotUnlock> PlotUnlocks = new PlotUnlock[]
-    {
-        new(Coins: 200,    GardenLevel: 2),
-        new(Coins: 500,    GardenLevel: 3),
-        new(Coins: 1_000,  GardenLevel: 4),
-        new(Coins: 2_000,  GardenLevel: 5),
-        new(Coins: 4_000,  GardenLevel: 7),
-        new(Coins: 8_000,  GardenLevel: 9),
-        new(Coins: 15_000, GardenLevel: 11),
-        new(Coins: 30_000, GardenLevel: 13),
-        new(Coins: 60_000, GardenLevel: 15),
-    };
-
-    public static int MaxPlots => StartingPlots + PlotUnlocks.Count;
 
     public static long TotalXpFor(int level) => TotalXpForLevel[Math.Clamp(level, 1, MaxLevel)];
 
@@ -112,16 +96,32 @@ public static class GardenProgression
         long start = TotalXpForLevel[level];
         return (double)(xp - start) / (TotalXpForLevel[level + 1] - start);
     }
-
-    /// <summary>The cost of the next plot, or null if every plot is unlocked.</summary>
-    public static PlotUnlock? NextPlotUnlock(int unlockedPlots)
-    {
-        int index = unlockedPlots - StartingPlots;
-        return index >= 0 && index < PlotUnlocks.Count ? PlotUnlocks[index] : null;
-    }
 }
 
-public sealed record PlotUnlock(long Coins, int GardenLevel);
+/// <summary>The field is one long row of crops. Expansions make the row longer.</summary>
+public static class FieldProgression
+{
+    /// <summary>Crops in the row when you start.</summary>
+    public const int StartLength = 10;
+
+    /// <summary>Each expansion, in order: the new length, its cost and the Garden level needed.</summary>
+    public static readonly IReadOnlyList<FieldExpansion> Expansions = new FieldExpansion[]
+    {
+        new(Length: 12, Coins: 500,     GardenLevel: 2),
+        new(Length: 14, Coins: 2_500,   GardenLevel: 4),
+        new(Length: 16, Coins: 10_000,  GardenLevel: 6),
+        new(Length: 18, Coins: 40_000,  GardenLevel: 8),
+        new(Length: 20, Coins: 120_000, GardenLevel: 11),
+        new(Length: 24, Coins: 400_000, GardenLevel: 14),
+    };
+
+    public static int MaxLength => Expansions[^1].Length;
+
+    /// <summary>The next expansion for a row this long, or null when it's as long as it gets.</summary>
+    public static FieldExpansion? Next(int length) => Expansions.FirstOrDefault(e => e.Length > length);
+}
+
+public sealed record FieldExpansion(int Length, long Coins, int GardenLevel);
 
 /// <summary>
 /// Collections: every crop item you harvest counts towards that crop's collection.
@@ -131,22 +131,24 @@ public static class CollectionTiers
 {
     public const int MaxTier = 10;
     public const int FortunePerTier = 2;
-    public const int GardenXpPerTier = 20;
 
-    /// <summary>Thresholds for a crop that drops about 6 items per minute (Wheat).</summary>
+    /// <summary>Garden XP for reaching a tier = tier * this.</summary>
+    public const int GardenXpPerTier = 50;
+
+    /// <summary>Thresholds for Wheat. Other crops are scaled by how fast they drop items.</summary>
     private static readonly long[] BaseThresholds =
-        { 50, 150, 400, 1_000, 2_500, 6_000, 12_000, 25_000, 50_000, 100_000 };
+        { 100, 500, 2_000, 6_000, 15_000, 40_000, 100_000, 250_000, 500_000, 1_000_000 };
 
     private static readonly Dictionary<string, long[]> ThresholdsByCrop =
         Crops.All.ToDictionary(c => c.Id, BuildThresholds);
 
     private static long[] BuildThresholds(CropDef crop)
     {
-        // Slow crops drop fewer items, so their milestones are scaled down to take
-        // about the same amount of time as Wheat's.
-        double dropsPerMinute = crop.BaseDrops * 60.0 / crop.GrowSeconds;
-        double scale = dropsPerMinute / 6.0;
-        return BaseThresholds.Select(t => Math.Max(5, RoundNice(t * scale))).ToArray();
+        // Items per second of regrowing, compared with Wheat, so every collection takes
+        // about the same time to fill.
+        double scale = (crop.DropsPerBreak / crop.RegrowSeconds)
+                       / (Crops.Wheat.DropsPerBreak / Crops.Wheat.RegrowSeconds);
+        return BaseThresholds.Select(t => Math.Max(10, RoundNice(t * scale))).ToArray();
     }
 
     /// <summary>Rounds to 2 significant figures so numbers look tidy (e.g. 1,234 → 1,200).</summary>

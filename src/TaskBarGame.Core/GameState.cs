@@ -6,22 +6,29 @@ namespace TaskBarGame.Core;
 /// </summary>
 public sealed class GameState
 {
-    public int Version { get; set; } = 1;
+    /// <summary>2 = Harvest Edition (one long field row, tools, armour, talismans).</summary>
+    public int Version { get; set; } = 2;
 
     public long Coins { get; set; }
-    public long FarmingXp { get; set; }
+    public double FarmingXp { get; set; }
     public long GardenXp { get; set; }
 
-    /// <summary>Crop items you are holding, by crop id. Sell them at the Market.</summary>
+    /// <summary>Items you are holding (crops, packed crops, dense crops), by item id.</summary>
     public Dictionary<string, long> Inventory { get; set; } = new();
 
     /// <summary>Total crop items ever harvested, by crop id.</summary>
     public Dictionary<string, long> Collections { get; set; } = new();
 
-    public List<PlotState> Plots { get; set; } = new();
+    public FieldState Field { get; set; } = new();
 
-    /// <summary>The crop new plots get planted with.</summary>
-    public string LastPlantedCrop { get; set; } = Crops.Wheat.Id;
+    /// <summary>Your hoe for each crop, by crop id.</summary>
+    public Dictionary<string, ToolState> Tools { get; set; } = new();
+
+    /// <summary>Armour tier worn in each slot (0 = nothing).</summary>
+    public Dictionary<ArmourSlot, int> Armour { get; set; } = new();
+
+    /// <summary>Best tier owned of each talisman (0 = none).</summary>
+    public Dictionary<TalismanFamily, int> Talismans { get; set; } = new();
 
     public GameSettings Settings { get; set; } = new();
     public GameStats Stats { get; set; } = new();
@@ -31,65 +38,93 @@ public sealed class GameState
     public static GameState CreateNew()
     {
         var state = new GameState();
-        for (int i = 0; i < GardenProgression.StartingPlots; i++)
-            state.Plots.Add(new PlotState { CropId = Crops.Wheat.Id });
+        state.Normalize();
         return state;
     }
 
     /// <summary>
-    /// Fixes anything odd in a loaded save (missing lists, unknown crops, too many plots)
+    /// Fixes anything odd in a loaded save (missing lists, unknown crops, wrong tile count)
     /// so the rest of the game never has to worry about it.
     /// </summary>
     public void Normalize()
     {
         Inventory ??= new();
         Collections ??= new();
-        Plots ??= new();
+        Field ??= new();
+        Tools ??= new();
+        Armour ??= new();
+        Talismans ??= new();
         Settings ??= new();
         Stats ??= new();
 
         Coins = Math.Max(0, Coins);
-        FarmingXp = Math.Max(0, FarmingXp);
+        FarmingXp = double.IsFinite(FarmingXp) ? Math.Max(0, FarmingXp) : 0;
         GardenXp = Math.Max(0, GardenXp);
 
         foreach (var key in Inventory.Keys.ToList())
-            if (!Crops.TryGet(key, out _) || Inventory[key] <= 0) Inventory.Remove(key);
+            if (!Items.TryGet(key, out _) || Inventory[key] <= 0) Inventory.Remove(key);
         foreach (var key in Collections.Keys.ToList())
             if (!Crops.TryGet(key, out _) || Collections[key] < 0) Collections.Remove(key);
-
-        Plots.RemoveAll(p => p is null);
-        while (Plots.Count < GardenProgression.StartingPlots)
-            Plots.Add(new PlotState { CropId = Crops.Wheat.Id });
-        if (Plots.Count > GardenProgression.MaxPlots)
-            Plots.RemoveRange(GardenProgression.MaxPlots, Plots.Count - GardenProgression.MaxPlots);
-
-        foreach (var plot in Plots)
+        foreach (var key in Tools.Keys.ToList())
         {
-            if (!Crops.TryGet(plot.CropId, out var crop))
+            var tool = Tools[key];
+            if (!Crops.TryGet(key, out _) || tool is null)
             {
-                plot.CropId = null;
-                plot.Growth = 0;
+                Tools.Remove(key);
                 continue;
             }
-            plot.CropId = crop.Id;
-            plot.Growth = double.IsFinite(plot.Growth) ? Math.Clamp(plot.Growth, 0, crop.GrowSeconds) : 0;
+            tool.Tier = Math.Clamp(tool.Tier, 0, Core.Tools.MaxTier);
+            tool.Breaks = Math.Max(0, tool.Breaks);
         }
+        foreach (var slot in Armour.Keys.ToList())
+            Armour[slot] = Math.Clamp(Armour[slot], 0, Core.Armour.MaxTier);
+        foreach (var family in Talismans.Keys.ToList())
+            Talismans[family] = Math.Clamp(Talismans[family], 0, Core.Talismans.MaxTier);
 
-        if (!Crops.TryGet(LastPlantedCrop, out _))
-            LastPlantedCrop = Crops.Wheat.Id;
+        Field.Normalize();
 
         if (LastSavedUtc > DateTime.UtcNow || LastSavedUtc == default)
             LastSavedUtc = DateTime.UtcNow;
     }
 }
 
-public sealed class PlotState
+/// <summary>The field: one long row of a single crop.</summary>
+public sealed class FieldState
 {
-    /// <summary>Crop growing here, or null for an empty plot.</summary>
-    public string? CropId { get; set; }
+    public string CropId { get; set; } = Crops.Wheat.Id;
 
-    /// <summary>Seconds of growth so far. Ripe when it reaches the crop's GrowSeconds.</summary>
-    public double Growth { get; set; }
+    public int Length { get; set; } = FieldProgression.StartLength;
+
+    /// <summary>Seconds of regrowth for each crop in the row. Grown at the crop's RegrowSeconds.</summary>
+    public List<double> Tiles { get; set; } = new();
+
+    public void Normalize()
+    {
+        if (!Crops.TryGet(CropId, out var crop))
+        {
+            crop = Crops.Wheat;
+            Tiles?.Clear();
+        }
+        CropId = crop.Id;
+
+        int[] lengths = FieldProgression.Expansions.Select(e => e.Length).Prepend(FieldProgression.StartLength).ToArray();
+        Length = lengths.Contains(Length) ? Length : lengths.Where(l => l <= Length).DefaultIfEmpty(FieldProgression.StartLength).Max();
+
+        Tiles ??= new();
+        if (Tiles.Count > Length) Tiles.RemoveRange(Length, Tiles.Count - Length);
+        while (Tiles.Count < Length) Tiles.Add(0);
+        for (int i = 0; i < Tiles.Count; i++)
+            Tiles[i] = double.IsFinite(Tiles[i]) ? Math.Clamp(Tiles[i], 0, crop.RegrowSeconds) : 0;
+    }
+}
+
+public sealed class ToolState
+{
+    /// <summary>0 = no hoe yet, 1-3 = Basic, Reinforced, Masterwork.</summary>
+    public int Tier { get; set; }
+
+    /// <summary>Crops broken with this hoe (any tier). Adds Harvest Fortune over time.</summary>
+    public long Breaks { get; set; }
 }
 
 public enum StripMode
@@ -111,7 +146,7 @@ public sealed class GameSettings
     public StripSize Size { get; set; } = StripSize.Normal;
     public StripAnchor Anchor { get; set; } = StripAnchor.Left;
 
-    /// <summary>The farmer walks around and harvests ripe crops by themselves.</summary>
+    /// <summary>The farmer walks the row and breaks grown crops by themselves.</summary>
     public bool FarmerAutoHarvest { get; set; } = true;
 
     /// <summary>Harvested crops are sold straight away instead of going to your inventory.</summary>
@@ -125,7 +160,8 @@ public sealed class GameSettings
 
 public sealed class GameStats
 {
-    public long TotalHarvests { get; set; }
-    public long HandHarvests { get; set; }
+    public long TotalBreaks { get; set; }
+    public long HandBreaks { get; set; }
     public long CoinsEarned { get; set; }
+    public long ItemsCrafted { get; set; }
 }

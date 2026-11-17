@@ -17,8 +17,11 @@ public partial class App : Application
     private bool _screenshotMode;
 
     /// <summary>Errors are written here so they can be reported and fixed.</summary>
+    /// <summary>The name shown in message boxes and window titles.</summary>
+    public const string Title = "TaskBarGame: Harvest Edition";
+
     public static string ErrorLogPath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "TaskBarGame", "error.log");
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), SaveManager.FolderName, "error.log");
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -31,11 +34,11 @@ public partial class App : Application
             return;
         }
 
-        _singleInstance = new Mutex(initiallyOwned: true, @"Local\TaskBarGame.SingleInstance", out bool isFirst);
+        _singleInstance = new Mutex(initiallyOwned: true, @"Local\TaskBarGame.HarvestEdition.SingleInstance", out bool isFirst);
         if (!isFirst)
         {
-            MessageBox.Show("TaskBarGame is already running. Look just above your taskbar!",
-                "TaskBarGame", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show("The Harvest Edition is already running. Look just above your taskbar!",
+                Title, MessageBoxButton.OK, MessageBoxImage.Information);
             _singleInstance.Dispose();
             _singleInstance = null;
             Shutdown();
@@ -59,8 +62,8 @@ public partial class App : Application
         catch (Exception ex)
         {
             LogError(ex);
-            MessageBox.Show($"TaskBarGame couldn't start.\n\n{ex.Message}\n\nDetails were saved to:\n{ErrorLogPath}",
-                "TaskBarGame", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show($"{Title} couldn't start.\n\n{ex.Message}\n\nDetails were saved to:\n{ErrorLogPath}",
+                Title, MessageBoxButton.OK, MessageBoxImage.Error);
             _host = null; // don't save a half-started game over a good save file
             Shutdown();
         }
@@ -104,13 +107,13 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// "TaskBarGame.exe --screenshots folder" plays a demo garden, saves screenshots and quits.
+    /// "TaskBarGame.exe --screenshots folder" plays a demo field, saves screenshots and quits.
     /// GitHub Actions uses this to keep the screenshots in the README up to date.
     /// </summary>
     private void StartScreenshotTour(string folder)
     {
         _screenshotMode = true;
-        var saves = new SaveManager(Path.Combine(Path.GetTempPath(), "TaskBarGame-screenshots", "save.json"));
+        var saves = new SaveManager(Path.Combine(Path.GetTempPath(), "TaskBarGame-HarvestEdition-screenshots", "save.json"));
         _host = new GameHost(saves, ScreenshotTour.CreateDemoState());
 
         var strip = new StripWindow(_host);
@@ -153,6 +156,6 @@ public partial class App : Application
         _shownCrashMessage = true;
         MessageBox.Show(
             $"Something went wrong, but your progress is safe.\n\n{e.Exception.Message}\n\nDetails were saved to:\n{ErrorLogPath}",
-            "TaskBarGame", MessageBoxButton.OK, MessageBoxImage.Warning);
+            Title, MessageBoxButton.OK, MessageBoxImage.Warning);
     }
 }

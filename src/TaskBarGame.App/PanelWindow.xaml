@@ -1,13 +1,13 @@
 <!--
-    The garden panel: opens when you click the farmer (or the coins on the strip).
+    The panel: opens when you click the farmer (or the coins on the strip).
     Its data comes from ViewModels/PanelViewModel.cs.
 -->
 <Window x:Class="TaskBarGame.App.PanelWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="TaskBarGame"
-        Width="500"
-        Height="600"
+        Title="TaskBarGame: Harvest Edition"
+        Width="580"
+        Height="640"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
@@ -18,6 +18,49 @@
         FontSize="13"
         Foreground="{StaticResource TextBrush}"
         UseLayoutRounding="True">
+
+    <Window.Resources>
+        <!-- One upgrade (hoe, armour piece or talisman): what you have now and what's next. -->
+        <DataTemplate x:Key="UpgradeRowTemplate">
+            <Border Style="{StaticResource Row}" Padding="10,8">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Image Source="{Binding Icon}" Style="{StaticResource PixelIcon}" Width="36" Height="36"
+                           VerticalAlignment="Top" />
+                    <StackPanel Grid.Column="1" Margin="10,0">
+                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding Effect}" Style="{StaticResource Muted}" FontSize="12" />
+                        <StackPanel Visibility="{Binding HasNext, Converter={StaticResource BoolToVisibility}}" Margin="0,5,0,0">
+                            <TextBlock Text="{Binding NextTitle}" Foreground="{StaticResource GoldBrush}" FontSize="12" />
+                            <TextBlock Text="{Binding NextEffect}" Style="{StaticResource Muted}" FontSize="12" />
+                            <TextBlock Text="{Binding Cost}" Style="{StaticResource Muted}" FontSize="12" />
+                            <TextBlock Text="{Binding Status}" FontSize="12">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource DangerBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CanCraft}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                        <TextBlock Text="{Binding NextTitle}" Foreground="{StaticResource GoldBrush}" FontSize="12" Margin="0,5,0,0"
+                                   Visibility="{Binding HasNext, Converter={StaticResource InverseBoolToVisibility}}" />
+                    </StackPanel>
+                    <Button Grid.Column="2" Content="Craft" Style="{StaticResource AccentButton}" VerticalAlignment="Center"
+                            Command="{Binding CraftCommand}" IsEnabled="{Binding CanCraft}"
+                            Visibility="{Binding HasNext, Converter={StaticResource BoolToVisibility}}" />
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </Window.Resources>
 
     <Border Background="{StaticResource WindowBrush}"
             BorderBrush="{StaticResource LineBrush}"
@@ -30,7 +73,7 @@
                   MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
                 <StackPanel Orientation="Horizontal" Margin="14,0,0,0" VerticalAlignment="Center">
                     <Image Source="{Binding FarmerIcon}" Style="{StaticResource PixelIcon}" Width="32" Height="32" />
-                    <TextBlock Text="Your Garden" Style="{StaticResource H2}" Margin="8,0,0,0" VerticalAlignment="Center" />
+                    <TextBlock Text="Harvest Edition" Style="{StaticResource H2}" Margin="8,0,0,0" VerticalAlignment="Center" />
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,8,0">
                     <Image Source="{Binding CoinIcon}" Style="{StaticResource PixelIcon}" Width="16" Height="16" />
@@ -42,8 +85,8 @@
 
             <TabControl x:Name="Tabs">
 
-                <!-- ============================================================ GARDEN -->
-                <TabItem Header="Garden">
+                <!-- ============================================================ FIELD -->
+                <TabItem Header="Field">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel Margin="0,0,6,0">
                             <Border Style="{StaticResource Card}">
@@ -58,52 +101,67 @@
                                 </StackPanel>
                             </Border>
 
-                            <DockPanel Margin="2,2,0,8">
-                                <Button DockPanel.Dock="Right" Content="Plant on all plots ▾" Click="PlantAll_Click" />
-                                <TextBlock Text="{Binding PlotsHeader}" Style="{StaticResource H3}" />
-                            </DockPanel>
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <DockPanel>
+                                        <Image Source="{Binding FieldCropIcon}" Style="{StaticResource PixelIcon}" Width="36" Height="36" />
+                                        <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding FieldTitle}" Style="{StaticResource H3}" />
+                                            <TextBlock Text="{Binding FieldText}" Style="{StaticResource Muted}" FontSize="12" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                    <DockPanel Margin="0,10,0,0">
+                                        <Image Source="{Binding ActiveToolIcon}" Style="{StaticResource PixelIcon}" Width="28" Height="28" />
+                                        <TextBlock Text="{Binding ActiveToolText}" Style="{StaticResource Muted}" FontSize="12"
+                                                   Margin="10,0,0,0" VerticalAlignment="Center" />
+                                    </DockPanel>
+                                </StackPanel>
+                            </Border>
 
-                            <ItemsControl ItemsSource="{Binding Plots}">
+                            <TextBlock Text="Plant the field with" Style="{StaticResource H3}" Margin="2,2,0,8" />
+                            <ItemsControl ItemsSource="{Binding CropChoices}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Style="{StaticResource Row}">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-                                                <Image Source="{Binding Icon}" Style="{StaticResource PixelIcon}" Width="32" Height="32" />
-                                                <StackPanel Grid.Column="1" Margin="10,0" VerticalAlignment="Center">
-                                                    <DockPanel>
-                                                        <TextBlock DockPanel.Dock="Right" Text="{Binding Status}"
-                                                                   Foreground="{StaticResource MutedBrush}" FontSize="12" />
-                                                        <TextBlock>
-                                                            <Run Text="{Binding Title, Mode=OneWay}" Foreground="{StaticResource MutedBrush}" />
-                                                            <Run Text="{Binding CropName, Mode=OneWay}" FontWeight="SemiBold" />
-                                                        </TextBlock>
-                                                    </DockPanel>
-                                                    <ProgressBar Value="{Binding Progress, Mode=OneWay}"
-                                                                 Foreground="{Binding ProgressBrush}" Height="6" Margin="0,5,0,0" />
+                                        <Button Command="{Binding PlantCommand}" IsEnabled="{Binding IsUnlocked}"
+                                                Width="170" Margin="0,0,6,6" Padding="8,6" HorizontalContentAlignment="Left">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsPlanted}" Value="True">
+                                                            <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                                            <Setter Property="Background" Value="{StaticResource RowBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                            <DockPanel Width="152">
+                                                <Image Source="{Binding Icon}" Style="{StaticResource PixelIcon}" Width="28" Height="28" />
+                                                <StackPanel Margin="8,0,0,0" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold" />
+                                                    <TextBlock Text="{Binding Subtitle}" Foreground="{StaticResource MutedBrush}"
+                                                               FontSize="11" TextTrimming="CharacterEllipsis" />
                                                 </StackPanel>
-                                                <Button Grid.Column="2" Content="Change ▾" Click="ChangeCrop_Click"
-                                                        VerticalAlignment="Center" />
-                                            </Grid>
-                                        </Border>
+                                            </DockPanel>
+                                        </Button>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
 
-                            <Border Style="{StaticResource Card}" Margin="0,8,0,0"
-                                    Visibility="{Binding HasNextPlot, Converter={StaticResource BoolToVisibility}}">
+                            <Border Style="{StaticResource Card}" Margin="0,6,0,0"
+                                    Visibility="{Binding HasExpansion, Converter={StaticResource BoolToVisibility}}">
                                 <DockPanel>
-                                    <Button DockPanel.Dock="Right" Style="{StaticResource AccentButton}" Content="Unlock"
-                                            Command="{Binding UnlockPlotCommand}" IsEnabled="{Binding CanUnlockPlot}"
+                                    <Button DockPanel.Dock="Right" Style="{StaticResource AccentButton}" Content="Expand"
+                                            Command="{Binding ExpandCommand}" IsEnabled="{Binding CanExpand}"
                                             VerticalAlignment="Center" />
                                     <Image Source="{Binding LockIcon}" Style="{StaticResource PixelIcon}" Width="32" Height="32" />
                                     <StackPanel Margin="10,0" VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding NextPlotTitle}" FontWeight="SemiBold" />
-                                        <TextBlock Text="{Binding NextPlotText}" Style="{StaticResource Muted}" />
+                                        <TextBlock Text="{Binding ExpansionTitle}" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding ExpansionText}" Style="{StaticResource Muted}" />
                                     </StackPanel>
                                 </DockPanel>
                             </Border>
@@ -130,12 +188,20 @@
 
                             <Border Style="{StaticResource Card}">
                                 <StackPanel>
-                                    <TextBlock Text="Harvest Fortune" Style="{StaticResource H3}" />
-                                    <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,8"
-                                               Text="Every 100 Harvest Fortune gives one extra set of crops per harvest. Leftover fortune is a chance at one more." />
-                                    <TextBlock Text="{Binding FortuneLevelText}" />
-                                    <TextBlock Text="{Binding FortuneHandText, Mode=OneWay}" />
-                                    <TextBlock Text="{Binding FortuneCollectionText, Mode=OneWay}" />
+                                    <TextBlock Text="{Binding FortuneTitle}" Style="{StaticResource H3}" />
+                                    <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,8" FontSize="12"
+                                               Text="Every 100 Harvest Fortune gives one extra set of drops per crop broken. Leftover fortune is a chance at one more." />
+                                    <ItemsControl ItemsSource="{Binding FortuneLines}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding}" Margin="0,1" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <Border Height="1" Background="{StaticResource LineBrush}" Margin="0,10" />
+                                    <TextBlock Text="{Binding SpeedText}" Margin="0,1" />
+                                    <TextBlock Text="{Binding RegrowText}" Margin="0,1" />
+                                    <TextBlock Text="{Binding XpBonusText}" Margin="0,1" />
                                 </StackPanel>
                             </Border>
 
@@ -171,6 +237,31 @@
                                     <TextBlock Text="{Binding StatsText}" Style="{StaticResource Muted}" />
                                 </StackPanel>
                             </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- ============================================================ UPGRADES -->
+                <TabItem Header="Upgrades">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="0,0,6,0">
+                            <TextBlock Style="{StaticResource Muted}" Margin="2,0,0,10"
+                                       Text="Upgrades are crafted from packed crops (160 crops = 1 Packed, 160 Packed = 1 Dense). Pack your crops in the Market tab." />
+
+                            <TextBlock Text="Hoes" Style="{StaticResource H3}" Margin="2,0,0,2" />
+                            <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="2,0,0,8"
+                                       Text="Each crop has its own hoe. The farmer switches to the right one automatically." />
+                            <ItemsControl ItemsSource="{Binding UnlockedToolRows}" ItemTemplate="{StaticResource UpgradeRowTemplate}" />
+
+                            <TextBlock Text="Armour" Style="{StaticResource H3}" Margin="2,12,0,2" />
+                            <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="2,0,0,8"
+                                       Text="Straw → Harvester → Verdant. Wear all four pieces of a set for its set bonus." />
+                            <ItemsControl ItemsSource="{Binding ArmourRows}" ItemTemplate="{StaticResource UpgradeRowTemplate}" />
+
+                            <TextBlock Text="Talismans" Style="{StaticResource H3}" Margin="2,12,0,2" />
+                            <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="2,0,0,8"
+                                       Text="Charm → Ring → Relic. Owning one is enough: it works from your pocket." />
+                            <ItemsControl ItemsSource="{Binding TalismanRows}" ItemTemplate="{StaticResource UpgradeRowTemplate}" />
                         </StackPanel>
                     </ScrollViewer>
                 </TabItem>
@@ -220,23 +311,27 @@
                         <Border DockPanel.Dock="Top" Style="{StaticResource Card}">
                             <StackPanel>
                                 <DockPanel>
-                                    <Button DockPanel.Dock="Right" Style="{StaticResource AccentButton}" Content="Sell everything"
-                                            Command="{Binding SellEverythingCommand}" IsEnabled="{Binding HasInventory}"
-                                            VerticalAlignment="Center" />
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Button Content="Pack everything" Command="{Binding PackEverythingCommand}" Margin="0,0,8,0"
+                                                ToolTip="Pack every 160 crops into 1 Packed, and every 160 Packed into 1 Dense" />
+                                        <Button Style="{StaticResource AccentButton}" Content="Sell all crops"
+                                                Command="{Binding SellAllCropsCommand}" IsEnabled="{Binding HasCrops}"
+                                                ToolTip="Sells plain crops. Packed and Dense crops are kept for crafting." />
+                                    </StackPanel>
                                     <StackPanel>
                                         <TextBlock Text="Your crops are worth" Style="{StaticResource Muted}" />
                                         <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
                                             <Image Source="{Binding CoinIcon}" Style="{StaticResource PixelIcon}" Width="18" Height="18" />
-                                            <TextBlock Text="{Binding InventoryValueText}" Foreground="{StaticResource GoldBrush}"
+                                            <TextBlock Text="{Binding CropsValueText}" Foreground="{StaticResource GoldBrush}"
                                                        FontSize="18" FontWeight="Bold" Margin="6,0,0,0" />
                                         </StackPanel>
                                     </StackPanel>
                                 </DockPanel>
-                                <CheckBox Content="Sell crops automatically when they're harvested"
+                                <CheckBox Content="Sell crops automatically when they're harvested (nothing left to pack)"
                                           IsChecked="{Binding AutoSell}" Margin="0,10,0,0" />
                             </StackPanel>
                         </Border>
-                        <TextBlock DockPanel.Dock="Top" Text="Nothing to sell yet. Go harvest some crops!"
+                        <TextBlock DockPanel.Dock="Top" Text="Nothing here yet. Go break some crops!"
                                    Style="{StaticResource Muted}" Margin="4,6"
                                    Visibility="{Binding HasInventory, Converter={StaticResource InverseBoolToVisibility}}" />
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -245,9 +340,20 @@
                                     <DataTemplate>
                                         <Border Style="{StaticResource Row}">
                                             <DockPanel>
-                                                <Button DockPanel.Dock="Right" Content="{Binding SellText}"
-                                                        Command="{Binding SellCommand}" VerticalAlignment="Center" />
-                                                <Image Source="{Binding Icon}" Style="{StaticResource PixelIcon}" Width="32" Height="32" />
+                                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Button Content="{Binding PackText}" Command="{Binding PackCommand}" Margin="0,0,6,0"
+                                                            Visibility="{Binding CanPack, Converter={StaticResource BoolToVisibility}}" />
+                                                    <Button Content="{Binding SellText}" Command="{Binding SellCommand}" />
+                                                </StackPanel>
+                                                <Grid Width="32" Height="32">
+                                                    <Image Source="{Binding Container}" Style="{StaticResource PixelIcon}" Width="32" Height="32"
+                                                           Visibility="{Binding HasContainer, Converter={StaticResource BoolToVisibility}}" />
+                                                    <Image Source="{Binding Icon}" Style="{StaticResource PixelIcon}" Width="32" Height="32"
+                                                           Visibility="{Binding HasContainer, Converter={StaticResource InverseBoolToVisibility}}" />
+                                                    <Image Source="{Binding Icon}" Style="{StaticResource PixelIcon}" Width="16" Height="16"
+                                                           VerticalAlignment="Bottom" Margin="0,0,0,5"
+                                                           Visibility="{Binding HasContainer, Converter={StaticResource BoolToVisibility}}" />
+                                                </Grid>
                                                 <StackPanel Margin="10,0" VerticalAlignment="Center">
                                                     <TextBlock Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold" />
                                                     <TextBlock Text="{Binding CountText}" Style="{StaticResource Muted}" FontSize="12" />
@@ -267,7 +373,7 @@
                         <StackPanel Margin="0,0,6,0">
                             <Border Style="{StaticResource Card}">
                                 <StackPanel>
-                                    <TextBlock Text="Garden strip" Style="{StaticResource H3}" />
+                                    <TextBlock Text="Field strip" Style="{StaticResource H3}" />
                                     <StackPanel Margin="0,6,0,0">
                                         <RadioButton Content="Always show it above the taskbar" IsChecked="{Binding ModeAlways}" />
                                         <RadioButton Content="Only show it when I hover over the farmer" IsChecked="{Binding ModeHover}" />
@@ -290,11 +396,11 @@
                             <Border Style="{StaticResource Card}">
                                 <StackPanel>
                                     <TextBlock Text="Gameplay" Style="{StaticResource H3}" Margin="0,0,0,4" />
-                                    <CheckBox Content="Farmer harvests ripe crops by themselves" IsChecked="{Binding AutoHarvest}" />
+                                    <CheckBox Content="Farmer farms the row by themselves" IsChecked="{Binding AutoHarvest}" />
                                     <CheckBox Content="Sell crops automatically when they're harvested" IsChecked="{Binding AutoSell}" />
-                                    <CheckBox Content="Show floating numbers when crops are harvested" IsChecked="{Binding FloatingText}" />
-                                    <CheckBox Content="Hide the garden during fullscreen games and videos" IsChecked="{Binding HideInFullscreen}" />
-                                    <CheckBox Content="Start TaskBarGame when Windows starts" IsChecked="{Binding StartWithWindows}" />
+                                    <CheckBox Content="Show floating numbers when crops are broken" IsChecked="{Binding FloatingText}" />
+                                    <CheckBox Content="Hide the field during fullscreen games and videos" IsChecked="{Binding HideInFullscreen}" />
+                                    <CheckBox Content="Start the Harvest Edition when Windows starts" IsChecked="{Binding StartWithWindows}" />
                                 </StackPanel>
                             </Border>
 
