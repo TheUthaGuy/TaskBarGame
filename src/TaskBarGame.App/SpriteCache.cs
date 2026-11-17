@@ -209,6 +209,18 @@ public sealed class SpriteCache
         return Recolored("icon_compactor", $"t{tier}", new Dictionary<char, uint> { ['I'] = light, ['i'] = dark });
     }
 
+    /// <summary>A visitor in their own shirt and hair colours.</summary>
+    public BitmapSource Visitor(VisitorDef visitor)
+    {
+        static uint Hex(string hex) => 0xFF000000 | Convert.ToUInt32(hex, 16);
+        return Recolored("visitor", visitor.Id, new Dictionary<char, uint>
+        {
+            ['T'] = Hex(visitor.Shirt),
+            ['j'] = Hex(visitor.ShirtDark),
+            ['Q'] = Hex(visitor.Hair),
+        });
+    }
+
     /// <summary>
     /// Colours for the little bits that fly out when a crop breaks: one brush per coloured pixel
     /// of the grown crop, so picking one at random matches the crop's look.

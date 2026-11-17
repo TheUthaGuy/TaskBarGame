@@ -190,15 +190,48 @@ public sealed partial class GameEngine
     // ================================================================= buying missing ingredients
 
     /// <summary>Ingredients of a recipe you don't have enough of, and how many more you need.</summary>
-    public IReadOnlyList<Ingredient> MissingIngredients(Recipe recipe) =>
-        recipe.Ingredients
+    public IReadOnlyList<Ingredient> MissingIngredients(Recipe recipe) => MissingItems(recipe.Ingredients);
+
+    /// <summary>What buying the missing ingredients on the Bazaar would cost right now.</summary>
+    public long MissingIngredientsCost(Recipe recipe) => BazaarCost(MissingIngredients(recipe));
+
+    /// <summary>Of a list of items, the ones you don't have enough of, and how many more you need.</summary>
+    public IReadOnlyList<Ingredient> MissingItems(IEnumerable<Ingredient> wanted) =>
+        wanted
             .Where(i => GetItem(i.ItemId) < i.Count)
             .Select(i => new Ingredient(i.ItemId, i.Count - GetItem(i.ItemId)))
             .ToList();
 
-    /// <summary>What buying the missing ingredients on the Bazaar would cost right now.</summary>
-    public long MissingIngredientsCost(Recipe recipe) =>
-        MissingIngredients(recipe).Sum(i => (long)Math.Ceiling(i.Count * BazaarBuyPrice(i.Item)));
+    /// <summary>What buying these items on the Bazaar would cost right now.</summary>
+    public long BazaarCost(IEnumerable<Ingredient> items) =>
+        items.Sum(i => (long)Math.Ceiling(i.Count * BazaarBuyPrice(i.Item)));
+
+    /// <summary>Buys what a visitor asked for that you don't have, on the Bazaar. Returns coins spent.</summary>
+    public long BuyMissingForVisitor(long visitorId, out string reason)
+    {
+        var request = State.Garden.Visitors.FirstOrDefault(v => v.Id == visitorId);
+        if (request is null)
+        {
+            reason = "That visitor has gone";
+            return 0;
+        }
+        var missing = MissingItems(request.Wants);
+        if (missing.Count == 0)
+        {
+            reason = "You already have everything";
+            return 0;
+        }
+        long cost = BazaarCost(missing);
+        if (State.Coins < cost)
+        {
+            reason = $"Needs {cost - State.Coins:N0} more coins";
+            return 0;
+        }
+        long spent = 0;
+        foreach (var item in missing) spent += BazaarBuy(item.ItemId, item.Count, out _);
+        reason = "";
+        return spent;
+    }
 
     /// <summary>Buys whatever a recipe is missing on the Bazaar, at its buy price. Returns coins spent.</summary>
     public long BuyMissingIngredients(Recipe recipe, out string reason)

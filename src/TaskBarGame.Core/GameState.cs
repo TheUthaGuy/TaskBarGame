@@ -271,6 +271,7 @@ public enum PopupKind
     WelcomeBack,
     Update,
     Cosmetic,
+    Visitor,
 }
 
 public sealed class GameStats

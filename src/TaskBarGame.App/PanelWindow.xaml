@@ -6,7 +6,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="TaskBarGame: Harvest Edition"
-        Width="640"
+        Width="700"
         Height="680"
         WindowStyle="None"
         AllowsTransparency="True"
@@ -93,7 +93,7 @@
             <TabControl x:Name="Tabs">
 
                 <!-- ============================================================ FIELD -->
-                <TabItem Header="Field">
+                <TabItem Header="Garden">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel Margin="0,0,6,0">
                             <Border Style="{StaticResource Card}">
@@ -171,6 +171,58 @@
                                         <TextBlock Text="{Binding ExpansionText}" Style="{StaticResource Muted}" />
                                     </StackPanel>
                                 </DockPanel>
+                            </Border>
+
+                            <!-- The Composter: spare crops become Compost for upgrades and fertiliser -->
+                            <Border Style="{StaticResource Card}" Margin="0,6,0,0">
+                                <StackPanel>
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding CompostText}" Foreground="{StaticResource GoldBrush}"
+                                                   FontWeight="Bold" FontSize="15" VerticalAlignment="Center"
+                                                   Visibility="{Binding ComposterUnlocked, Converter={StaticResource BoolToVisibility}}" />
+                                        <TextBlock Text="Composter" Style="{StaticResource H3}" />
+                                    </DockPanel>
+                                    <TextBlock Text="{Binding ComposterLockedText, Mode=OneWay}" Style="{StaticResource Muted}" Margin="0,4,0,0"
+                                               Visibility="{Binding ComposterUnlocked, Converter={StaticResource InverseBoolToVisibility}}" />
+                                    <StackPanel Visibility="{Binding ComposterUnlocked, Converter={StaticResource BoolToVisibility}}">
+                                        <TextBlock Style="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"
+                                                   Text="Spare crops become Compost. Spend it on upgrades that last forever, or fertilise the field for a while." />
+                                        <ProgressBar Value="{Binding CompostProgress, Mode=OneWay}" Foreground="#A0683C" Margin="0,8,0,4" />
+                                        <TextBlock Text="{Binding NextCompostText}" Style="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding MatterText}" Style="{StaticResource Muted}" FontSize="11" />
+                                        <WrapPanel Margin="0,8,0,0">
+                                            <Button Content="Add spare crops" Command="{Binding AddSpareToComposterCommand}" Margin="0,0,8,6"
+                                                    ToolTip="Crops you could sell to the Market: not locked, and not kept for your next upgrades" />
+                                            <Button Content="Add ▾" Click="ComposterAdd_Click" Margin="0,0,8,6" ToolTip="Put all of one item in" />
+                                            <Button Content="{Binding FertiliseText}" Command="{Binding FertiliseCommand}" IsEnabled="{Binding CanFertilise}"
+                                                    Style="{StaticResource AccentButton}" Margin="0,0,8,6"
+                                                    ToolTip="+30 Harvest Fortune for 20 minutes (more adds time, up to 3 hours)" />
+                                        </WrapPanel>
+                                        <TextBlock Text="{Binding BoostsText}" Foreground="{StaticResource AccentBrush}" FontSize="12" TextWrapping="Wrap"
+                                                   Visibility="{Binding BoostsText, Converter={StaticResource TextToVisibility}}" />
+                                        <TextBlock Text="{Binding GardenMessage}" Foreground="{StaticResource GoldBrush}" FontSize="12" TextWrapping="Wrap"
+                                                   Visibility="{Binding GardenMessage, Converter={StaticResource TextToVisibility}}" />
+                                        <TextBlock Text="Upgrades that last" FontWeight="SemiBold" Margin="0,10,0,4" />
+                                        <ItemsControl ItemsSource="{Binding ComposterUpgrades}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <DockPanel Margin="0,3">
+                                                        <Button DockPanel.Dock="Right" Content="{Binding BuyText}" Command="{Binding BuyCommand}"
+                                                                IsEnabled="{Binding CanBuy}" MinWidth="150" VerticalAlignment="Center" FontSize="12" />
+                                                        <StackPanel Margin="0,0,8,0">
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <TextBlock Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold" />
+                                                                <TextBlock Text="{Binding LevelText}" Foreground="{StaticResource GoldBrush}" FontSize="12"
+                                                                           Margin="8,0,0,0" VerticalAlignment="Center" />
+                                                            </StackPanel>
+                                                            <TextBlock Text="{Binding Effect, Mode=OneWay}" Style="{StaticResource Muted}" FontSize="12" />
+                                                        </StackPanel>
+                                                    </DockPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </StackPanel>
                             </Border>
                         </StackPanel>
                     </ScrollViewer>
@@ -345,6 +397,111 @@
                                                                Margin="0,2,0,0" />
                                                 </StackPanel>
                                             </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- ============================================================ VISITORS -->
+                <TabItem x:Name="VisitorsTab" Header="Visitors">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="0,0,6,0">
+                            <Border Style="{StaticResource Card}">
+                                <DockPanel>
+                                    <StackPanel DockPanel.Dock="Right" VerticalAlignment="Center" Margin="12,0,0,0">
+                                        <TextBlock Text="Garden Tokens" Style="{StaticResource Muted}" HorizontalAlignment="Right" />
+                                        <TextBlock Text="{Binding TokensText}" Foreground="{StaticResource GoldBrush}" FontSize="20" FontWeight="Bold"
+                                                   HorizontalAlignment="Right" />
+                                    </StackPanel>
+                                    <StackPanel>
+                                        <TextBlock Text="Visitors" Style="{StaticResource H2}" />
+                                        <TextBlock Text="{Binding VisitorsInfo}" Style="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </DockPanel>
+                            </Border>
+                            <TextBlock Text="{Binding GardenMessage}" Foreground="{StaticResource GoldBrush}" FontSize="12" TextWrapping="Wrap" Margin="4,0,4,8"
+                                       Visibility="{Binding GardenMessage, Converter={StaticResource TextToVisibility}}" />
+                            <TextBlock Text="No one's here right now. Visitors arrive every 15 minutes, even while the game is closed."
+                                       Style="{StaticResource Muted}" Margin="4,0,4,8"
+                                       Visibility="{Binding HasVisitors, Converter={StaticResource InverseBoolToVisibility}}" />
+                            <ItemsControl ItemsSource="{Binding VisitorRows}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource Row}" Padding="10,8">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <Image Source="{Binding Portrait}" Style="{StaticResource PixelIcon}" Width="48" Height="48" VerticalAlignment="Top" />
+                                                <StackPanel Grid.Column="1" Margin="10,0">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold" />
+                                                        <TextBlock Text="{Binding Rarity, Mode=OneWay}" Foreground="{Binding RarityBrush}" FontSize="11"
+                                                                   Margin="8,0,0,0" VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                    <TextBlock Text="{Binding Greeting, Mode=OneWay}" Style="{StaticResource Muted}" FontSize="12" FontStyle="Italic"
+                                                               TextWrapping="Wrap" />
+                                                    <TextBlock Text="{Binding WantsText}" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0" />
+                                                    <TextBlock Text="{Binding RewardText, Mode=OneWay}" Foreground="{StaticResource GoldBrush}" FontSize="12" TextWrapping="Wrap" />
+                                                    <TextBlock Text="{Binding Status}" FontSize="12">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Foreground" Value="{StaticResource DangerBrush}" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding CanServe}" Value="True">
+                                                                        <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                                    <Button Content="Accept" Style="{StaticResource AccentButton}" Command="{Binding ServeCommand}"
+                                                            IsEnabled="{Binding CanServe}" ToolTip="Give them what they asked for and take the reward" />
+                                                    <Button Content="{Binding BuyMissingText}" Command="{Binding BuyMissingCommand}" IsEnabled="{Binding CanBuyMissing}"
+                                                            Margin="0,6,0,0" FontSize="12" Padding="8,4"
+                                                            ToolTip="Buy what you're missing on the Bazaar"
+                                                            Visibility="{Binding HasMissing, Converter={StaticResource BoolToVisibility}}" />
+                                                    <Button Content="Send away" Command="{Binding RefuseCommand}" Style="{StaticResource DangerButton}"
+                                                            Margin="0,6,0,0" FontSize="12" Padding="8,4" ToolTip="They leave without trading" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <TextBlock Text="Visitor Shop" Style="{StaticResource H3}" Margin="2,10,0,2" />
+                            <TextBlock Text="Spend the Garden Tokens visitors give you." Style="{StaticResource Muted}" FontSize="12" Margin="2,0,0,8" />
+                            <ItemsControl ItemsSource="{Binding ShopRows}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource Row}" Width="206" Margin="0,0,8,8" Padding="8,6">
+                                            <StackPanel>
+                                                <DockPanel>
+                                                    <Image Source="{Binding Icon}" Style="{StaticResource PixelIcon}" Width="32" Height="32" />
+                                                    <StackPanel Margin="8,0,0,0" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock Text="{Binding PriceText}" Foreground="{StaticResource GoldBrush}" FontSize="12" />
+                                                    </StackPanel>
+                                                </DockPanel>
+                                                <TextBlock Text="{Binding Description, Mode=OneWay}" Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap"
+                                                           Margin="0,4,0,4" />
+                                                <Button Content="Buy" Command="{Binding BuyCommand}" IsEnabled="{Binding CanBuy}" FontSize="12" Padding="8,3" />
+                                                <TextBlock Text="{Binding Status}" Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,3,0,0"
+                                                           Visibility="{Binding Status, Converter={StaticResource TextToVisibility}}" />
+                                            </StackPanel>
                                         </Border>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
@@ -853,6 +1010,7 @@
                                         <CheckBox Content="Welcome back report" IsChecked="{Binding PopupWelcomeBack}" Width="190" />
                                         <CheckBox Content="New versions" IsChecked="{Binding PopupUpdates}" Width="190" />
                                         <CheckBox Content="New hats and outfits" IsChecked="{Binding PopupCosmetics}" Width="190" />
+                                        <CheckBox Content="Visitors arriving" IsChecked="{Binding PopupVisitors}" Width="190" />
                                     </WrapPanel>
                                 </StackPanel>
                             </Border>

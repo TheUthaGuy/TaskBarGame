@@ -5,10 +5,11 @@
 > branch. The two editions keep separate saves, so you can play both.
 
 A farming game that lives just above your Windows taskbar while you work. Your field is **one long row
-of crops**. Your farmer walks it with their hoe, breaking every grown crop as they pass, then steps on a
-**teleport pad** at the end that sends them back to the start. Crops regrow in a couple of seconds, so
-the row is always grown again by the next lap. You level up, unlock crops, craft better **hoes**,
-**armour** and **talismans** from your crops, trade on the **Bazaar**, and make the row longer.
+of crops**. Your farmer walks it swinging the crop's tool, breaking every grown crop as they pass, then
+steps on a **teleport pad** at the end that sends them back to the start. Crops regrow in a couple of
+seconds, so the row is always grown again by the next lap. You level up, unlock crops, craft better
+**tools**, **armour** and **talismans** from your crops, trade on the **Bazaar**, serve **visitors**,
+feed the **Composter**, and make the row longer.
 
 ![The field: the farmer breaks wheat on their way along the row, crop bits fly out, and a level-up popup appears above](docs/screenshots/strip.png)
 
@@ -17,8 +18,8 @@ the row is always grown again by the next lap. You level up, unlock crops, craft
 Click the farmer (or your coins) to open the panel:
 
 <p>
-  <img src="docs/screenshots/panel-field.png" width="32%" alt="Field tab: Garden level, your row, the hoe in use, and which crop to plant">
-  <img src="docs/screenshots/panel-upgrades.png" width="32%" alt="Upgrades tab: hoes, armour and talismans with what each needs">
+  <img src="docs/screenshots/panel-garden.png" width="32%" alt="Garden tab: Garden level, your row, the tool in use, and which crop to plant">
+  <img src="docs/screenshots/panel-upgrades.png" width="32%" alt="Upgrades tab: tools, armour and talismans with what each needs">
   <img src="docs/screenshots/panel-bazaar.png" width="32%" alt="Bazaar tab: live prices, a trading box and your orders">
 </p>
 
@@ -59,6 +60,7 @@ dotnet publish src/TaskBarGame.App -c Release -r win-x64 --self-contained true -
 | Click the **farmer's head** or the **coins** | Open the panel |
 | Right-click the farmer or the strip | Quick menu: plant, sell crops, strip size, position, show-on-hover, quit |
 | Click the **lock** at the end of the row | Make the row longer (when you have the coins and Garden level) |
+| Click the **visitor** after the row | See what visitors want (from Garden Level 2) |
 | **Ctrl+Alt+F**, from any app | Open or close the panel |
 | **Ctrl+Alt+H**, from any app | Hide or show the strip (both shortcuts can be changed in Settings) |
 
@@ -70,7 +72,7 @@ back, a popup tells you what they did.
 ### Stats
 
 - **Harvest Fortune:** every 100 Fortune is one extra set of drops per crop broken (150 = 2.5x drops).
-  It comes from your Farming level, that crop's collection, its hoe (and the hoe's counter), armour and
+  It comes from your Farming level, that crop's collection, its tool (and the tool's counter), armour and
   the Clover talisman.
 - **Farming Speed:** how fast the farmer walks the row, so how many crops they break a minute
   (Swiftstep talisman, Straw and Harvester set bonuses).
@@ -109,16 +111,24 @@ worth more per crop broken.
 
 ### Upgrades (crafted in the Upgrades tab)
 
-**Hoes:** every crop has its own hoe, and the farmer automatically holds the one for the crop that's
-planted. Its colour in the farmer's hands shows its tier.
+**Tools:** every crop has its own tool, and the farmer automatically holds the one for the crop that's
+planted, swinging it down onto each crop.
 
-| Tier | Fortune for its crop | Made from |
-|---|---|---|
-| Basic | +10 | 48 of the crop + 100 coins |
-| Reinforced | +30 | 8 Packed of the crop + 5,000 coins (Garden 4) |
-| Masterwork | +60 | 1 Dense of the crop + 100,000 coins (Garden 10) |
+| Crop | Tool | Crop | Tool |
+|---|---|---|---|
+| Wheat | Wheat Sickle | Melon | Melon Dicer |
+| Carrot | Carrot Hoe | Cocoa Beans | Cocoa Chopper |
+| Potato | Potato Shovel | Cactus | Cactus Knife |
+| Sugar Cane | Cane Cutter | Mushroom | Fungi Cutter |
+| Pumpkin | Pumpkin Dicer | Moonbloom | Eclipse Sickle |
 
-Every 1,000 crops a hoe breaks adds +1 Fortune for that crop (up to +30).
+| Tier | Blade | Fortune for its crop | Made from |
+|---|---|---|---|
+| Basic | Iron | +10 | 48 of the crop + 100 coins |
+| Reinforced | Gold | +30 | 8 Packed of the crop + 5,000 coins (Garden 4) |
+| Masterwork | Blue | +60 | 1 Dense of the crop + 100,000 coins (Garden 10) |
+
+Every 1,000 crops a tool breaks adds +1 Fortune for that crop (up to +30).
 
 **Armour:** four pieces, each upgraded Straw → Harvester → Verdant. Wearing a full set gives a bonus.
 
@@ -145,11 +155,53 @@ Every 1,000 crops a hoe breaks adds +1 Fortune for that crop (up to +30).
 | Dense Compactor | Also presses every 160 Packed into 1 Dense crop | 1 Dense Wheat + 16 Packed Melon + 100,000 coins (Garden 9) |
 
 You can turn it off for any crop in the Inventory tab. It leaves alone any plain crops your next upgrades
-use as they are (like the 48 crops for a first hoe).
+use as they are (like the 48 crops for a first tool).
 
 The number on the **Upgrades** tab is how many upgrades you can craft right now, and a popup tells you
 when a new one becomes ready. If an upgrade is only missing ingredients, **Buy missing** buys them on
 the Bazaar in one click and shows what that costs.
+
+### Visitors
+
+From **Garden Level 2**, visitors come to the garden: a new one every 15 minutes (also while the game is
+closed), up to 3 at a time. They stand just after your row with a "!" above them. Each one asks for
+crops (packed crops at higher Garden levels) and pays about 1.5 times what the Market would, plus Farming
+XP, Garden XP and **Garden Tokens**. Rarer visitors (Uncommon, Rare, Legendary) ask for more and pay more.
+In the **Visitors** tab you can accept, buy what's missing on the Bazaar, or send them away.
+
+The **Visitor Shop** sells, for tokens:
+
+| Item | What it does | Tokens |
+|---|---|---|
+| Lucky Seeds | +40 Harvest Fortune for 30 minutes | 6 |
+| Swift Tonic | +15% Farming Speed for 30 minutes | 6 |
+| Scholar's Tea | +25% Farming XP for 30 minutes | 5 |
+| Bag of Compost | 5 Compost | 8 |
+| Garden Bench | Room for one more visitor (up to 6) | 15, 30, 60 |
+| Traveller's Hood, Wanderer's Garb, Stargazer's Hat | Wardrobe hats and an outfit | 20, 35, 50 |
+
+Buying a boost again adds 30 minutes (up to 3 hours). Boosts count down while the game is closed.
+
+### Composter
+
+From **Garden Level 3**, the Composter (in the **Garden** tab) turns spare crops into Compost. Each crop
+you put in adds its Market value as matter; every 10 minutes, 4,000 matter becomes 1 Compost (it keeps
+working while the game is closed). **Add spare crops** puts in what you could sell to the Market (not
+locked, not kept for upgrades). Compost buys:
+
+| Upgrade (lasts forever) | Per level | Levels | Compost for level N |
+|---|---|---|---|
+| Rich Soil | +4 Harvest Fortune for every crop | 10 | 3 × N |
+| Quick Steps | +2% Farming Speed | 5 | 5 × N |
+| Wise Roots | +2% Farming XP | 5 | 4 × N |
+| Busy Composter | The Composter works 10% faster | 5 | 4 × N |
+
+or **fertiliser**: 3 Compost for +30 Harvest Fortune for 20 minutes.
+
+<p>
+  <img src="docs/screenshots/panel-visitors.png" width="48%" alt="Visitors tab: visitors waiting with what they want and what they give">
+  <img src="docs/screenshots/panel-garden-bottom.png" width="48%" alt="The Composter: compost made from spare crops, fertiliser and upgrades">
+</p>
 
 ### Bazaar
 
@@ -178,7 +230,7 @@ The **Inventory** tab is for packing crops and selling quickly to the Market.
 - **Pack ▾** lets you choose how many to pack (1, 5, 10... or all). **Pack everything** packs it all.
 - **Lock** an item and it's never sold: not by a Sell button, auto-sell or the Bazaar.
 - **Keep enough crops for my next upgrades** (on by default): selling to the Market, Sell all crops and
-  auto-sell keep back what your next hoes, armour, talismans and Compactor need, counting the crops you
+  auto-sell keep back what your next tools, armour, talismans and Compactor need, counting the crops you
   still have to pack. Each item shows how many it's keeping.
 - **Auto-sell** is chosen crop by crop: those crops are sold to the Market as soon as they're harvested
   (apart from what's kept for upgrades). The same list turns the Compactor on or off for each crop.
@@ -186,7 +238,7 @@ The **Inventory** tab is for packing crops and selling quickly to the Market.
 <img src="docs/screenshots/panel-inventory-bottom.png" width="48%" alt="The bottom of the Inventory tab: auto-sell and Compactor switches for every crop, and what your upgrades need">
 
 The **Farming** tab's crop guide shows roughly how many coins an hour each crop would make you, with
-your hoes, Fortune and speed, and marks the best one. Its **Right now** card measures how fast your farm
+your tools, Fortune and speed, and marks the best one. Its **Right now** card measures how fast your farm
 is actually going (coins, crops and Farming XP an hour, over the last 10 minutes and since the game
 started), so you can see whether an upgrade made a difference.
 
@@ -264,14 +316,14 @@ breaks, details are written to `%APPDATA%\TaskBarGame Harvest Edition\error.log`
 | I want to change... | Edit |
 |---|---|
 | Crop regrow time, drops, price, XP, unlock level | `src/TaskBarGame.Core/Crops.cs` |
-| Hoe, armour and talisman stats, and every crafting recipe | `src/TaskBarGame.Core/Equipment.cs` |
+| Tool, armour and talisman stats, and every crafting recipe | `src/TaskBarGame.Core/Equipment.cs` |
 | Packed and Dense crops | `src/TaskBarGame.Core/Items.cs` |
 | Level XP tables, field expansions, collection tiers | `src/TaskBarGame.Core/Progression.cs` |
 | Breaking, fortune, crafting and offline rules | `src/TaskBarGame.Core/GameEngine.cs` |
 | Bazaar prices, trades and orders | `src/TaskBarGame.Core/Bazaar.cs` |
 | How the farmer walks the row and teleports | `src/TaskBarGame.Core/FarmerAgent.cs` |
 | **Pixel art** (crops, farmer, icons) | `src/TaskBarGame.Core/Assets/sprites.txt`, a plain text file with one letter per pixel |
-| Tier colours of hoes, armour and talismans | `src/TaskBarGame.App/SpriteCache.cs` |
+| Tier colours of tools, armour and talismans | `src/TaskBarGame.App/SpriteCache.cs` |
 | The strip above the taskbar | `src/TaskBarGame.App/StripWindow.xaml.cs` |
 | The panel | `src/TaskBarGame.App/PanelWindow.xaml` + `ViewModels/` |
 | Colours and button styles | `src/TaskBarGame.App/Theme.xaml` |
@@ -330,8 +382,8 @@ docs/screenshots/         The pictures in this README.
 
 ## Coming next
 
-- **Auction house:** buy and sell hoes, armour and talismans.
-- **Visitors** who ask for crops in exchange for rewards, and a **composter**.
+- **Auction house:** buy and sell tools, armour and talismans.
+- **Pests**, **farming contests** and more for the garden.
 - **More skills:** combat, fishing, mining, foraging and more.
 
 ## Download

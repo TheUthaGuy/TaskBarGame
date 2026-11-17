@@ -12,6 +12,13 @@ Windows may say "Windows protected your PC" because the game isn't signed yet: c
 - **Hoes** for every crop, **armour** sets and **talismans**, all crafted from packed crops.
 - The **Bazaar**: buy and sell with other (pretend) farmers, with sell offers and buy orders.
 
+## Garden
+
+- **Visitors** arrive every 15 minutes and trade crops for coins, XP and Garden Tokens.
+- The **Visitor Shop**: boosts, compost, benches for more visitors, and Wardrobe items.
+- The **Composter** turns spare crops into Compost for permanent upgrades and fertiliser.
+- A **tool for every crop** (sickle, dicer, shovel...) in iron, gold and blue, swung by the farmer.
+
 ## Quality of life
 
 - Click and drag along the row to farm by hand.

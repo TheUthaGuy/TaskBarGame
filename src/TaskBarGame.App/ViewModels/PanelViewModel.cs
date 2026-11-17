@@ -22,7 +22,7 @@ public sealed partial class PanelViewModel : ObservableObject
         nameof(AutoHarvest), nameof(KeepForUpgrades), nameof(FloatingText), nameof(HideInFullscreen),
         nameof(StartWithWindows), nameof(ShortNumbers), nameof(BatterySaver),
         nameof(PausePopups), nameof(PopupLevelUps), nameof(PopupCollections), nameof(PopupCrafted),
-        nameof(PopupBazaar), nameof(PopupUpgradeReady), nameof(PopupWelcomeBack), nameof(PopupUpdates), nameof(PopupCosmetics),
+        nameof(PopupBazaar), nameof(PopupUpgradeReady), nameof(PopupWelcomeBack), nameof(PopupUpdates), nameof(PopupCosmetics), nameof(PopupVisitors),
         nameof(CheckForUpdates), nameof(InstallUpdatesAutomatically),
     };
 
@@ -99,6 +99,7 @@ public sealed partial class PanelViewModel : ObservableObject
         InitBazaar();
         InitUpdates();
         InitBuddy();
+        InitGarden();
         Refresh();
     }
 
@@ -278,6 +279,7 @@ public sealed partial class PanelViewModel : ObservableObject
     public bool PopupWelcomeBack { get => ShowsPopup(PopupKind.WelcomeBack); set => ShowPopup(PopupKind.WelcomeBack, value); }
     public bool PopupUpdates { get => ShowsPopup(PopupKind.Update); set => ShowPopup(PopupKind.Update, value); }
     public bool PopupCosmetics { get => ShowsPopup(PopupKind.Cosmetic); set => ShowPopup(PopupKind.Cosmetic, value); }
+    public bool PopupVisitors { get => ShowsPopup(PopupKind.Visitor); set => ShowPopup(PopupKind.Visitor, value); }
 
     private bool ShowsPopup(PopupKind kind) => !Settings.HiddenPopups.Contains(kind);
 
@@ -349,6 +351,7 @@ public sealed partial class PanelViewModel : ObservableObject
         RefreshBazaar();
         RefreshUpdates();
         RefreshBuddy();
+        RefreshGarden();
     }
 
     private void RefreshField()
