@@ -19,7 +19,11 @@ Click the farmer (or your coins) to open the garden panel:
 
 ## Running it
 
-You need **Windows 10 or 11** and the free [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0).
+The easiest way is to grab `TaskBarGame.exe` from [Download](#download) at the bottom of this page
+and run it. Nothing to install.
+
+To run it from the source code instead, you need **Windows 10 or 11** and the free
+[.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0).
 
 ```bash
 dotnet run --project src/TaskBarGame.App
@@ -124,6 +128,25 @@ Wine with `tools/linux-screenshots.sh`. The game draws everything itself, so the
 except for the font: Wine has no Segoe UI, so the script uses Selawik, Microsoft's open-source
 stand-in for it.
 
+### Making a release
+
+1. Set the new version in `src/TaskBarGame.App/TaskBarGame.App.csproj` (`<Version>`) and in the
+   [Download](#download) section below.
+2. Write the release notes in `docs/releases/v<version>.md` (copy the previous one).
+3. Tag the commit and push the tag:
+
+   ```bash
+   git tag v0.2.0
+   ```
+
+   ```bash
+   git push origin v0.2.0
+   ```
+
+The **Release** workflow then builds `TaskBarGame.exe` on Windows and publishes it on the
+[Releases](https://github.com/TheUthaGuy/TaskBarGame/releases) page. The download links below always
+point at the newest release, so they never need changing.
+
 ### Project layout
 
 ```
@@ -138,3 +161,17 @@ docs/screenshots/         The pictures in this README.
 
 - **Visitors:** characters who stop by the garden and ask for crops in exchange for rewards.
 - **Composter and upgrades:** turn spare crops into compost, buy better tools and crop upgrades.
+
+## Download
+
+**Latest version: v0.1.0** (Farming and the Garden)
+
+| Download | |
+|---|---|
+| [**TaskBarGame.exe**](https://github.com/TheUthaGuy/TaskBarGame/releases/latest/download/TaskBarGame.exe) | Windows 10/11, 64-bit. Just run it, nothing to install (about 65 MB). |
+| [TaskBarGame-win-x64.zip](https://github.com/TheUthaGuy/TaskBarGame/releases/latest/download/TaskBarGame-win-x64.zip) | The same game, zipped, if your browser blocks `.exe` downloads. |
+
+Every version and its release notes are on the [Releases](https://github.com/TheUthaGuy/TaskBarGame/releases) page.
+
+Windows may say "Windows protected your PC" because the game isn't signed yet. Click
+**More info → Run anyway**.
