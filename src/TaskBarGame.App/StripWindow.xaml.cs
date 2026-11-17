@@ -84,11 +84,13 @@ public partial class StripWindow : Window
     private bool _hiddenForFullscreen;
     private bool _lockReady;
     private bool _layoutRequested;
+    private double _layoutDpi;
     private double _time;
     private double _slowTimer;
     private double _verySlowTimer;
     private Toast? _toast;
     private PanelWindow? _panel;
+
 
     /// <summary>The garden panel, if it's open.</summary>
     public PanelWindow? Panel => _panel;
@@ -116,7 +118,11 @@ public partial class StripWindow : Window
             _expanded = Settings.StripMode == StripMode.Always;
             RequestLayout();
         };
-        DpiChanged += (_, _) => RequestLayout();
+        DpiChanged += (_, e) =>
+        {
+            // Only rebuild when the scaling really changed: this event can fire repeatedly without a change.
+            if (Math.Abs(e.NewDpi.DpiScaleX - _layoutDpi) > 0.001) RequestLayout();
+        };
         MouseEnter += (_, _) => OnMouseEntered();
         MouseLeave += (_, _) => OnMouseLeft();
         SystemParameters.StaticPropertyChanged += OnSystemParametersChanged;
@@ -168,6 +174,7 @@ public partial class StripWindow : Window
     private void BuildLayout()
     {
         double dpi = VisualTreeHelper.GetDpi(this).DpiScaleX;
+        _layoutDpi = dpi;
         double baseScale = Settings.Size switch
         {
             StripSize.Small => 2,
