@@ -7,6 +7,16 @@ breaking every ripe crop they pass, just like farming a row by hand. You earn co
 your **Farming** skill and your **Garden**, unlock new crops and buy more plots. You can also click
 crops yourself to farm faster.
 
+![The garden strip: the farmer breaks a pumpkin, crop bits fly out, and a level-up popup appears above](docs/screenshots/strip.png)
+
+Click the farmer (or your coins) to open the garden panel:
+
+<p>
+  <img src="docs/screenshots/panel-garden.png" width="32%" alt="Garden tab: Garden level and every plot with its growth timer">
+  <img src="docs/screenshots/panel-farming.png" width="32%" alt="Farming tab: Farming level, Harvest Fortune and the crop guide">
+  <img src="docs/screenshots/panel-collections.png" width="32%" alt="Collections tab: tier progress for every crop">
+</p>
+
 ## Running it
 
 You need **Windows 10 or 11** and the free [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0).
@@ -70,6 +80,9 @@ In the panel's **Settings** tab (or the right-click menu):
 
 - **Only show it when I hover:** the strip tucks away and only the farmer stays visible, with a badge
   showing how many crops are ready. Hover over the farmer to show the strip.
+
+  <img src="docs/screenshots/strip-hover-mode.png" width="72" alt="Hover mode: only the farmer is shown">
+
 - **Size:** Small / Normal / Large.
 - **Position:** Left / Center / Right of the screen.
 - Farmer auto-harvest, auto-sell, floating numbers, hide during fullscreen apps, start with Windows.
@@ -89,6 +102,7 @@ details are written to `%APPDATA%\TaskBarGame\error.log`.
 | The strip above the taskbar | `src/TaskBarGame.App/StripWindow.xaml.cs` |
 | The garden panel | `src/TaskBarGame.App/PanelWindow.xaml` + `ViewModels/` |
 | Colours and button styles | `src/TaskBarGame.App/Theme.xaml` |
+| The screenshots in this README | see [Screenshots](#screenshots) below |
 
 Run the tests after changing game rules:
 
@@ -96,12 +110,28 @@ Run the tests after changing game rules:
 dotnet test
 ```
 
+### Screenshots
+
+The game has a screenshot mode that plays a demo garden (it never touches your save), saves pictures
+of the strip and every panel tab, then quits:
+
+```bash
+TaskBarGame.exe --screenshots docs\screenshots
+```
+
+The screenshots in `docs/screenshots` were taken on Linux by running the real Windows build under
+Wine with `tools/linux-screenshots.sh`. The game draws everything itself, so they match Windows
+except for the font: Wine has no Segoe UI, so the script uses Selawik, Microsoft's open-source
+stand-in for it.
+
 ### Project layout
 
 ```
 src/TaskBarGame.Core/     Game rules, saving and sprite loading. No Windows code, fully unit tested.
 src/TaskBarGame.App/      The Windows (WPF) app: the taskbar strip, the panel, Windows integration.
 tests/                    xUnit tests for TaskBarGame.Core.
+tools/                    linux-screenshots.sh, which remakes the README screenshots on Linux.
+docs/screenshots/         The pictures in this README.
 ```
 
 ## Coming next

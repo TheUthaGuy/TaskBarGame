@@ -4,7 +4,6 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using TaskBarGame.App.Interop;
 using TaskBarGame.Core;
 
 namespace TaskBarGame.App;
@@ -12,7 +11,7 @@ namespace TaskBarGame.App;
 /// <summary>
 /// Plays a demo garden and saves screenshots of the strip and every panel tab, then quits.
 /// Run with: TaskBarGame.exe --screenshots path\to\folder
-/// (Used by .github/workflows/screenshots.yml. Your real save file is never touched.)
+/// (Used to make the screenshots in docs/screenshots. Your real save file is never touched.)
 /// </summary>
 internal sealed class ScreenshotTour
 {
@@ -78,9 +77,8 @@ internal sealed class ScreenshotTour
         // Let the farmer get going, then catch the moment just after a crop breaks.
         await Wait(1.4);
         await NextHarvest(TimeSpan.FromSeconds(6));
-        await Wait(0.12);
-        SaveScreenArea("strip.png", WindowArea(_strip, margin: 12));
-        SaveScreen("desktop.png");
+        await Wait(0.15);
+        SaveStrip("strip.png");
 
         _strip.TogglePanel();
         await Wait(0.8);
@@ -92,16 +90,13 @@ internal sealed class ScreenshotTour
             await Wait(0.5);
             SaveElement((FrameworkElement)panel.Content, $"panel-{tabs[i]}.png");
         }
-        panel.Tabs.SelectedIndex = 0;
-        await Wait(0.4);
-        SaveScreen("desktop-with-panel.png");
         panel.Close();
 
         // "Only show it when I hover" mode: just the farmer and the ripe-crop badge.
         _host.Settings.StripMode = StripMode.OnHover;
         _host.ApplySettings();
         await Wait(1.0);
-        SaveScreenArea("strip-hover-mode.png", WindowArea(_strip, margin: 12));
+        SaveStrip("strip-hover-mode.png");
     }
 
     private static Task Wait(double seconds) => Task.Delay(TimeSpan.FromSeconds(seconds));
@@ -115,31 +110,17 @@ internal sealed class ScreenshotTour
             .ContinueWith(_ => _host.Engine.Harvested -= OnHarvest, TaskScheduler.FromCurrentSynchronizationContext());
     }
 
-    /// <summary>The window's area on screen in real pixels, stretched down to the bottom of the screen
-    /// so the taskbar is in the picture.</summary>
-    private static Int32Rect WindowArea(Window window, double margin)
+    /// <summary>Draws the strip (and anything floating above it) trimmed to the parts you can see.</summary>
+    private void SaveStrip(string name)
     {
-        double dpi = VisualTreeHelper.GetDpi(window).DpiScaleX;
-        double screenHeight = SystemParameters.PrimaryScreenHeight * dpi;
-        double screenWidth = SystemParameters.PrimaryScreenWidth * dpi;
-        int left = (int)Math.Max(0, (window.Left - margin) * dpi);
-        int top = (int)Math.Max(0, window.Top * dpi);
-        int right = (int)Math.Min(screenWidth, (window.Left + window.Width + margin) * dpi);
-        return new Int32Rect(left, top, right - left, (int)screenHeight - top);
-    }
-
-    private void SaveScreen(string name) => Save(NativeMethods.CaptureScreen(), name);
-
-    private void SaveScreenArea(string name, Int32Rect area)
-    {
-        var screen = NativeMethods.CaptureScreen();
-        area.Width = Math.Min(area.Width, screen.PixelWidth - area.X);
-        area.Height = Math.Min(area.Height, screen.PixelHeight - area.Y);
-        Save(new CroppedBitmap(screen, area), name);
+        var image = Render(_strip.Root);
+        Save(TrimToContent(image, padding: 12), name);
     }
 
     /// <summary>Draws a window's contents at 2x size, keeping see-through parts see-through.</summary>
-    private void SaveElement(FrameworkElement element, string name)
+    private void SaveElement(FrameworkElement element, string name) => Save(Render(element), name);
+
+    private static BitmapSource Render(FrameworkElement element)
     {
         const double scale = 2;
         element.UpdateLayout();
@@ -147,7 +128,34 @@ internal sealed class ScreenshotTour
             (int)Math.Ceiling(element.ActualWidth * scale), (int)Math.Ceiling(element.ActualHeight * scale),
             96 * scale, 96 * scale, PixelFormats.Pbgra32);
         image.Render(element);
-        Save(image, name);
+        image.Freeze();
+        return image;
+    }
+
+    /// <summary>Crops away fully see-through edges.</summary>
+    private static BitmapSource TrimToContent(BitmapSource image, int padding)
+    {
+        int width = image.PixelWidth, height = image.PixelHeight;
+        var pixels = new uint[width * height];
+        image.CopyPixels(pixels, width * 4, 0);
+
+        int left = width, top = height, right = -1, bottom = -1;
+        for (int y = 0; y < height; y++)
+        for (int x = 0; x < width; x++)
+        {
+            if (pixels[y * width + x] >> 24 == 0) continue;
+            left = Math.Min(left, x);
+            right = Math.Max(right, x);
+            top = Math.Min(top, y);
+            bottom = Math.Max(bottom, y);
+        }
+        if (right < 0) return image;
+
+        left = Math.Max(0, left - padding);
+        top = Math.Max(0, top - padding);
+        right = Math.Min(width - 1, right + padding);
+        bottom = Math.Min(height - 1, bottom + padding);
+        return new CroppedBitmap(image, new Int32Rect(left, top, right - left + 1, bottom - top + 1));
     }
 
     private void Save(BitmapSource image, string name)
