@@ -83,6 +83,7 @@ public partial class StripWindow : Window
     private bool _menuOpen;
     private bool _hiddenForFullscreen;
     private bool _lockReady;
+    private bool _layoutRequested;
     private double _time;
     private double _slowTimer;
     private double _verySlowTimer;
@@ -112,11 +113,10 @@ public partial class StripWindow : Window
         };
         Loaded += (_, _) =>
         {
-            BuildLayout();
             _expanded = Settings.StripMode == StripMode.Always;
-            ApplyExpanded();
+            RequestLayout();
         };
-        DpiChanged += (_, _) => BuildLayout();
+        DpiChanged += (_, _) => RequestLayout();
         MouseEnter += (_, _) => OnMouseEntered();
         MouseLeave += (_, _) => OnMouseLeft();
         SystemParameters.StaticPropertyChanged += OnSystemParametersChanged;
@@ -129,7 +129,7 @@ public partial class StripWindow : Window
         };
         _host.SettingsChanged += () =>
         {
-            BuildLayout();
+            RequestLayout();
             if (Settings.StripMode == StripMode.Always) SetExpanded(true);
             else if (!ShouldStayExpanded()) SetExpanded(false);
         };
@@ -138,7 +138,7 @@ public partial class StripWindow : Window
         Engine.CollectionTierReached += OnCollectionTier;
         Engine.Changed += () =>
         {
-            if (Engine.Plots.Count != _builtPlotCount) BuildLayout();
+            if (Engine.Plots.Count != _builtPlotCount) RequestLayout();
         };
     }
 
@@ -147,6 +147,22 @@ public partial class StripWindow : Window
     private bool HoverMode => Settings.StripMode == StripMode.OnHover;
 
     // ================================================================== layout
+
+    /// <summary>
+    /// Rebuilds the strip as soon as WPF is free. Never rebuild straight from an event: events like
+    /// Loaded can fire in the middle of WPF's own layout pass, and changing the strip's children then
+    /// crashes ("the collection changed").
+    /// </summary>
+    private void RequestLayout()
+    {
+        if (_layoutRequested) return;
+        _layoutRequested = true;
+        Dispatcher.BeginInvoke(DispatcherPriority.Normal, () =>
+        {
+            _layoutRequested = false;
+            BuildLayout();
+        });
+    }
 
     /// <summary>Creates every element of the strip. Called when plots, size, position or DPI change.</summary>
     private void BuildLayout()

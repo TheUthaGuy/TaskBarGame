@@ -91,12 +91,13 @@ public partial class App : Application
         base.OnExit(e);
     }
 
-    private static void LogError(Exception ex)
+    private static void LogError(Exception ex, string? extra = null)
     {
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(ErrorLogPath)!);
-            File.AppendAllText(ErrorLogPath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {ex}{Environment.NewLine}{Environment.NewLine}");
+            File.AppendAllText(ErrorLogPath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {ex}{Environment.NewLine}"
+                + (extra is null ? "" : extra + Environment.NewLine) + Environment.NewLine);
         }
         catch (IOException) { }
         catch (UnauthorizedAccessException) { }
@@ -136,7 +137,8 @@ public partial class App : Application
 
     private void OnUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
-        LogError(e.Exception);
+        // The exception's own stack stops at the dispatcher; this shows what led there.
+        LogError(e.Exception, "Called from:" + Environment.NewLine + Environment.StackTrace);
         if (_screenshotMode)
         {
             // No one is there to click a message box: fail the run instead.
