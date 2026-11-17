@@ -1,12 +1,22 @@
 name: Release
 
-# Push a version tag (for example `git tag v0.2.0 && git push origin v0.2.0`) to build
-# TaskBarGame.exe on Windows and publish it as a GitHub Release. The README's download
-# links always point at the newest release.
+# Builds TaskBarGame.exe on Windows and publishes it as a GitHub Release.
+# The README's download links always point at the newest release.
+#
+# Three ways to start it:
+#   1. Actions tab → Release → "Run workflow", and type the version (for example 0.2.0).
+#   2. Releases page → "Draft a new release" with a new tag like v0.2.0 → Publish.
+#      The files are added to that release a couple of minutes later.
+#   3. git tag v0.2.0 && git push origin v0.2.0
 on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, for example 0.2.0"
+        required: true
 
 permissions:
   contents: write
@@ -21,16 +31,24 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      - name: Work out the version
+        shell: pwsh
+        run: |
+          $raw = if ("${{ github.event_name }}" -eq "workflow_dispatch") { "${{ inputs.version }}" } else { "${{ github.ref_name }}" }
+          $version = $raw.Trim().TrimStart("v")
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "'$raw' isn't a version like 0.2.0." }
+          "VERSION=$version" >> $env:GITHUB_ENV
+          "TAG=v$version" >> $env:GITHUB_ENV
+
       - name: Test
         run: dotnet test tests/TaskBarGame.Core.Tests -c Release
 
       - name: Build TaskBarGame.exe
         shell: pwsh
         run: |
-          $version = "${{ github.ref_name }}".TrimStart("v")
           dotnet publish src/TaskBarGame.App -c Release -r win-x64 --self-contained true `
             -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
-            -p:EnableCompressionInSingleFile=true -p:DebugType=none -p:Version=$version -o publish
+            -p:EnableCompressionInSingleFile=true -p:DebugType=none -p:Version=$env:VERSION -o publish
           Compress-Archive -Path publish/TaskBarGame.exe -DestinationPath TaskBarGame-win-x64.zip
 
       - name: Publish the release
@@ -38,8 +56,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "${{ github.ref_name }}"
+          $tag = $env:TAG
+          $files = @("publish/TaskBarGame.exe", "TaskBarGame-win-x64.zip")
           $notes = "docs/releases/$tag.md"
-          $notesArgs = if (Test-Path $notes) { @("--notes-file", $notes) } else { @("--generate-notes") }
-          gh release create $tag publish/TaskBarGame.exe TaskBarGame-win-x64.zip `
-            --title "TaskBarGame $tag" @notesArgs
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            # The release was made on the website: add the game files to it.
+            gh release upload $tag @files --clobber
+            if (Test-Path $notes) { gh release edit $tag --title "TaskBarGame $tag" --notes-file $notes }
+          } else {
+            $notesArgs = if (Test-Path $notes) { @("--notes-file", $notes) } else { @("--generate-notes") }
+            gh release create $tag @files --title "TaskBarGame $tag" --target $env:GITHUB_SHA @notesArgs
+          }
