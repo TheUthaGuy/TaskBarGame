@@ -1,0 +1,14 @@
+# Build output
+bin/
+obj/
+publish/
+artifacts/
+TestResults/
+
+# IDEs
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.DotSettings.user

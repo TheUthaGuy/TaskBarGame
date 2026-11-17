@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RootNamespace>TaskBarGame.App</RootNamespace>
+    <AssemblyName>TaskBarGame</AssemblyName>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Version>0.1.0</Version>
+    <!-- Lets the project build on Linux/macOS too (for CI). It still only runs on Windows. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TaskBarGame.Core\TaskBarGame.Core.csproj" />
+  </ItemGroup>
+
+</Project>

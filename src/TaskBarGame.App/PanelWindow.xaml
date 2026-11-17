@@ -1,0 +1,317 @@
+<!--
+    The garden panel: opens when you click the farmer (or the coins on the strip).
+    Its data comes from ViewModels/PanelViewModel.cs.
+-->
+<Window x:Class="TaskBarGame.App.PanelWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="TaskBarGame"
+        Width="500"
+        Height="600"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Topmost="True"
+        FontFamily="Segoe UI"
+        FontSize="13"
+        Foreground="{StaticResource TextBrush}"
+        UseLayoutRounding="True">
+
+    <Border Background="{StaticResource WindowBrush}"
+            BorderBrush="{StaticResource LineBrush}"
+            BorderThickness="1"
+            CornerRadius="12">
+        <DockPanel>
+
+            <!-- Title bar (drag it to move the panel) -->
+            <Grid DockPanel.Dock="Top" Height="50" Background="Transparent"
+                  MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <StackPanel Orientation="Horizontal" Margin="14,0,0,0" VerticalAlignment="Center">
+                    <Image Source="{Binding FarmerIcon}" Style="{StaticResource PixelIcon}" Width="32" Height="32" />
+                    <TextBlock Text="Your Garden" Style="{StaticResource H2}" Margin="8,0,0,0" VerticalAlignment="Center" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,8,0">
+                    <Image Source="{Binding CoinIcon}" Style="{StaticResource PixelIcon}" Width="16" Height="16" />
+                    <TextBlock Text="{Binding CoinsText}" Foreground="{StaticResource GoldBrush}" FontWeight="Bold"
+                               FontSize="15" Margin="6,0,12,0" VerticalAlignment="Center" />
+                    <Button Content="✕" Style="{StaticResource IconButton}" Click="Close_Click" ToolTip="Close (Esc)" />
+                </StackPanel>
+            </Grid>
+
+            <TabControl x:Name="Tabs">
+
+                <!-- ============================================================ GARDEN -->
+                <TabItem Header="Garden">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="0,0,6,0">
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding GardenXpText}"
+                                                   Style="{StaticResource Muted}" VerticalAlignment="Bottom" />
+                                        <TextBlock Text="{Binding GardenLevelText}" Style="{StaticResource H2}" />
+                                    </DockPanel>
+                                    <ProgressBar Value="{Binding GardenProgress, Mode=OneWay}" Margin="0,8,0,6" />
+                                    <TextBlock Text="{Binding GardenNextText}" Style="{StaticResource Muted}" />
+                                </StackPanel>
+                            </Border>
+
+                            <DockPanel Margin="2,2,0,8">
+                                <Button DockPanel.Dock="Right" Content="Plant on all plots ▾" Click="PlantAll_Click" />
+                                <TextBlock Text="{Binding PlotsHeader}" Style="{StaticResource H3}" />
+                            </DockPanel>
+
+                            <ItemsControl ItemsSource="{Binding Plots}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource Row}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <Image Source="{Binding Icon}" Style="{StaticResource PixelIcon}" Width="32" Height="32" />
+                                                <StackPanel Grid.Column="1" Margin="10,0" VerticalAlignment="Center">
+                                                    <DockPanel>
+                                                        <TextBlock DockPanel.Dock="Right" Text="{Binding Status}"
+                                                                   Foreground="{StaticResource MutedBrush}" FontSize="12" />
+                                                        <TextBlock>
+                                                            <Run Text="{Binding Title, Mode=OneWay}" Foreground="{StaticResource MutedBrush}" />
+                                                            <Run Text="{Binding CropName, Mode=OneWay}" FontWeight="SemiBold" />
+                                                        </TextBlock>
+                                                    </DockPanel>
+                                                    <ProgressBar Value="{Binding Progress, Mode=OneWay}"
+                                                                 Foreground="{Binding ProgressBrush}" Height="6" Margin="0,5,0,0" />
+                                                </StackPanel>
+                                                <Button Grid.Column="2" Content="Change ▾" Click="ChangeCrop_Click"
+                                                        VerticalAlignment="Center" />
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <Border Style="{StaticResource Card}" Margin="0,8,0,0"
+                                    Visibility="{Binding HasNextPlot, Converter={StaticResource BoolToVisibility}}">
+                                <DockPanel>
+                                    <Button DockPanel.Dock="Right" Style="{StaticResource AccentButton}" Content="Unlock"
+                                            Command="{Binding UnlockPlotCommand}" IsEnabled="{Binding CanUnlockPlot}"
+                                            VerticalAlignment="Center" />
+                                    <Image Source="{Binding LockIcon}" Style="{StaticResource PixelIcon}" Width="32" Height="32" />
+                                    <StackPanel Margin="10,0" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding NextPlotTitle}" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding NextPlotText}" Style="{StaticResource Muted}" />
+                                    </StackPanel>
+                                </DockPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- ============================================================ FARMING -->
+                <TabItem Header="Farming">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="0,0,6,0">
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding FarmingXpText}"
+                                                   Style="{StaticResource Muted}" VerticalAlignment="Bottom" />
+                                        <TextBlock Text="{Binding FarmingLevelText}" Style="{StaticResource H2}" />
+                                    </DockPanel>
+                                    <ProgressBar Value="{Binding FarmingProgress, Mode=OneWay}"
+                                                 Foreground="{StaticResource XpBrush}" Margin="0,8,0,6" />
+                                    <TextBlock Text="{Binding FarmingNextText}" Style="{StaticResource Muted}" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <TextBlock Text="Harvest Fortune" Style="{StaticResource H3}" />
+                                    <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,8"
+                                               Text="Every 100 Harvest Fortune gives one extra set of crops per harvest. Leftover fortune is a chance at one more." />
+                                    <TextBlock Text="{Binding FortuneLevelText}" />
+                                    <TextBlock Text="{Binding FortuneHandText, Mode=OneWay}" />
+                                    <TextBlock Text="{Binding FortuneCollectionText, Mode=OneWay}" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <TextBlock Text="Crop guide" Style="{StaticResource H3}" Margin="0,0,0,6" />
+                                    <ItemsControl ItemsSource="{Binding CropGuide}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid Margin="0,4" Opacity="{Binding RowOpacity}">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Image Source="{Binding Icon}" Style="{StaticResource PixelIcon}" />
+                                                    <StackPanel Grid.Column="1" Margin="10,0" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold" />
+                                                        <TextBlock Text="{Binding Details}" Style="{StaticResource Muted}" FontSize="12" />
+                                                    </StackPanel>
+                                                    <TextBlock Grid.Column="2" Text="{Binding Badge}" Foreground="{Binding BadgeBrush}"
+                                                               FontSize="12" VerticalAlignment="Center" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <TextBlock Text="Stats" Style="{StaticResource H3}" Margin="0,0,0,4" />
+                                    <TextBlock Text="{Binding StatsText}" Style="{StaticResource Muted}" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- ============================================================ COLLECTIONS -->
+                <TabItem Header="Collections">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="0,0,6,0">
+                            <TextBlock Style="{StaticResource Muted}" Margin="2,0,0,10"
+                                       Text="Every crop you harvest counts toward its collection. Each tier gives that crop more Harvest Fortune, plus Garden XP." />
+                            <ItemsControl ItemsSource="{Binding CollectionRows}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource Row}" Opacity="{Binding RowOpacity}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <Image Source="{Binding Icon}" Style="{StaticResource PixelIcon}" Width="32" Height="32" />
+                                                <StackPanel Grid.Column="1" Margin="10,0,4,0">
+                                                    <DockPanel>
+                                                        <TextBlock DockPanel.Dock="Right" Text="{Binding TierText}"
+                                                                   Foreground="{StaticResource GoldBrush}" FontSize="12" />
+                                                        <TextBlock Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold" />
+                                                    </DockPanel>
+                                                    <ProgressBar Value="{Binding Progress, Mode=OneWay}"
+                                                                 Foreground="{Binding ProgressBrush}" Height="6" Margin="0,5" />
+                                                    <DockPanel>
+                                                        <TextBlock DockPanel.Dock="Right" Text="{Binding RewardText}"
+                                                                   Foreground="{StaticResource MutedBrush}" FontSize="12" />
+                                                        <TextBlock Text="{Binding CountText}" Foreground="{StaticResource MutedBrush}" FontSize="12" />
+                                                    </DockPanel>
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- ============================================================ MARKET -->
+                <TabItem Header="Market">
+                    <DockPanel>
+                        <Border DockPanel.Dock="Top" Style="{StaticResource Card}">
+                            <StackPanel>
+                                <DockPanel>
+                                    <Button DockPanel.Dock="Right" Style="{StaticResource AccentButton}" Content="Sell everything"
+                                            Command="{Binding SellEverythingCommand}" IsEnabled="{Binding HasInventory}"
+                                            VerticalAlignment="Center" />
+                                    <StackPanel>
+                                        <TextBlock Text="Your crops are worth" Style="{StaticResource Muted}" />
+                                        <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                            <Image Source="{Binding CoinIcon}" Style="{StaticResource PixelIcon}" Width="18" Height="18" />
+                                            <TextBlock Text="{Binding InventoryValueText}" Foreground="{StaticResource GoldBrush}"
+                                                       FontSize="18" FontWeight="Bold" Margin="6,0,0,0" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </DockPanel>
+                                <CheckBox Content="Sell crops automatically when they're harvested"
+                                          IsChecked="{Binding AutoSell}" Margin="0,10,0,0" />
+                            </StackPanel>
+                        </Border>
+                        <TextBlock DockPanel.Dock="Top" Text="Nothing to sell yet. Go harvest some crops!"
+                                   Style="{StaticResource Muted}" Margin="4,6"
+                                   Visibility="{Binding HasInventory, Converter={StaticResource InverseBoolToVisibility}}" />
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding Inventory}" Margin="0,0,6,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource Row}">
+                                            <DockPanel>
+                                                <Button DockPanel.Dock="Right" Content="{Binding SellText}"
+                                                        Command="{Binding SellCommand}" VerticalAlignment="Center" />
+                                                <Image Source="{Binding Icon}" Style="{StaticResource PixelIcon}" Width="32" Height="32" />
+                                                <StackPanel Margin="10,0" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold" />
+                                                    <TextBlock Text="{Binding CountText}" Style="{StaticResource Muted}" FontSize="12" />
+                                                </StackPanel>
+                                            </DockPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </DockPanel>
+                </TabItem>
+
+                <!-- ============================================================ SETTINGS -->
+                <TabItem Header="Settings">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="0,0,6,0">
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <TextBlock Text="Garden strip" Style="{StaticResource H3}" />
+                                    <StackPanel Margin="0,6,0,0">
+                                        <RadioButton Content="Always show it above the taskbar" IsChecked="{Binding ModeAlways}" />
+                                        <RadioButton Content="Only show it when I hover over the farmer" IsChecked="{Binding ModeHover}" />
+                                    </StackPanel>
+                                    <TextBlock Text="Size" Style="{StaticResource Muted}" Margin="0,10,0,0" />
+                                    <StackPanel Orientation="Horizontal">
+                                        <RadioButton Content="Small" IsChecked="{Binding SizeSmall}" />
+                                        <RadioButton Content="Normal" IsChecked="{Binding SizeNormal}" />
+                                        <RadioButton Content="Large" IsChecked="{Binding SizeLarge}" />
+                                    </StackPanel>
+                                    <TextBlock Text="Position" Style="{StaticResource Muted}" Margin="0,10,0,0" />
+                                    <StackPanel Orientation="Horizontal">
+                                        <RadioButton Content="Left" IsChecked="{Binding AnchorLeft}" />
+                                        <RadioButton Content="Center" IsChecked="{Binding AnchorCenter}" />
+                                        <RadioButton Content="Right" IsChecked="{Binding AnchorRight}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <TextBlock Text="Gameplay" Style="{StaticResource H3}" Margin="0,0,0,4" />
+                                    <CheckBox Content="Farmer harvests ripe crops by themselves" IsChecked="{Binding AutoHarvest}" />
+                                    <CheckBox Content="Sell crops automatically when they're harvested" IsChecked="{Binding AutoSell}" />
+                                    <CheckBox Content="Show floating numbers when crops are harvested" IsChecked="{Binding FloatingText}" />
+                                    <CheckBox Content="Hide the garden during fullscreen games and videos" IsChecked="{Binding HideInFullscreen}" />
+                                    <CheckBox Content="Start TaskBarGame when Windows starts" IsChecked="{Binding StartWithWindows}" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <TextBlock Text="Save file" Style="{StaticResource H3}" />
+                                    <TextBlock Text="{Binding SavePath, Mode=OneWay}" Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,10" />
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Content="Quit game" Click="Quit_Click" Margin="0,0,8,0" />
+                                        <Button Content="Reset progress..." Style="{StaticResource DangerButton}" Click="Reset_Click" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+            </TabControl>
+        </DockPanel>
+    </Border>
+</Window>
