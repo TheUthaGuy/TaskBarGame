@@ -1,5 +1,7 @@
 using System;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Threading;
 using TaskBarGame.App.ViewModels;
@@ -13,6 +15,7 @@ public partial class PanelWindow : Window
     private readonly GameHost _host;
     private readonly PanelViewModel _vm;
     private readonly DispatcherTimer _refreshTimer;
+    private bool _shown;
 
     public PanelWindow(GameHost host)
     {
@@ -21,6 +24,21 @@ public partial class PanelWindow : Window
 
         _vm = new PanelViewModel(host);
         DataContext = _vm;
+
+        // Open on the tab you had open last time, and remember where you drag the panel.
+        Tabs.SelectedIndex = Math.Clamp(host.Settings.PanelTab, 0, Tabs.Items.Count - 1);
+        Tabs.SelectionChanged += (_, e) =>
+        {
+            if (e.Source == Tabs) _host.Settings.PanelTab = Tabs.SelectedIndex;
+        };
+        ContentRendered += (_, _) => _shown = true;
+        LocationChanged += (_, _) =>
+        {
+            if (!_shown) return; // still being placed
+            _host.Settings.PanelLeft = Left;
+            _host.Settings.PanelTop = Top;
+        };
+        ChartHost.SizeChanged += (_, e) => _vm.ChartWidth = e.NewSize.Width;
 
         // Timers and progress bars tick along while the panel is open.
         _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
@@ -34,12 +52,21 @@ public partial class PanelWindow : Window
             _refreshTimer.Stop();
             _host.Engine.Changed -= OnGameChanged;
             _host.SettingsChanged -= OnSettingsChanged;
+            _host.Save();
         };
 
         PreviewKeyDown += (_, e) =>
         {
+            // Waiting for a new keyboard shortcut in Settings: the keys go there.
+            var key = e.Key == Key.System ? e.SystemKey : e.Key;
+            if (_vm.OnCaptureKey(key, Keyboard.Modifiers))
+            {
+                e.Handled = true;
+                return;
+            }
             if (e.Key == Key.Escape) Close();
         };
+        Closed += (_, _) => _host.HotkeysPaused = false;
     }
 
     private void OnGameChanged() => _vm.Refresh();
@@ -56,6 +83,22 @@ public partial class PanelWindow : Window
     }
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
+
+    /// <summary>The Pack ▾ button: a menu of how many to pack.</summary>
+    private void Pack_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: InventoryRow row } button) return;
+        var menu = new ContextMenu { PlacementTarget = button, Placement = PlacementMode.Bottom };
+        menu.Items.Add(new MenuItem { Header = "Pack how many?", IsEnabled = false });
+        menu.Items.Add(new Separator());
+        foreach (var (label, count) in row.PackChoices)
+        {
+            var item = new MenuItem { Header = label };
+            item.Click += (_, _) => _vm.Pack(row.Item, count);
+            menu.Items.Add(item);
+        }
+        menu.IsOpen = true;
+    }
 
     private void Quit_Click(object sender, RoutedEventArgs e) => ((App)Application.Current).Quit();
 

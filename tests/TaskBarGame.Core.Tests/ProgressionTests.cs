@@ -72,4 +72,18 @@ public class ProgressionTests
         Assert.Equal(t[1], CollectionTiers.NextThreshold(Crops.Wheat, t[0]));
         Assert.Null(CollectionTiers.NextThreshold(Crops.Wheat, long.MaxValue));
     }
+
+    [Fact]
+    public void Every_collection_has_a_max_at_its_last_tier()
+    {
+        Assert.Equal(2_000_000, CollectionTiers.MaxThreshold(Crops.Wheat));
+        foreach (var crop in Crops.All)
+        {
+            long max = CollectionTiers.MaxThreshold(crop);
+            Assert.Equal(CollectionTiers.Thresholds(crop)[^1], max);
+            Assert.Equal(CollectionTiers.MaxTier - 1, CollectionTiers.TierFor(crop, max - 1));
+            Assert.Equal(CollectionTiers.MaxTier, CollectionTiers.TierFor(crop, max));
+            Assert.Null(CollectionTiers.NextThreshold(crop, max));
+        }
+    }
 }

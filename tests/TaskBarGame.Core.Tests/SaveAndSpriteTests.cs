@@ -40,6 +40,13 @@ public sealed class SaveManagerTests : IDisposable
         state.Armour[ArmourSlot.Chestplate] = 3;
         state.Talismans[TalismanFamily.Swiftstep] = 1;
         state.Settings.StripMode = StripMode.OnHover;
+        state.Compactor = 2;
+        state.Settings.AutoSellCrops.Add("melon");
+        state.Settings.LockedItems.Add("packed_carrot");
+        state.Settings.CompactorSkips.Add("wheat");
+        state.Settings.HiddenPopups.Add(PopupKind.Collection);
+        state.Settings.PanelLeft = 120.5;
+        state.Settings.PanelTab = 4;
 
         saves.Save(state);
         var loaded = saves.LoadOrCreate();
@@ -54,9 +61,30 @@ public sealed class SaveManagerTests : IDisposable
         Assert.Equal(3, loaded.Armour[ArmourSlot.Chestplate]);
         Assert.Equal(1, loaded.Talismans[TalismanFamily.Swiftstep]);
         Assert.Equal(StripMode.OnHover, loaded.Settings.StripMode);
+        Assert.Equal(2, loaded.Compactor);
+        Assert.Equal(new[] { "melon" }, loaded.Settings.AutoSellCrops);
+        Assert.Equal(new[] { "packed_carrot" }, loaded.Settings.LockedItems);
+        Assert.Equal(new[] { "wheat" }, loaded.Settings.CompactorSkips);
+        Assert.Equal(new[] { PopupKind.Collection }, loaded.Settings.HiddenPopups);
+        Assert.Equal(120.5, loaded.Settings.PanelLeft);
+        Assert.Null(loaded.Settings.PanelTop);
+        Assert.Equal(4, loaded.Settings.PanelTab);
         string json = File.ReadAllText(SavePath);
         Assert.Contains("\"Chestplate\"", json); // readable names in the file
         Assert.Contains("\"Swiftstep\"", json);
+        Assert.DoesNotContain("\"AutoSell\"", json); // the old setting is only read, never written
+    }
+
+    [Fact]
+    public void Old_auto_sell_setting_turns_into_auto_sell_for_every_crop()
+    {
+        Directory.CreateDirectory(_dir);
+        File.WriteAllText(SavePath, """{ "Version": 2, "Settings": { "AutoSell": true } }""");
+        var loaded = new SaveManager(SavePath).LoadOrCreate();
+
+        Assert.Equal(Crops.All.Count, loaded.Settings.AutoSellCrops.Count);
+        Assert.Null(loaded.Settings.AutoSell);
+        Assert.True(loaded.Settings.KeepForUpgrades);
     }
 
     [Fact]
@@ -118,12 +146,13 @@ public class SpriteSheetTests
             "farmer_farm1", "farmer_farm2", "farmer_swing",
             "coin", "sparkle", "sack", "crate",
             "icon_hoe", "icon_helmet", "icon_chestplate", "icon_leggings", "icon_boots",
-            "icon_charm", "icon_ring", "icon_relic",
+            "icon_charm", "icon_ring", "icon_relic", "icon_compactor",
+            "hat_cap", "hat_bandana", "hat_tophat", "hat_flowers", "hat_crown",
         };
         foreach (var name in required.Concat(Crops.All.Select(c => c.RipeSprite)))
             Assert.True(sheet.Contains(name), $"sprites.txt is missing [sprite {name}]");
 
-        foreach (var name in required.Where(n => n.StartsWith("farmer") || n.StartsWith("stage") || n.StartsWith("soil") || n.StartsWith("icon"))
+        foreach (var name in required.Where(n => n.StartsWith("farmer") || n.StartsWith("stage") || n.StartsWith("soil") || n.StartsWith("icon") || n.StartsWith("hat"))
                      .Concat(Crops.All.Select(c => c.RipeSprite)))
         {
             Assert.Equal(16, sheet[name].Width);

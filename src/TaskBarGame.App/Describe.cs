@@ -19,9 +19,14 @@ internal static class Describe
                 $"+{Tools.Fortune(tier)} {Crops.Get(target).Name} Fortune. The farmer uses it whenever {Crops.Get(target).Name} is planted.",
             UpgradeKind.Armour =>
                 $"+{Armour.Fortune(tier)} Harvest Fortune. Full {Armour.SetName(tier)} set: {Armour.SetBonus(tier).Describe()}.",
+            UpgradeKind.Compactor => Compactors.Effect(tier) + ". Turn it off for any crop in the Inventory tab.",
             _ => Talismans.Bonus(Enum.Parse<TalismanFamily>(target), tier).Describe() + ".",
         };
     }
+
+    /// <summary>"5 Packed Wheat, 2 Dense Melon".</summary>
+    public static string Items(System.Collections.Generic.IEnumerable<Ingredient> ingredients) =>
+        string.Join(", ", ingredients.Select(i => $"{Format.Number(i.Count)} {i.Item.Name}"));
 
     /// <summary>"8 Packed Wheat (you have 3) · 5,000 coins · Garden Level 4".</summary>
     public static string Cost(GameEngine engine, Recipe recipe)

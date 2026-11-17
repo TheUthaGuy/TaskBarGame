@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace TaskBarGame.Core;
 
 /// <summary>
@@ -30,7 +32,13 @@ public sealed class GameState
     /// <summary>Best tier owned of each talisman (0 = none).</summary>
     public Dictionary<TalismanFamily, int> Talismans { get; set; } = new();
 
+    /// <summary>0 = none, 1 = Compactor, 2 = Dense Compactor.</summary>
+    public int Compactor { get; set; }
+
     public BazaarState Bazaar { get; set; } = new();
+
+    /// <summary>Hats and outfits whose unlocking you've been told about.</summary>
+    public HashSet<string> UnlockedCosmetics { get; set; } = new();
 
     public GameSettings Settings { get; set; } = new();
     public GameStats Stats { get; set; } = new();
@@ -57,6 +65,7 @@ public sealed class GameState
         Armour ??= new();
         Talismans ??= new();
         Bazaar ??= new();
+        UnlockedCosmetics ??= new();
         Settings ??= new();
         Stats ??= new();
 
@@ -83,9 +92,11 @@ public sealed class GameState
             Armour[slot] = Math.Clamp(Armour[slot], 0, Core.Armour.MaxTier);
         foreach (var family in Talismans.Keys.ToList())
             Talismans[family] = Math.Clamp(Talismans[family], 0, Core.Talismans.MaxTier);
+        Compactor = Math.Clamp(Compactor, 0, Compactors.MaxTier);
 
         Field.Normalize();
         Bazaar.Normalize();
+        Settings.Normalize();
 
         if (LastSavedUtc > DateTime.UtcNow || LastSavedUtc == default)
             LastSavedUtc = DateTime.UtcNow;
@@ -153,13 +164,108 @@ public sealed class GameSettings
     /// <summary>The farmer walks the row and breaks grown crops by themselves.</summary>
     public bool FarmerAutoHarvest { get; set; } = true;
 
-    /// <summary>Harvested crops are sold straight away instead of going to your inventory.</summary>
-    public bool AutoSell { get; set; }
+    /// <summary>Crops (by crop id) that are sold straight away when they're harvested.</summary>
+    public HashSet<string> AutoSellCrops { get; set; } = new();
+
+    /// <summary>Items (by item id) that are never sold, by any button.</summary>
+    public HashSet<string> LockedItems { get; set; } = new();
+
+    /// <summary>
+    /// Selling to the Market (Sell, Sell all crops and auto-sell) keeps back what your next upgrades
+    /// need, and the Compactor leaves those crops unpacked.
+    /// </summary>
+    public bool KeepForUpgrades { get; set; } = true;
+
+    /// <summary>Crops (by crop id) the Compactor leaves alone.</summary>
+    public HashSet<string> CompactorSkips { get; set; } = new();
 
     public bool ShowFloatingText { get; set; } = true;
 
     /// <summary>Hide the strip while a fullscreen app (game, video) is in front.</summary>
     public bool HideInFullscreen { get; set; } = true;
+
+    /// <summary>Pop-ups that are turned off.</summary>
+    public HashSet<PopupKind> HiddenPopups { get; set; } = new();
+
+    /// <summary>No pop-ups at all for now (except ones for buttons you press).</summary>
+    public bool PausePopups { get; set; }
+
+    /// <summary>Look for a new version on GitHub now and then.</summary>
+    public bool CheckForUpdates { get; set; } = true;
+
+    /// <summary>Install new versions without asking first (otherwise a pop-up asks).</summary>
+    public bool InstallUpdatesAutomatically { get; set; }
+
+    /// <summary>Show big numbers as "1.2M" instead of "1,234,567".</summary>
+    public bool ShortNumbers { get; set; }
+
+    /// <summary>Update the strip less often while the laptop is on battery.</summary>
+    public bool BatterySaver { get; set; } = true;
+
+    /// <summary>The monitor the strip sits on (Windows' name for it, like \\.\DISPLAY2); null = the main one.</summary>
+    public string? Monitor { get; set; }
+
+    /// <summary>Keyboard shortcut that opens or closes the panel from any app ("" = none).</summary>
+    public string PanelHotkey { get; set; } = "Ctrl+Alt+F";
+
+    /// <summary>Keyboard shortcut that hides or shows the strip from any app ("" = none).</summary>
+    public string StripHotkey { get; set; } = "Ctrl+Alt+H";
+
+    /// <summary>The farmer's hat and outfit (see <see cref="Cosmetics"/>).</summary>
+    public string Hat { get; set; } = Cosmetics.DefaultHat;
+    public string Outfit { get; set; } = Cosmetics.DefaultOutfit;
+
+    /// <summary>Where the panel was last moved to (null = above the strip).</summary>
+    public double? PanelLeft { get; set; }
+    public double? PanelTop { get; set; }
+
+    /// <summary>The panel tab that was open last.</summary>
+    public int PanelTab { get; set; }
+
+    /// <summary>
+    /// Old saves had one "sell everything automatically" switch. Only read when loading:
+    /// it's turned into <see cref="AutoSellCrops"/>.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? AutoSell { get; set; }
+
+    public bool IsPopupShown(PopupKind kind) => !PausePopups && !HiddenPopups.Contains(kind);
+
+    public void Normalize()
+    {
+        AutoSellCrops ??= new();
+        LockedItems ??= new();
+        CompactorSkips ??= new();
+        HiddenPopups ??= new();
+        PanelHotkey ??= "";
+        StripHotkey ??= "";
+        if (Cosmetics.Hats.All(c => c.Id != Hat)) Hat = Cosmetics.DefaultHat;
+        if (Cosmetics.Outfits.All(c => c.Id != Outfit)) Outfit = Cosmetics.DefaultOutfit;
+
+        if (AutoSell == true)
+            foreach (var crop in Crops.All) AutoSellCrops.Add(crop.Id);
+        AutoSell = null;
+
+        AutoSellCrops.RemoveWhere(id => !Crops.TryGet(id, out _));
+        CompactorSkips.RemoveWhere(id => !Crops.TryGet(id, out _));
+        LockedItems.RemoveWhere(id => !Items.TryGet(id, out _));
+        if (PanelLeft is { } left && !double.IsFinite(left)) PanelLeft = null;
+        if (PanelTop is { } top && !double.IsFinite(top)) PanelTop = null;
+        PanelTab = Math.Max(0, PanelTab);
+    }
+}
+
+/// <summary>The kinds of pop-up the strip shows, each of which can be turned off.</summary>
+public enum PopupKind
+{
+    LevelUp,
+    Collection,
+    Crafted,
+    BazaarOrder,
+    UpgradeReady,
+    WelcomeBack,
+    Update,
+    Cosmetic,
 }
 
 public sealed class GameStats

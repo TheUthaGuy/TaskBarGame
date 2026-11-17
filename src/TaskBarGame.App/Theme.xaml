@@ -20,6 +20,10 @@
 
     <local:BoolToVisibilityConverter x:Key="BoolToVisibility" />
     <local:BoolToVisibilityConverter x:Key="InverseBoolToVisibility" Invert="True" />
+    <local:BoolToVisibilityConverter x:Key="BoolToHidden" HideInsteadOfCollapse="True" />
+    <local:CountToVisibilityConverter x:Key="CountToVisibility" />
+    <local:TextToVisibilityConverter x:Key="TextToVisibility" />
+    <local:NotConverter x:Key="Not" />
 
     <!-- ============================================================ text -->
     <Style x:Key="H2" TargetType="TextBlock">
@@ -307,7 +311,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TabItem">
-                    <Border x:Name="Bd" Background="Transparent" CornerRadius="6" Padding="10,6" Margin="0,0,2,0">
+                    <Border x:Name="Bd" Background="Transparent" CornerRadius="6" Padding="8,6" Margin="0,0,1,0">
                         <ContentPresenter x:Name="Header" ContentSource="Header"
                                           TextElement.Foreground="{StaticResource MutedBrush}"
                                           TextElement.FontWeight="SemiBold" />

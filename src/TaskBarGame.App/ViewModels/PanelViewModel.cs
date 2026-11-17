@@ -19,8 +19,11 @@ public sealed partial class PanelViewModel : ObservableObject
         nameof(ModeAlways), nameof(ModeHover),
         nameof(SizeSmall), nameof(SizeNormal), nameof(SizeLarge),
         nameof(AnchorLeft), nameof(AnchorCenter), nameof(AnchorRight),
-        nameof(AutoHarvest), nameof(AutoSell), nameof(FloatingText), nameof(HideInFullscreen),
-        nameof(StartWithWindows),
+        nameof(AutoHarvest), nameof(KeepForUpgrades), nameof(FloatingText), nameof(HideInFullscreen),
+        nameof(StartWithWindows), nameof(ShortNumbers), nameof(BatterySaver),
+        nameof(PausePopups), nameof(PopupLevelUps), nameof(PopupCollections), nameof(PopupCrafted),
+        nameof(PopupBazaar), nameof(PopupUpgradeReady), nameof(PopupWelcomeBack), nameof(PopupUpdates), nameof(PopupCosmetics),
+        nameof(CheckForUpdates), nameof(InstallUpdatesAutomatically),
     };
 
     private readonly GameHost _host;
@@ -52,12 +55,13 @@ public sealed partial class PanelViewModel : ObservableObject
     private string _cropsValueText = "";
     private bool _hasCrops;
     private bool _hasInventory;
+    private int _readyUpgrades;
+    private string _keptSummary = "";
 
     public PanelViewModel(GameHost host)
     {
         _host = host;
         CoinIcon = host.Sprites["coin"];
-        FarmerIcon = host.Sprites["farmer_idle"];
         LockIcon = host.Sprites["lock"];
 
         CropChoices = Crops.All
@@ -72,6 +76,8 @@ public sealed partial class PanelViewModel : ObservableObject
         ToolRows = Crops.All.Select(c => new UpgradeRow(host, UpgradeKind.Tool, c.Id)).ToList();
         ArmourRows = Armour.Slots.Select(s => new UpgradeRow(host, UpgradeKind.Armour, s.ToString())).ToList();
         TalismanRows = Talismans.Families.Select(f => new UpgradeRow(host, UpgradeKind.Talisman, f.ToString())).ToList();
+        CompactorRows = new[] { new UpgradeRow(host, UpgradeKind.Compactor, Compactors.Target) };
+        CropSettings = Crops.All.Select(c => new CropSettingRow(host, c, host.Sprites.CropIcon(c))).ToList();
 
         ExpandCommand = new RelayCommand(() =>
         {
@@ -88,7 +94,11 @@ public sealed partial class PanelViewModel : ObservableObject
             foreach (var item in Items.All) Engine.Pack(item.Id);
             Refresh();
         });
+        AutoSellAllCommand = new RelayCommand(() => SetAutoSellForAll(true));
+        AutoSellNoneCommand = new RelayCommand(() => SetAutoSellForAll(false));
         InitBazaar();
+        InitUpdates();
+        InitBuddy();
         Refresh();
     }
 
@@ -96,7 +106,10 @@ public sealed partial class PanelViewModel : ObservableObject
     private GameSettings Settings => _host.Settings;
 
     public ImageSource CoinIcon { get; }
-    public ImageSource FarmerIcon { get; }
+    private ImageSource? _farmerIcon;
+
+    /// <summary>The farmer in the title bar, in their current hat and outfit.</summary>
+    public ImageSource? FarmerIcon { get => _farmerIcon; private set => Set(ref _farmerIcon, value); }
     public ImageSource LockIcon { get; }
     public string CoinsText { get => _coinsText; private set => Set(ref _coinsText, value); }
 
@@ -137,20 +150,45 @@ public sealed partial class PanelViewModel : ObservableObject
     public IReadOnlyList<UpgradeRow> ToolRows { get; }
     public IReadOnlyList<UpgradeRow> ArmourRows { get; }
     public IReadOnlyList<UpgradeRow> TalismanRows { get; }
+    public IReadOnlyList<UpgradeRow> CompactorRows { get; }
     public ObservableCollection<UpgradeRow> UnlockedToolRows { get; } = new();
+
+    /// <summary>How many upgrades you can craft right now (shown on the Upgrades tab).</summary>
+    public int ReadyUpgrades { get => _readyUpgrades; private set => Set(ref _readyUpgrades, value); }
 
     // ---------------------------------------------------------------- Collections tab
 
     public IReadOnlyList<CollectionRow> CollectionRows { get; }
 
-    // ---------------------------------------------------------------- Market tab
+    // ---------------------------------------------------------------- Inventory tab
 
     public ObservableCollection<InventoryRow> Inventory { get; } = new();
+    public IReadOnlyList<CropSettingRow> CropSettings { get; }
     public string CropsValueText { get => _cropsValueText; private set => Set(ref _cropsValueText, value); }
+
+    /// <summary>"Keeping crops worth 1,234 coins for your next upgrades".</summary>
+    public string KeptSummary { get => _keptSummary; private set => Set(ref _keptSummary, value); }
+
     public bool HasCrops { get => _hasCrops; private set => Set(ref _hasCrops, value); }
     public bool HasInventory { get => _hasInventory; private set => Set(ref _hasInventory, value); }
     public ICommand SellAllCropsCommand { get; }
     public ICommand PackEverythingCommand { get; }
+    public ICommand AutoSellAllCommand { get; }
+    public ICommand AutoSellNoneCommand { get; }
+
+    /// <summary>Packs <paramref name="count"/> of an item (from the Pack menu).</summary>
+    public void Pack(ItemDef item, long count)
+    {
+        Engine.Pack(item.Id, count);
+        Refresh();
+    }
+
+    private void SetAutoSellForAll(bool autoSell)
+    {
+        foreach (var crop in Engine.UnlockedCrops) Engine.SetAutoSell(crop, autoSell);
+        _host.Save();
+        Refresh();
+    }
 
     // ---------------------------------------------------------------- Settings tab
 
@@ -208,11 +246,46 @@ public sealed partial class PanelViewModel : ObservableObject
         set => ChangeSetting(() => Settings.FarmerAutoHarvest = value);
     }
 
-    public bool AutoSell
+    public bool KeepForUpgrades
     {
-        get => Settings.AutoSell;
-        set => ChangeSetting(() => Settings.AutoSell = value);
+        get => Settings.KeepForUpgrades;
+        set => ChangeSetting(() => Settings.KeepForUpgrades = value);
     }
+
+    public bool ShortNumbers
+    {
+        get => Settings.ShortNumbers;
+        set => ChangeSetting(() => Settings.ShortNumbers = value);
+    }
+
+    public bool BatterySaver
+    {
+        get => Settings.BatterySaver;
+        set => ChangeSetting(() => Settings.BatterySaver = value);
+    }
+
+    public bool PausePopups
+    {
+        get => Settings.PausePopups;
+        set => ChangeSetting(() => Settings.PausePopups = value);
+    }
+
+    public bool PopupLevelUps { get => ShowsPopup(PopupKind.LevelUp); set => ShowPopup(PopupKind.LevelUp, value); }
+    public bool PopupCollections { get => ShowsPopup(PopupKind.Collection); set => ShowPopup(PopupKind.Collection, value); }
+    public bool PopupCrafted { get => ShowsPopup(PopupKind.Crafted); set => ShowPopup(PopupKind.Crafted, value); }
+    public bool PopupBazaar { get => ShowsPopup(PopupKind.BazaarOrder); set => ShowPopup(PopupKind.BazaarOrder, value); }
+    public bool PopupUpgradeReady { get => ShowsPopup(PopupKind.UpgradeReady); set => ShowPopup(PopupKind.UpgradeReady, value); }
+    public bool PopupWelcomeBack { get => ShowsPopup(PopupKind.WelcomeBack); set => ShowPopup(PopupKind.WelcomeBack, value); }
+    public bool PopupUpdates { get => ShowsPopup(PopupKind.Update); set => ShowPopup(PopupKind.Update, value); }
+    public bool PopupCosmetics { get => ShowsPopup(PopupKind.Cosmetic); set => ShowPopup(PopupKind.Cosmetic, value); }
+
+    private bool ShowsPopup(PopupKind kind) => !Settings.HiddenPopups.Contains(kind);
+
+    private void ShowPopup(PopupKind kind, bool show) => ChangeSetting(() =>
+    {
+        if (show) Settings.HiddenPopups.Remove(kind);
+        else Settings.HiddenPopups.Add(kind);
+    });
 
     public bool FloatingText
     {
@@ -274,6 +347,8 @@ public sealed partial class PanelViewModel : ObservableObject
         foreach (var row in CollectionRows) row.Update(Engine);
         RefreshMarket();
         RefreshBazaar();
+        RefreshUpdates();
+        RefreshBuddy();
     }
 
     private void RefreshField()
@@ -358,7 +433,8 @@ public sealed partial class PanelViewModel : ObservableObject
         StatsText = $"Crops broken: {Format.Number(stats.TotalBreaks)} (by hand: {Format.Number(stats.HandBreaks)})\n"
                     + $"Coins earned from selling: {Format.Number(stats.CoinsEarned)}\n"
                     + $"Upgrades crafted: {Format.Number(stats.ItemsCrafted)}";
-        foreach (var row in CropGuide) row.Update(Engine);
+        var best = Engine.BestCropForCoins;
+        foreach (var row in CropGuide) row.Update(Engine, best);
     }
 
     private void RefreshUpgrades()
@@ -369,7 +445,8 @@ public sealed partial class PanelViewModel : ObservableObject
             UnlockedToolRows.Clear();
             foreach (var row in unlocked) UnlockedToolRows.Add(row);
         }
-        foreach (var row in UnlockedToolRows.Concat(ArmourRows).Concat(TalismanRows)) row.Update();
+        foreach (var row in UnlockedToolRows.Concat(ArmourRows).Concat(TalismanRows).Concat(CompactorRows)) row.Update();
+        ReadyUpgrades = Engine.ReadyRecipes().Count();
     }
 
     private void RefreshMarket()
@@ -381,24 +458,27 @@ public sealed partial class PanelViewModel : ObservableObject
             foreach (var item in held)
             {
                 var id = item.Id;
-                Inventory.Add(new InventoryRow(item, _host.Sprites.CropIcon(item.Crop), _host.Sprites.ItemContainer(item),
+                Inventory.Add(new InventoryRow(_host, item, _host.Sprites.CropIcon(item.Crop), _host.Sprites.ItemContainer(item),
                     new RelayCommand(() =>
                     {
                         Engine.Sell(id, long.MaxValue);
-                        Refresh();
-                    }),
-                    new RelayCommand(() =>
-                    {
-                        Engine.Pack(id);
                         Refresh();
                     })));
             }
         }
         foreach (var row in Inventory) row.Update(Engine);
+        foreach (var row in CropSettings) row.Update(Engine);
 
         long value = Engine.CropsValue();
         CropsValueText = Format.Number(value);
         HasCrops = value > 0;
         HasInventory = held.Count > 0;
+
+        double keptValue = Items.All.Sum(i => Engine.KeptForUpgrades(i) * Engine.MarketPrice(i));
+        int locked = Items.All.Count(i => Engine.IsLocked(i) && Engine.GetItem(i) > 0);
+        var parts = new List<string>();
+        if (keptValue >= 1) parts.Add($"crops worth {Format.Number((long)keptValue)} coins are kept for your next upgrades");
+        if (locked > 0) parts.Add($"{locked} locked item{(locked == 1 ? " is" : "s are")} never sold");
+        KeptSummary = parts.Count == 0 ? "" : char.ToUpperInvariant(parts[0][0]) + string.Join(", and ", parts)[1..] + ".";
     }
 }

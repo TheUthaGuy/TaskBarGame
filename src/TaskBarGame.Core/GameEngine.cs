@@ -281,13 +281,13 @@ public sealed partial class GameEngine
     }
 
     /// <summary>
-    /// Packs as many of an item as possible into the next tier (160 crops → 1 packed,
-    /// 160 packed → 1 dense). Returns how many were made.
+    /// Packs an item into the next tier (160 crops → 1 packed, 160 packed → 1 dense): as many as
+    /// possible, or at most <paramref name="maxMade"/>. Returns how many were made.
     /// </summary>
-    public long Pack(string itemId)
+    public long Pack(string itemId, long maxMade = long.MaxValue)
     {
-        if (!Items.TryGet(itemId, out var item) || item.PacksInto is not { } result) return 0;
-        long made = GetItem(item) / ItemDef.PackSize;
+        if (!Items.TryGet(itemId, out var item) || item.PacksInto is not { } result || maxMade <= 0) return 0;
+        long made = Math.Min(maxMade, GetItem(item) / ItemDef.PackSize);
         if (made <= 0) return 0;
         AddItem(item, -made * ItemDef.PackSize);
         AddItem(result, made);
@@ -295,22 +295,32 @@ public sealed partial class GameEngine
         return made;
     }
 
-    /// <summary>Sells up to <paramref name="amount"/> of an item to the Market. Returns coins earned.</summary>
+    /// <summary>
+    /// Sells up to <paramref name="amount"/> of an item to the Market. Locked items, and what your
+    /// next upgrades need (if <see cref="GameSettings.KeepForUpgrades"/> is on), are kept.
+    /// Returns coins earned.
+    /// </summary>
     public long Sell(string itemId, long amount)
     {
         if (!Items.TryGet(itemId, out var item) || amount <= 0) return 0;
-        long sold = Math.Min(GetItem(item), amount);
+        long sold = Math.Min(SellableAmount(item), amount);
         if (sold <= 0) return 0;
 
-        long coins = (long)Math.Floor(sold * MarketPrice(item));
-        AddItem(item, -sold);
-        State.Coins += coins;
-        State.Stats.CoinsEarned += coins;
+        long coins = SellToMarket(item, sold);
         RaiseChanged();
         return coins;
     }
 
-    /// <summary>Sells every plain crop (packed and dense crops are kept for crafting).</summary>
+    private long SellToMarket(ItemDef item, long amount)
+    {
+        long coins = (long)Math.Floor(amount * MarketPrice(item));
+        AddItem(item, -amount);
+        State.Coins += coins;
+        State.Stats.CoinsEarned += coins;
+        return coins;
+    }
+
+    /// <summary>Sells every plain crop that isn't locked or kept for upgrades (packed and dense crops are kept for crafting).</summary>
     public long SellAllCrops()
     {
         long total = 0;
@@ -329,8 +339,8 @@ public sealed partial class GameEngine
         return total;
     }
 
-    /// <summary>What the Market would pay for all your plain crops.</summary>
-    public long CropsValue() => (long)Math.Floor(Crops.All.Sum(c => GetItem(Items.Raw(c)) * MarketPrice(Items.Raw(c))));
+    /// <summary>What the Market would pay for your plain crops (the ones "Sell all crops" would sell).</summary>
+    public long CropsValue() => (long)Math.Floor(Crops.All.Sum(c => SellableAmount(Items.Raw(c)) * MarketPrice(Items.Raw(c))));
 
     // ================================================================= crafting
 
@@ -338,33 +348,33 @@ public sealed partial class GameEngine
     {
         UpgradeKind.Tool => Crops.TryGet(target, out var crop) ? GetTool(crop).Tier : 0,
         UpgradeKind.Armour => GetArmourTier(Enum.Parse<ArmourSlot>(target)),
+        UpgradeKind.Compactor => State.Compactor,
         _ => GetTalismanTier(Enum.Parse<TalismanFamily>(target)),
     };
 
     /// <summary>The next upgrade for a tool, armour slot or talisman, or null if it's maxed.</summary>
     public Recipe? NextRecipe(UpgradeKind kind, string target) => Recipes.Find(kind, target, GetTier(kind, target) + 1);
 
-    public bool CanCraft(Recipe recipe, out string reason)
+    /// <summary>
+    /// Why a recipe can't be crafted yet, not counting its ingredients and coins
+    /// (the wrong tier, or a Garden level you haven't reached). Null if nothing's in the way.
+    /// </summary>
+    public string? CraftBlocker(Recipe recipe)
     {
         int tier = GetTier(recipe.Kind, recipe.Target);
-        if (tier >= recipe.Tier)
-        {
-            reason = "Already owned";
-            return false;
-        }
-        if (tier != recipe.Tier - 1)
-        {
-            reason = $"Needs the tier {recipe.Tier - 1} version first";
-            return false;
-        }
+        if (tier >= recipe.Tier) return "Already owned";
+        if (tier != recipe.Tier - 1) return $"Needs the tier {recipe.Tier - 1} version first";
         if (recipe.Kind == UpgradeKind.Tool && !IsCropUnlocked(Crops.Get(recipe.Target)))
+            return $"Needs Garden Level {Crops.Get(recipe.Target).UnlockGardenLevel}";
+        if (GardenLevel < recipe.GardenLevel) return $"Needs Garden Level {recipe.GardenLevel}";
+        return null;
+    }
+
+    public bool CanCraft(Recipe recipe, out string reason)
+    {
+        if (CraftBlocker(recipe) is { } blocker)
         {
-            reason = $"Needs Garden Level {Crops.Get(recipe.Target).UnlockGardenLevel}";
-            return false;
-        }
-        if (GardenLevel < recipe.GardenLevel)
-        {
-            reason = $"Needs Garden Level {recipe.GardenLevel}";
+            reason = blocker;
             return false;
         }
         foreach (var ingredient in recipe.Ingredients)
@@ -404,8 +414,12 @@ public sealed partial class GameEngine
             case UpgradeKind.Talisman:
                 State.Talismans[Enum.Parse<TalismanFamily>(recipe.Target)] = recipe.Tier;
                 break;
+            case UpgradeKind.Compactor:
+                State.Compactor = recipe.Tier;
+                break;
         }
         State.Stats.ItemsCrafted++;
+        if (recipe.Kind == UpgradeKind.Compactor) CompactEverything();
 
         if (!_quiet) Crafted?.Invoke(recipe);
         RaiseChanged();
@@ -490,6 +504,8 @@ public sealed partial class GameEngine
         State.Tools.Clear();
         State.Armour.Clear();
         State.Talismans.Clear();
+        State.Compactor = 0;
+        State.UnlockedCosmetics.Clear();
         State.Bazaar = new BazaarState();
         EnsureBazaarPrices();
         State.Stats = new GameStats();
@@ -509,17 +525,16 @@ public sealed partial class GameEngine
         long drops = RollDrops(crop, handBreak);
         State.Collections[crop.Id] = GetCollection(crop) + drops;
 
+        // Into the inventory, then auto-sell (what isn't locked or kept for upgrades), then the Compactor.
+        var raw = Items.Raw(crop);
+        AddItem(raw, drops);
         long autoSellCoins = 0;
-        if (State.Settings.AutoSell)
+        if (IsAutoSelling(crop))
         {
-            autoSellCoins = (long)Math.Floor(drops * MarketPrice(Items.Raw(crop)));
-            State.Coins += autoSellCoins;
-            State.Stats.CoinsEarned += autoSellCoins;
+            long sell = Math.Min(drops, SellableAmount(raw));
+            if (sell > 0) autoSellCoins = SellToMarket(raw, sell);
         }
-        else
-        {
-            AddItem(Items.Raw(crop), drops);
-        }
+        if (IsCompacting(crop)) Compact(crop);
 
         var tool = GetTool(crop);
         if (tool.Tier > 0) tool.Breaks++;

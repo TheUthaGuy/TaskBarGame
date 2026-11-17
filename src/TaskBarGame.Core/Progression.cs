@@ -160,6 +160,9 @@ public static class CollectionTiers
 
     public static IReadOnlyList<long> Thresholds(CropDef crop) => ThresholdsByCrop[crop.Id];
 
+    /// <summary>How many of a crop you need to collect to max out its collection (the last tier).</summary>
+    public static long MaxThreshold(CropDef crop) => ThresholdsByCrop[crop.Id][MaxTier - 1];
+
     public static int TierFor(CropDef crop, long collected)
     {
         var thresholds = ThresholdsByCrop[crop.Id];

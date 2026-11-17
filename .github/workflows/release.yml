@@ -1,21 +1,23 @@
-name: Release
+name: Release (Harvest Edition)
 
-# Builds TaskBarGame.exe on Windows and publishes it as a GitHub Release.
-# The README's download links always point at the newest release.
+# Builds the Harvest Edition on Windows and publishes it as a GitHub Release tagged harvest-v1.2.3.
+# Copies of the game from these releases find new ones by themselves (Settings → Updates).
 #
-# Three ways to start it:
-#   1. Actions tab → Release → "Run workflow", and type the version (for example 0.2.0).
-#   2. Releases page → "Draft a new release" with a new tag like v0.2.0 → Publish.
-#      The files are added to that release a couple of minutes later.
-#   3. git tag v0.2.0 && git push origin v0.2.0
+# Harvest Edition releases are never marked as the repo's "latest" release, so the download links in
+# the original edition's README (on main) keep pointing at the original game.
+#
+# Two ways to start it:
+#   1. Actions tab → "Release (Harvest Edition)" → Run workflow: pick the branch to release
+#      (for example harvest-edition) and type the version (for example 0.2.0).
+#   2. git tag harvest-v0.2.0 && git push origin harvest-v0.2.0
 on:
   push:
     tags:
-      - "v*"
+      - "harvest-v*"
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to release, for example 0.2.0"
+        description: "Harvest Edition version to release, for example 0.2.0"
         required: true
 
 permissions:
@@ -35,21 +37,26 @@ jobs:
         shell: pwsh
         run: |
           $raw = if ("${{ github.event_name }}" -eq "workflow_dispatch") { "${{ inputs.version }}" } else { "${{ github.ref_name }}" }
-          $version = $raw.Trim().TrimStart("v")
+          $version = $raw.Trim() -replace '^harvest-v', '' -replace '^v', ''
           if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "'$raw' isn't a version like 0.2.0." }
           "VERSION=$version" >> $env:GITHUB_ENV
-          "TAG=v$version" >> $env:GITHUB_ENV
+          "TAG=harvest-v$version" >> $env:GITHUB_ENV
 
       - name: Test
         run: dotnet test tests/TaskBarGame.Core.Tests -c Release
 
-      - name: Build TaskBarGame.exe
+      - name: Build TaskBarGame-HarvestEdition.exe
         shell: pwsh
         run: |
           dotnet publish src/TaskBarGame.App -c Release -r win-x64 --self-contained true `
             -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
             -p:EnableCompressionInSingleFile=true -p:DebugType=none -p:Version=$env:VERSION -o publish
-          Compress-Archive -Path publish/TaskBarGame.exe -DestinationPath TaskBarGame-win-x64.zip
+          $exe = "TaskBarGame-HarvestEdition.exe"
+          Copy-Item publish/TaskBarGame.exe $exe
+          Compress-Archive -Path $exe -DestinationPath TaskBarGame-HarvestEdition-win-x64.zip
+          # The game checks every update it downloads against this.
+          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $exe" | Set-Content -NoNewline -Encoding ascii "$exe.sha256"
 
       - name: Publish the release
         shell: pwsh
@@ -57,14 +64,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = $env:TAG
-          $files = @("publish/TaskBarGame.exe", "TaskBarGame-win-x64.zip")
+          $title = "TaskBarGame: Harvest Edition v$env:VERSION"
+          $files = @("TaskBarGame-HarvestEdition.exe", "TaskBarGame-HarvestEdition.exe.sha256", "TaskBarGame-HarvestEdition-win-x64.zip")
           $notes = "docs/releases/$tag.md"
           gh release view $tag *> $null
           if ($LASTEXITCODE -eq 0) {
             # The release was made on the website: add the game files to it.
             gh release upload $tag @files --clobber
-            if (Test-Path $notes) { gh release edit $tag --title "TaskBarGame $tag" --notes-file $notes }
+            if (Test-Path $notes) { gh release edit $tag --title $title --notes-file $notes --latest=false }
           } else {
             $notesArgs = if (Test-Path $notes) { @("--notes-file", $notes) } else { @("--generate-notes") }
-            gh release create $tag @files --title "TaskBarGame $tag" --target $env:GITHUB_SHA @notesArgs
+            gh release create $tag @files --title $title --target $env:GITHUB_SHA --latest=false @notesArgs
           }

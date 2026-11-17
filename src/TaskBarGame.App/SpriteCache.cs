@@ -61,16 +61,86 @@ public sealed class SpriteCache
         _ => null,
     };
 
-    /// <summary>
-    /// A farmer frame holding the hoe of the given tier (0 = no hoe: empty hands).
-    /// The hoe in sprites.txt uses N/n for the head and b for the handle.
-    /// </summary>
-    public BitmapSource FarmerWithHoe(string frame, int tier)
+    /// <summary>Shirt, overalls and overalls-shadow colours for each outfit (see Cosmetics.Outfits).</summary>
+    private static readonly Dictionary<string, (uint Shirt, uint Overalls, uint OverallsDark)> OutfitColours = new()
     {
-        var map = tier <= 0
-            ? new Dictionary<char, uint> { ['N'] = 0, ['n'] = 0, ['b'] = 0 }
-            : new Dictionary<char, uint> { ['N'] = HoeColours[tier].Light, ['n'] = HoeColours[tier].Dark };
-        return Recolored(frame, $"hoe{tier}", map);
+        ["classic"] = (0xFFE04A3C, 0xFF4A7BD1, 0xFF2C4F8F),
+        ["harvest"] = (0xFFF39A3C, 0xFF9C7048, 0xFF6E4A30),
+        ["meadow"] = (0xFFF5F1E6, 0xFF4A9E3F, 0xFF2E6B2E),
+        ["twilight"] = (0xFFC9A0FF, 0xFF4B3F8C, 0xFF2E2660),
+        ["golden"] = (0xFFFFF0A0, 0xFFE8B923, 0xFFA87B16),
+    };
+
+    /// <summary>
+    /// A farmer frame in a hat and outfit, holding the hoe of the given tier (0 = empty hands;
+    /// -1 = leave the frame's hands as drawn). Other hats replace the straw hat in sprites.txt
+    /// (h/H/e) and are lined up with its band, which moves down a pixel on some walking frames.
+    /// </summary>
+    public BitmapSource Farmer(string frame, int hoeTier, string hat, string outfit)
+    {
+        string key = $"{frame}#hoe{hoeTier}#{hat}#{outfit}";
+        if (_images.TryGetValue(key, out var image)) return image;
+
+        var sprite = _sheet[frame];
+        var swaps = new Dictionary<uint, uint>();
+        void Swap(char letter, uint colour)
+        {
+            if (_sheet.Palette.TryGetValue(letter, out var original)) swaps[original] = colour;
+        }
+
+        if (hoeTier == 0)
+        {
+            Swap('N', 0);
+            Swap('n', 0);
+            Swap('b', 0);
+        }
+        else if (hoeTier > 0)
+        {
+            var (light, dark) = HoeColours[Math.Clamp(hoeTier, 0, Tools.MaxTier)];
+            Swap('N', light);
+            Swap('n', dark);
+        }
+        var (shirt, overalls, overallsDark) = OutfitColours.TryGetValue(outfit, out var colours) ? colours : OutfitColours["classic"];
+        Swap('R', shirt);
+        Swap('U', overalls);
+        Swap('u', overallsDark);
+
+        bool newHat = hat != Cosmetics.DefaultHat && _sheet.Contains("hat_" + hat);
+        var hatColours = new HashSet<uint>();
+        foreach (char letter in "hHe")
+            if (_sheet.Palette.TryGetValue(letter, out var c)) hatColours.Add(c);
+        uint band = _sheet.Palette.GetValueOrDefault('e');
+
+        var pixels = (uint[])sprite.Pixels.Clone();
+        int bandRow = -1;
+        for (int y = 0; y < sprite.Height && bandRow < 0; y++)
+            for (int x = 0; x < sprite.Width; x++)
+                if (sprite.Pixels[y * sprite.Width + x] == band) { bandRow = y; break; }
+
+        for (int i = 0; i < pixels.Length; i++)
+        {
+            uint original = sprite.Pixels[i];
+            if (newHat && hatColours.Contains(original)) pixels[i] = 0;          // take off the straw hat
+            else if (swaps.TryGetValue(original, out var swapped)) pixels[i] = swapped;
+        }
+
+        if (newHat)
+        {
+            var hatSprite = _sheet["hat_" + hat];
+            int offset = bandRow < 0 ? 0 : bandRow - 4;
+            for (int y = 0; y < hatSprite.Height; y++)
+            for (int x = 0; x < hatSprite.Width && x < sprite.Width; x++)
+            {
+                uint colour = hatSprite.Pixels[y * hatSprite.Width + x];
+                int row = y + offset;
+                if (colour >> 24 == 0 || row < 0 || row >= sprite.Height) continue;
+                pixels[row * sprite.Width + x] = colour;
+            }
+        }
+
+        image = ToBitmap(sprite, pixels);
+        _images[key] = image;
+        return image;
     }
 
     public BitmapSource ToolIcon(int tier)
@@ -92,6 +162,18 @@ public sealed class SpriteCache
         string shape = tier switch { 2 => "icon_ring", 3 => "icon_relic", _ => "icon_charm" };
         var (light, dark) = tier <= 0 ? (0xFF8A8A8Au, 0xFF4A4A4Au) : TalismanColours[family];
         return Recolored(shape, $"{family}{tier}", new Dictionary<char, uint> { ['E'] = light, ['Z'] = dark });
+    }
+
+    /// <summary>The Compactor: grey when you don't have one, iron for the Compactor, purple for the Dense Compactor.</summary>
+    public BitmapSource CompactorIcon(int tier)
+    {
+        var (light, dark) = tier switch
+        {
+            1 => (0xFFB0B0B0u, 0xFF6A6A6Au),
+            2 => (0xFFA97FDCu, 0xFF6E4597u),
+            _ => (0xFF8A8A8Au, 0xFF4A4A4Au),
+        };
+        return Recolored("icon_compactor", $"t{tier}", new Dictionary<char, uint> { ['I'] = light, ['i'] = dark });
     }
 
     /// <summary>

@@ -1,8 +1,8 @@
 # TaskBarGame: Harvest Edition
 
-> **This is the `harvest-edition` branch**, a version of TaskBarGame that plays more like Skyblock-style
-> farming. It isn't merged into `main`; the original game lives there. The two editions keep separate
-> saves, so you can play both.
+> **This is the Harvest Edition** (the `harvest-edition` branch, the repo's default), a version of
+> TaskBarGame that plays more like Skyblock-style farming. The original game lives on the `main`
+> branch. The two editions keep separate saves, so you can play both.
 
 A farming game that lives just above your Windows taskbar while you work. Your field is **one long row
 of crops**. Your farmer walks it with their hoe, breaking every grown crop as they pass, then steps on a
@@ -24,7 +24,11 @@ Click the farmer (or your coins) to open the panel:
 
 ## Running it
 
-Build the `.exe` yourself, or download the one GitHub builds for this branch: open
+Once a Harvest Edition release is out, download `TaskBarGame-HarvestEdition.exe` from the
+[Releases](https://github.com/TheUthaGuy/TaskBarGame/releases) page (look for a `harvest-v` tag). It
+updates itself from then on.
+
+Until then, build the `.exe` yourself, or download the one GitHub builds for this branch: open
 [Actions → Build](https://github.com/TheUthaGuy/TaskBarGame/actions/workflows/build.yml?query=branch%3Aharvest-edition),
 click the newest run, and download **TaskBarGame-win-x64** under **Artifacts** (you need to be signed
 in to GitHub). The [Download](#download) links at the bottom give the original edition, not this one.
@@ -50,10 +54,13 @@ dotnet publish src/TaskBarGame.App -c Release -r win-x64 --self-contained true -
 |---|---|
 | Click a **grown** crop | Break it yourself: +25 Harvest Fortune, and you see the XP you earned |
 | Click a **growing** crop | Tend it: it regrows faster |
+| **Hold the button and drag** along the row | Break (or tend) every crop you pass over |
 | Right-click the row | Choose which crop to plant (the whole row changes) |
 | Click the **farmer's head** or the **coins** | Open the panel |
 | Right-click the farmer or the strip | Quick menu: plant, sell crops, strip size, position, show-on-hover, quit |
 | Click the **lock** at the end of the row | Make the row longer (when you have the coins and Garden level) |
+| **Ctrl+Alt+F**, from any app | Open or close the panel |
+| **Ctrl+Alt+H**, from any app | Hide or show the strip (both shortcuts can be changed in Settings) |
 
 The farmer farms the row the way you would by hand: walking it from left to right breaking every grown
 crop, then stepping on the teleport pad at the end, which sends them back to the pad at the start for the
@@ -77,7 +84,9 @@ back, a popup tells you what they did.
 - **Garden level (1-15):** Garden XP from every crop broken and every collection tier. Garden levels
   unlock crops, upgrades and field expansions.
 - **Field:** starts at 10 crops and expands up to 24.
-- **Collections:** 10 tiers per crop, each giving +2 Fortune for that crop and Garden XP.
+- **Collections:** 10 tiers per crop, each giving +2 Fortune for that crop and Garden XP. The
+  Collections tab shows each crop's max (how many Tier X needs, from 2,000,000 Wheat to 10,000,000
+  Melon) and how far you are towards it. Hover over a crop to see every tier.
 - **Packing:** 160 crops pack into 1 **Packed** crop, and 160 Packed into 1 **Dense** crop. Packed crops
   sell for the same as the crops inside, but you need them for crafting.
 
@@ -128,6 +137,20 @@ Every 1,000 crops a hoe breaks adds +1 Fortune for that crop (up to +30).
 | Merchant's | Market sell price % | Potato, then Melon |
 | Scholar's | Farming XP % | Wheat, then Pumpkin, then Cocoa |
 
+**Compactor:** packs crops for you as they're harvested, so you don't have to press Pack.
+
+| Tier | What it does | Made from |
+|---|---|---|
+| Compactor | Every 160 crops become 1 Packed crop | 8 Packed Wheat + 8 Packed Carrot + 5,000 coins (Garden 3) |
+| Dense Compactor | Also presses every 160 Packed into 1 Dense crop | 1 Dense Wheat + 16 Packed Melon + 100,000 coins (Garden 9) |
+
+You can turn it off for any crop in the Inventory tab. It leaves alone any plain crops your next upgrades
+use as they are (like the 48 crops for a first hoe).
+
+The number on the **Upgrades** tab is how many upgrades you can craft right now, and a popup tells you
+when a new one becomes ready. If an upgrade is only missing ingredients, **Buy missing** buys them on
+the Bazaar in one click and shows what that costs.
+
 ### Bazaar
 
 Buy and sell crops, packed crops and dense crops with other (pretend) farmers in the **Bazaar** tab.
@@ -140,15 +163,53 @@ Buy and sell crops, packed crops and dense crops with other (pretend) farmers in
   bit by bit while buyers are paying that much. **Buy order** bids a bit under the buy price: your coins
   are set aside and the items arrive while sellers are that cheap. Orders keep filling while the game is
   closed, and you can cancel them to get back whatever hasn't filled.
+- Type **your own price** for a sell offer or buy order, or leave the box empty for the automatic one
+  (just better than the current price, so it fills soon). You're warned if your price is worse than
+  trading straight away.
+- The **chart** shows the item's sell price over the last 2 hours, so you can tell a good time to sell.
+- The **search box** finds items by name: "melon" shows Melon, Packed Melon and Dense Melon.
 - On average the Bazaar pays about 20% more than the Market. Buying packed and dense crops here is a
   quick way to get materials for upgrades.
 
+### Inventory
+
 The **Inventory** tab is for packing crops and selling quickly to the Market.
+
+- **Pack ▾** lets you choose how many to pack (1, 5, 10... or all). **Pack everything** packs it all.
+- **Lock** an item and it's never sold: not by a Sell button, auto-sell or the Bazaar.
+- **Keep enough crops for my next upgrades** (on by default): selling to the Market, Sell all crops and
+  auto-sell keep back what your next hoes, armour, talismans and Compactor need, counting the crops you
+  still have to pack. Each item shows how many it's keeping.
+- **Auto-sell** is chosen crop by crop: those crops are sold to the Market as soon as they're harvested
+  (apart from what's kept for upgrades). The same list turns the Compactor on or off for each crop.
+
+<img src="docs/screenshots/panel-inventory-bottom.png" width="48%" alt="The bottom of the Inventory tab: auto-sell and Compactor switches for every crop, and what your upgrades need">
+
+The **Farming** tab's crop guide shows roughly how many coins an hour each crop would make you, with
+your hoes, Fortune and speed, and marks the best one. Its **Right now** card measures how fast your farm
+is actually going (coins, crops and Farming XP an hour, over the last 10 minutes and since the game
+started), so you can see whether an upgrade made a difference.
+
+### Wardrobe
+
+Milestones unlock hats and outfits for your farmer. They're just for looks: pick one in the
+**Wardrobe** tab and the farmer wears it on the strip.
+
+| Hat | Unlocked by | Outfit | Unlocked by |
+|---|---|---|---|
+| Straw Hat | Every farmer starts with one | Classic Overalls | Every farmer starts with these |
+| Farmer's Cap | Farming Level 10 | Harvest Brown | Garden Level 5 |
+| Bandana | Breaking 10,000 crops | Meadow Green | Breaking 1,000 crops by hand |
+| Top Hat | Earning 1,000,000 coins from selling | Twilight Purple | Garden Level 10 |
+| Flower Crown | Maxing out any collection | Golden Harvest | Wearing a full Verdant armour set |
+| Golden Crown | Farming Level 50 | | |
+
+<img src="docs/screenshots/panel-wardrobe.png" width="48%" alt="The Wardrobe tab: the farmer in a cap, with hats and outfits to unlock">
 
 <p>
   <img src="docs/screenshots/panel-farming.png" width="32%" alt="Farming tab: Farming level and where your Harvest Fortune comes from">
   <img src="docs/screenshots/panel-inventory.png" width="32%" alt="Inventory tab: crops, packed crops in sacks and dense crops in crates">
-  <img src="docs/screenshots/panel-collections.png" width="32%" alt="Collections tab: tier progress for every crop">
+  <img src="docs/screenshots/panel-collections.png" width="32%" alt="Collections tab: tier progress for every crop, and the max collection for each">
 </p>
 
 ### Settings
@@ -162,9 +223,40 @@ In the panel's **Settings** tab (or the right-click menu):
 
 - **Size:** Small / Normal / Large.
 - **Position:** Left / Center / Right of the screen.
-- Farmer auto-farming, auto-sell, floating numbers, hide during fullscreen apps, start with Windows.
+- **Monitor:** which monitor the strip sits on (it sits above that monitor's taskbar, or at the bottom
+  of the screen if it has none). If that monitor is unplugged, the strip goes back to the main one.
+- **Keyboard shortcuts:** click one and press the keys you want (with Ctrl, Alt or Win), or choose None.
+- **Pop-ups:** choose which ones you see (level-ups, collection tiers, upgrades ready, crafted upgrades,
+  Bazaar orders, welcome back), or pause them all for a while.
+- **Short numbers:** 12.3K and 1.23M instead of 12,345 and 1,234,567.
+- **Battery saver** (on by default): the strip animates less often while the laptop is on battery. The
+  farmer and your crops keep the same pace. While a fullscreen app hides the strip, the game always
+  updates less often.
+- **Updates:** check for new versions, and install them without asking if you like (see [Updates](#updates)).
+- Farmer auto-farming, keeping crops for upgrades, floating numbers, hide during fullscreen apps, start
+  with Windows.
 
-Your save file is `%APPDATA%\TaskBarGame Harvest Edition\save.json` (with a `.bak` backup). If something
+The panel opens where you last dragged it, on the tab you last had open.
+
+### Updates
+
+A little after it starts, and then every 6 hours, the game looks on GitHub for a newer Harvest Edition
+release. When there is one, a pop-up asks if you want it, and the strip says so under your coins.
+
+- **Update now** (in the pop-up, or **Settings → Updates**) downloads the new version, checks that it's
+  exactly the file GitHub published (its SHA-256 checksum), saves your farm and restarts the game. If the
+  check fails, nothing is installed.
+- Turn on **Install new versions without asking** to have updates installed in the background. They
+  start the next time the game opens (or straight away with **Restart now**).
+- **Check now** looks for a new version straight away; **What's new** opens the release page.
+- This works for the single `TaskBarGame-HarvestEdition.exe` from a release. A copy built from the source
+  code as a folder of files tells you about new versions but has to be updated by hand.
+
+Your save file is `%APPDATA%\TaskBarGame Harvest Edition\save.json` (with a `.bak` backup).
+The game also keeps the last 10 **backups** in the `backups` folder next to it: one each time it starts
+and one every 2 hours. In **Settings → Save file** you can restore one, make one now, **export** your
+farm to a file and **import** one. Restoring or importing backs up your current farm first, then restarts
+the game to load the other one. If something
 breaks, details are written to `%APPDATA%\TaskBarGame Harvest Edition\error.log`.
 
 ## Changing the game
@@ -194,7 +286,7 @@ dotnet test
 ### Screenshots
 
 The game has a screenshot mode that plays a demo field (it never touches your save), saves pictures
-of the strip and every panel tab, then quits:
+of the strip and every panel tab (and the bottom of the longer ones), then quits:
 
 ```bash
 TaskBarGame.exe --screenshots docs\screenshots
@@ -207,19 +299,24 @@ stand-in for it.
 
 ### Making a release
 
-Releases are for the original edition on `main`. **Don't publish one from this branch**: the
-download links always give the newest release, so it would replace the original game's download.
+Harvest Edition releases are tagged `harvest-v<version>` (for example `harvest-v0.2.0`), so they never
+mix with the original edition's `v0.1.0` releases. They're also never marked as the repo's "latest"
+release, so the original edition's download links on `main` keep working.
 
-1. Set the new version in `src/TaskBarGame.App/TaskBarGame.App.csproj` (`<Version>`) and in the
-   [Download](#download) section below.
-2. Write the release notes in `docs/releases/v<version>.md` (copy the previous one).
-3. On GitHub, open **Actions → Release → Run workflow**, type the version (for example `0.2.0`) and
-   click **Run workflow**.
+1. Set the new version in `src/TaskBarGame.App/TaskBarGame.App.csproj` (`<Version>`).
+2. Write the release notes in `docs/releases/harvest-v<version>.md` (copy the previous one).
+3. On GitHub, open **Actions → Release (Harvest Edition) → Run workflow**, pick the branch to release
+   (for example `harvest-edition`), type the version (for example `0.2.0`) and click **Run workflow**.
 
-About two minutes later `TaskBarGame.exe` is on the
-[Releases](https://github.com/TheUthaGuy/TaskBarGame/releases) page. The download links below always
-point at the newest release, so they never need changing. (Publishing a release from the Releases
-page, or pushing a `v0.2.0` tag, also works: the workflow adds the game files either way.)
+About two minutes later the release has three files: `TaskBarGame-HarvestEdition.exe`, a zipped copy,
+and `TaskBarGame-HarvestEdition.exe.sha256` (the checksum the game checks updates against). Copies of
+the game that are already installed find it by themselves (see [Updates](#updates)). Pushing a
+`harvest-v0.2.0` tag also works.
+
+To try updating without publishing anything, set the `TBG_UPDATE_FEED` environment variable to the
+address of a file shaped like GitHub's
+[list of releases](https://docs.github.com/en/rest/releases/releases#list-releases): the game then
+checks that instead of GitHub.
 
 ### Project layout
 

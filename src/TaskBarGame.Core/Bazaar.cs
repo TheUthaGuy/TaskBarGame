@@ -129,6 +129,11 @@ public sealed partial class GameEngine
     {
         reason = "";
         if (!Items.TryGet(itemId, out var item) || amount <= 0) return 0;
+        if (IsLocked(item))
+        {
+            reason = LockedReason(item);
+            return 0;
+        }
         if (GetItem(item) < amount)
         {
             reason = $"You only have {GetItem(item):N0} {item.Name}";
@@ -191,6 +196,11 @@ public sealed partial class GameEngine
     {
         reason = "";
         if (!Items.TryGet(itemId, out var item) || amount <= 0 || !(price > 0)) return null;
+        if (IsLocked(item))
+        {
+            reason = LockedReason(item);
+            return null;
+        }
         if (GetItem(item) < amount)
         {
             reason = $"You only have {GetItem(item):N0} {item.Name}";
@@ -219,6 +229,9 @@ public sealed partial class GameEngine
     }
 
     // ---------------------------------------------------------------- internals
+
+    private static string LockedReason(ItemDef item) =>
+        $"{item.Name} is locked. Unlock it in the Inventory tab to sell it.";
 
     private BazaarOrder AddOrder(ItemDef item, BazaarOrderKind kind, long amount, double price)
     {

@@ -96,6 +96,22 @@ public partial class StripWindow : Window
     private Toast? _toast;
     private PanelWindow? _panel;
 
+    // Upgrades you could craft the last time we looked (to pop up when a new one becomes ready).
+    private HashSet<string>? _readyUpgrades;
+
+    // Click and drag along the row to farm every crop you pass over.
+    private bool _dragFarming;
+    private int _dragLastTile = -1;
+
+    // Hidden with the keyboard shortcut (or the menu) until it's pressed again.
+    private bool _hiddenByUser;
+
+    // The farmer's hat and outfit (checked a few times a second, not every frame).
+    private string _hatId = Cosmetics.DefaultHat;
+    private string _outfitId = Cosmetics.DefaultOutfit;
+
+    private const int PanelHotkeyId = 1, StripHotkeyId = 2;
+
     // The farmer's breaks since the last "+N" floater.
     private CropDef? _pendingCrop;
     private long _pendingDrops;
@@ -119,10 +135,17 @@ public partial class StripWindow : Window
         {
             _hwnd = new WindowInteropHelper(this).Handle;
             NativeMethods.MakeOverlayWindow(_hwnd);
+            HwndSource.FromHwnd(_hwnd)?.AddHook(WndProc);
+            RegisterHotkeys();
         };
+        Closed += (_, _) => UnregisterHotkeys();
+        _host.HotkeysChanged += RegisterHotkeys;
+        Microsoft.Win32.SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
+        Closed += (_, _) => Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
         Loaded += (_, _) =>
         {
             _expanded = Settings.StripMode == StripMode.Always;
+            CheckReadyUpgrades(quietly: true);
             RequestLayout();
         };
         DpiChanged += (_, e) =>
@@ -131,7 +154,13 @@ public partial class StripWindow : Window
             if (Math.Abs(e.NewDpi.DpiScaleX - _layoutDpi) > 0.001) RequestLayout();
         };
         MouseEnter += (_, _) => OnMouseEntered();
-        MouseLeave += (_, _) => OnMouseLeft();
+        MouseLeave += (_, _) =>
+        {
+            _dragFarming = false;
+            OnMouseLeft();
+        };
+        MouseMove += OnDragFarmingMove;
+        MouseLeftButtonUp += (_, _) => _dragFarming = false;
         SystemParameters.StaticPropertyChanged += OnSystemParametersChanged;
         Closed += (_, _) => SystemParameters.StaticPropertyChanged -= OnSystemParametersChanged;
 
@@ -142,6 +171,7 @@ public partial class StripWindow : Window
         };
         _host.SettingsChanged += () =>
         {
+            RegisterHotkeys();
             RequestLayout();
             if (Settings.StripMode == StripMode.Always) SetExpanded(true);
             else if (!ShouldStayExpanded()) SetExpanded(false);
@@ -151,6 +181,9 @@ public partial class StripWindow : Window
         Engine.CollectionTierReached += OnCollectionTier;
         Engine.Crafted += OnCrafted;
         Engine.OrderFilled += OnOrderFilled;
+        _host.Updater.Found += OnUpdateFound;
+        _host.Updater.InstalledInBackground += OnUpdateInstalled;
+        _host.Updater.InstallFailed += message => QueueToast("UPDATE DIDN'T INSTALL", message, DangerBrush, 8);
         _host.Farmer.Teleported += () => SpawnTeleportSparkles(Engine.FieldLength);
         Engine.Changed += () =>
         {
@@ -346,7 +379,13 @@ public partial class StripWindow : Window
         cell.Children.Add(crop);
         cell.MouseEnter += (_, _) => hover.Visibility = Visibility.Visible;
         cell.MouseLeave += (_, _) => hover.Visibility = Visibility.Hidden;
-        cell.MouseLeftButtonUp += (_, e) => { OnTileClicked(index); e.Handled = true; };
+        cell.MouseLeftButtonDown += (_, e) =>
+        {
+            _dragFarming = true;
+            _dragLastTile = index;
+            OnTileClicked(index);
+            e.Handled = true;
+        };
         cell.MouseRightButtonUp += (_, e) => { OpenPlantMenu(cell); e.Handled = true; };
         Place(_stripLayer, cell, x, _tileTop);
         return new TileView(index, crop, tip);
@@ -437,9 +476,27 @@ public partial class StripWindow : Window
         canvas.Children.Add(element);
     }
 
-    /// <summary>Sits the window just above the taskbar.</summary>
+    /// <summary>Sits the window just above the taskbar of the chosen monitor (the main one by default).</summary>
     private void Reposition()
     {
+        if (_hwnd != IntPtr.Zero && ChosenMonitor() is { } monitor && NativeMethods.WindowRect(_hwnd) is { } rect)
+        {
+            // In real pixels, so it works when monitors use different Windows scaling.
+            var work = monitor.WorkArea;
+            double scale = VisualTreeHelper.GetDpi(this).DpiScaleX;
+            int margin = (int)Math.Round(ScreenMargin * scale);
+            int x = Settings.Anchor switch
+            {
+                StripAnchor.Right => work.X + work.Width - margin - rect.Width,
+                StripAnchor.Center => work.X + (work.Width - rect.Width) / 2,
+                _ => work.X + margin,
+            };
+            x = Math.Max(work.X, Math.Min(x, work.X + work.Width - rect.Width));
+            int y = work.Y + work.Height - rect.Height;
+            if (rect.X != x || rect.Y != y) NativeMethods.MoveWindow(_hwnd, x, y);
+            return;
+        }
+
         var area = SystemParameters.WorkArea;
         double left = Settings.Anchor switch
         {
@@ -452,6 +509,19 @@ public partial class StripWindow : Window
         if (Math.Abs(Left - left) > 0.5) Left = left;
         if (Math.Abs(Top - top) > 0.5) Top = top;
     }
+
+    /// <summary>The monitor picked in Settings, or the main one (also if the picked one is unplugged).</summary>
+    private static MonitorInfo? ChosenMonitorFor(string? deviceName)
+    {
+        var monitors = NativeMethods.Monitors();
+        return monitors.FirstOrDefault(m => m.DeviceName == deviceName)
+               ?? monitors.FirstOrDefault(m => m.IsPrimary)
+               ?? monitors.FirstOrDefault();
+    }
+
+    private MonitorInfo? ChosenMonitor() => ChosenMonitorFor(Settings.Monitor);
+
+    private void OnDisplaySettingsChanged(object? sender, EventArgs e) => Dispatcher.BeginInvoke(Reposition);
 
     private void OnSystemParametersChanged(object? sender, PropertyChangedEventArgs e)
     {
@@ -564,10 +634,10 @@ public partial class StripWindow : Window
             facing = farmer.Facing;
         }
 
-        // The hoe in the farmer's hands matches the hoe you own for the planted crop.
-        var source = frame is "farmer_swing" or "farmer_farm1" or "farmer_farm2"
-            ? _host.Sprites.FarmerWithHoe(frame, Engine.ActiveTool.Tier)
-            : _host.Sprites[frame];
+        // The hoe in the farmer's hands matches the hoe you own for the planted crop, and they wear
+        // the hat and outfit picked in the Wardrobe.
+        bool holdsHoe = frame is "farmer_swing" or "farmer_farm1" or "farmer_farm2";
+        var source = _host.Sprites.Farmer(frame, holdsHoe ? Engine.ActiveTool.Tier : -1, _hatId, _outfitId);
         if (!ReferenceEquals(_farmer.Source, source)) _farmer.Source = source;
         _farmerFlip.ScaleX = facing;
         Canvas.SetLeft(_farmer, x);
@@ -595,8 +665,21 @@ public partial class StripWindow : Window
     /// <summary>Things that don't need updating 30 times a second.</summary>
     private void UpdateSlow()
     {
+        _hatId = Cosmetics.WornHat(Engine).Id;
+        _outfitId = Cosmetics.WornOutfit(Engine).Id;
         _coinsText.Text = Format.Number(Engine.State.Coins);
-        _levelsText.Text = $"Farming {Engine.FarmingLevel} · Garden {Engine.GardenLevel}";
+        // While a new version is waiting, say so under the coins (the panel's Settings tab has the button).
+        var updater = _host.Updater;
+        if (updater.State is UpdateState.Available or UpdateState.Installed && updater.Release is { } release)
+        {
+            _levelsText.Text = updater.State == UpdateState.Installed ? "Update installed: restart" : $"Version {release.Version} is out!";
+            _levelsText.Foreground = GardenBrush;
+        }
+        else
+        {
+            _levelsText.Text = $"Farming {Engine.FarmingLevel} · Garden {Engine.GardenLevel}";
+            _levelsText.Foreground = TextBrush;
+        }
 
         foreach (var view in _tiles)
             if (view.Index < Engine.FieldLength) view.Tip.Text = DescribeTile(view.Index);
@@ -618,13 +701,16 @@ public partial class StripWindow : Window
     {
         if (_hwnd == IntPtr.Zero) return;
 
-        bool hide = Settings.HideInFullscreen && NativeMethods.IsFullscreenAppInFront(_hwnd);
+        bool hide = _hiddenByUser || (Settings.HideInFullscreen && NativeMethods.IsFullscreenAppInFront(_hwnd));
         if (hide != _hiddenForFullscreen)
         {
             _hiddenForFullscreen = hide;
             if (hide) Hide();
             else Show();
         }
+        _host.UpdateFrameRate(stripHidden: _hiddenForFullscreen);
+        CheckReadyUpgrades();
+        CheckNewCosmetics();
         if (_hiddenForFullscreen) return;
 
         Reposition();
@@ -636,7 +722,8 @@ public partial class StripWindow : Window
         var crop = Engine.FieldCrop;
         string tool = Tools.Name(crop, Engine.ActiveTool.Tier);
         if (Engine.IsGrown(index))
-            return $"{crop.Name}: grown!\nClick to break it yourself (+{GameEngine.HandBreakFortuneBonus} Harvest Fortune)\n"
+            return $"{crop.Name}: grown!\nClick to break it yourself (+{GameEngine.HandBreakFortuneBonus} Harvest Fortune), "
+                   + "or hold the button and drag along the row\n"
                    + $"Right-click to plant something else · Farmer's tool: {tool}";
 
         double left = crop.RegrowSeconds - Engine.Tiles[index];
@@ -655,6 +742,36 @@ public partial class StripWindow : Window
             var sparkle = SpriteImage(_host.Sprites["sparkle"], 5 * Math.Max(1, _unit));
             AddFloater(sparkle, TileLeft(index) + _tile / 2, _tileTop, life: 0.6, rise: 6 * _unit + 6);
         }
+    }
+
+    /// <summary>
+    /// While the left button is held down on the row, farms every crop the mouse passes over
+    /// (even ones it skips over when moved quickly).
+    /// </summary>
+    private void OnDragFarmingMove(object sender, MouseEventArgs e)
+    {
+        if (!_dragFarming) return;
+        if (e.LeftButton != MouseButtonState.Pressed || !_expanded)
+        {
+            _dragFarming = false;
+            return;
+        }
+
+        var point = e.GetPosition(Root);
+        if (point.Y < _tileTop - _tile || point.Y > Height) return; // well above the row: ignore
+        int tile = (int)Math.Floor((point.X - TileLeft(0)) / _tile);
+        if (tile < 0 || tile >= Engine.FieldLength)
+        {
+            _dragLastTile = Math.Clamp(tile, -1, Engine.FieldLength);
+            return;
+        }
+        if (tile == _dragLastTile) return;
+
+        int step = tile > _dragLastTile ? 1 : -1;
+        int from = _dragLastTile < 0 || _dragLastTile >= Engine.FieldLength ? Math.Clamp(_dragLastTile + step, 0, Engine.FieldLength - 1) : _dragLastTile + step;
+        for (int i = from; step > 0 ? i <= tile : i >= tile; i += step)
+            OnTileClicked(i);
+        _dragLastTile = tile;
     }
 
     private void OnLockClicked(double x)
@@ -722,6 +839,8 @@ public partial class StripWindow : Window
 
         menu.Items.Add(CheckItem("Farmer farms by themselves", Settings.FarmerAutoHarvest,
             () => Settings.FarmerAutoHarvest = !Settings.FarmerAutoHarvest));
+        if (Hotkey.Parse(Settings.StripHotkey) is { } stripKey && _host.StripHotkeyError.Length == 0)
+            menu.Items.Add(MakeItem($"Hide the strip (press {stripKey} to bring it back)", ToggleHiddenByUser));
         menu.Items.Add(new Separator());
         menu.Items.Add(MakeItem("Quit TaskBarGame", () => ((App)Application.Current).Quit()));
         ShowMenu(menu, target);
@@ -776,18 +895,124 @@ public partial class StripWindow : Window
             if (HoverMode && !ShouldStayExpanded()) _collapseTimer.Start();
         };
 
-        var area = SystemParameters.WorkArea;
-        double stripScreenLeft = Left + _stripLeft;
-        double left = Settings.Anchor switch
+        if (SavedPanelPosition(_panel) is { } saved)
         {
-            StripAnchor.Right => stripScreenLeft + _stripWidth - _panel.Width,
-            StripAnchor.Center => stripScreenLeft + (_stripWidth - _panel.Width) / 2,
-            _ => stripScreenLeft,
-        };
-        _panel.Left = Math.Max(area.Left, Math.Min(left, area.Right - _panel.Width));
-        _panel.Top = Math.Max(area.Top, Top + PopupSpace - _panel.Height - 8);
+            // Where you last dragged it (as long as that's still on a screen).
+            _panel.Left = saved.X;
+            _panel.Top = saved.Y;
+        }
+        else
+        {
+            var area = SystemParameters.WorkArea;
+            double stripScreenLeft = Left + _stripLeft;
+            double left = Settings.Anchor switch
+            {
+                StripAnchor.Right => stripScreenLeft + _stripWidth - _panel.Width,
+                StripAnchor.Center => stripScreenLeft + (_stripWidth - _panel.Width) / 2,
+                _ => stripScreenLeft,
+            };
+            _panel.Left = Math.Max(area.Left, Math.Min(left, area.Right - _panel.Width));
+            _panel.Top = Math.Max(area.Top, Top + PopupSpace - _panel.Height - 8);
+        }
+        bool placeNearStrip = SavedPanelPosition(_panel) is null;
         _panel.Show();
+        if (placeNearStrip)
+        {
+            PlacePanelNearStrip(_panel);
+            // Moving onto a monitor with different scaling resizes the panel: place it again.
+            _panel.DpiChanged += (sender, _) => Dispatcher.BeginInvoke(() =>
+            {
+                if (sender is PanelWindow panel && panel.IsVisible) PlacePanelNearStrip(panel);
+            });
+        }
         _panel.Activate();
+    }
+
+    /// <summary>Puts the panel just above the strip, on the strip's monitor (in real pixels).</summary>
+    private void PlacePanelNearStrip(PanelWindow panel)
+    {
+        var panelHwnd = new WindowInteropHelper(panel).Handle;
+        if (_hwnd == IntPtr.Zero || panelHwnd == IntPtr.Zero) return;
+        if (NativeMethods.WindowRect(_hwnd) is not { } strip || NativeMethods.WindowRect(panelHwnd) is not { } rect) return;
+        if (NativeMethods.MonitorOf(_hwnd) is not { } monitor) return;
+
+        double scale = VisualTreeHelper.GetDpi(this).DpiScaleX;
+        int stripLeft = strip.X + (int)Math.Round(_stripLeft * scale);
+        int stripWidth = (int)Math.Round(_stripWidth * scale);
+        int x = Settings.Anchor switch
+        {
+            StripAnchor.Right => stripLeft + stripWidth - rect.Width,
+            StripAnchor.Center => stripLeft + (stripWidth - rect.Width) / 2,
+            _ => stripLeft,
+        };
+        int y = strip.Y + (int)Math.Round((PopupSpace - 8) * scale) - rect.Height;
+        var work = monitor.WorkArea;
+        x = Math.Max(work.X, Math.Min(x, work.X + work.Width - rect.Width));
+        y = Math.Max(work.Y, Math.Min(y, work.Y + work.Height - rect.Height));
+        NativeMethods.MoveWindow(panelHwnd, x, y);
+    }
+
+    // ================================================================== keyboard shortcuts
+
+    /// <summary>(Re)registers Ctrl+Alt+F and Ctrl+Alt+H (or whatever was picked in Settings).</summary>
+    private void RegisterHotkeys()
+    {
+        if (_hwnd == IntPtr.Zero) return;
+        UnregisterHotkeys();
+        if (_host.HotkeysPaused) return; // Settings is waiting for you to press a new one
+
+        _host.PanelHotkeyError = Register(PanelHotkeyId, Settings.PanelHotkey);
+        _host.StripHotkeyError = Register(StripHotkeyId, Settings.StripHotkey);
+
+        string Register(int id, string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return "";
+            if (Hotkey.Parse(text) is not { } hotkey) return $"\"{text}\" isn't a shortcut the game understands.";
+            return NativeMethods.RegisterHotKey(_hwnd, id, hotkey.NativeModifiers, hotkey.NativeKey)
+                ? ""
+                : $"{hotkey} is already used by another app. Pick a different one.";
+        }
+    }
+
+    private void UnregisterHotkeys()
+    {
+        if (_hwnd == IntPtr.Zero) return;
+        NativeMethods.UnregisterHotKey(_hwnd, PanelHotkeyId);
+        NativeMethods.UnregisterHotKey(_hwnd, StripHotkeyId);
+    }
+
+    private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (msg != NativeMethods.WM_HOTKEY) return IntPtr.Zero;
+        switch (wParam.ToInt32())
+        {
+            case PanelHotkeyId:
+                TogglePanel();
+                handled = true;
+                break;
+            case StripHotkeyId:
+                ToggleHiddenByUser();
+                handled = true;
+                break;
+        }
+        return IntPtr.Zero;
+    }
+
+    /// <summary>Hides the strip (and the farmer) until the shortcut is pressed again.</summary>
+    public void ToggleHiddenByUser()
+    {
+        _hiddenByUser = !_hiddenByUser;
+        UpdateWindowState();
+    }
+
+    /// <summary>The panel's saved spot, if its title bar would still be on screen there.</summary>
+    private Point? SavedPanelPosition(Window panel)
+    {
+        if (Settings.PanelLeft is not { } left || Settings.PanelTop is not { } top) return null;
+        var screen = new Rect(SystemParameters.VirtualScreenLeft, SystemParameters.VirtualScreenTop,
+            SystemParameters.VirtualScreenWidth, SystemParameters.VirtualScreenHeight);
+        var titleBar = new Rect(left + 40, top + 5, Math.Max(1, panel.Width - 80), 40);
+        return screen.Contains(titleBar) ? new Point(left, top) : null;
     }
 
     // ================================================================== breaking crops: numbers & bits
@@ -970,7 +1195,7 @@ public partial class StripWindow : Window
             : $"GARDEN LEVEL {levelUp.NewLevel}!";
         var brush = levelUp.Skill == SkillKind.Farming ? XpBrush : GardenBrush;
         string body = levelUp.Rewards.Count > 0 ? string.Join(" · ", levelUp.Rewards) : "Keep farming!";
-        QueueToast(title, body, brush, 4.5);
+        QueueToast(title, body, brush, 4.5, PopupKind.LevelUp);
     }
 
     private void OnCollectionTier(CollectionTierUp tierUp)
@@ -978,12 +1203,13 @@ public partial class StripWindow : Window
         QueueToast(
             $"{tierUp.Crop.Name.ToUpperInvariant()} COLLECTION {Format.Roman(tierUp.NewTier)}",
             $"+{CollectionTiers.FortunePerTier} {tierUp.Crop.Name} Fortune · +{CollectionTiers.GardenXpPerTier * tierUp.NewTier} Garden XP",
-            CropBrush(tierUp.Crop), 4);
+            CropBrush(tierUp.Crop), 4, PopupKind.Collection);
     }
 
     private void OnCrafted(Recipe recipe)
     {
-        QueueToast($"CRAFTED {recipe.ResultName.ToUpperInvariant()}", Describe.Effect(Engine, recipe), CraftBrush, 4);
+        QueueToast($"CRAFTED {recipe.ResultName.ToUpperInvariant()}", Describe.Effect(Engine, recipe), CraftBrush, 4, PopupKind.Crafted);
+        CheckReadyUpgrades(quietly: true); // what you just crafted isn't "ready" any more
     }
 
     private void OnOrderFilled(BazaarFill fill)
@@ -994,7 +1220,7 @@ public partial class StripWindow : Window
             ? $"Sold {Format.Number(fill.Order.Amount)} {item.Name} for {Format.Coins((long)Math.Floor(fill.Order.Amount * fill.Order.Price))}."
             : $"Bought {Format.Number(fill.Order.Amount)} {item.Name}. They're in your inventory.";
         string title = fill.Order.Kind == BazaarOrderKind.SellOffer ? "BAZAAR: SELL OFFER FILLED" : "BAZAAR: BUY ORDER FILLED";
-        QueueToast(title, body, GoldBrush, 5);
+        QueueToast(title, body, GoldBrush, 5, PopupKind.BazaarOrder);
     }
 
     public void ShowOfflineReport(OfflineReport report)
@@ -1006,12 +1232,83 @@ public partial class StripWindow : Window
             body += $" Farming {report.FarmingLevelBefore} → {report.FarmingLevelAfter}!";
         if (report.GardenLevelAfter > report.GardenLevelBefore)
             body += $" Garden {report.GardenLevelBefore} → {report.GardenLevelAfter}!";
-        QueueToast("WELCOME BACK!", body, GoldBrush, 9);
+        QueueToast("WELCOME BACK!", body, GoldBrush, 9, PopupKind.WelcomeBack);
     }
 
-    private void QueueToast(string title, string body, Brush accent, double seconds)
+    private static App CurrentApp => (App)Application.Current;
+
+    private void OnUpdateFound(ReleaseInfo release)
     {
-        _toastQueue.Enqueue(new Toast(title, body, accent, seconds));
+        QueueToast("NEW VERSION OUT!",
+            $"{release.Name} is out (you have {Updater.CurrentVersion}). Update now: your farm is saved and the game restarts.",
+            GardenBrush, 30, PopupKind.Update,
+            Updater.CanInstall ? ("Update now", () =>
+            {
+                QueueToast("UPDATING...", $"Downloading version {release.Version}. The game restarts when it's ready.", GardenBrush, 6);
+                CurrentApp.UpdateNow();
+            }) : ("See what's new", () => OpenWebPage(release.PageUrl)));
+    }
+
+    private void OnUpdateInstalled(ReleaseInfo release)
+    {
+        QueueToast("UPDATE INSTALLED",
+            $"Version {release.Version} starts the next time the game opens.",
+            GardenBrush, 30, PopupKind.Update, ("Restart now", CurrentApp.RestartIntoNewVersion));
+    }
+
+    /// <summary>Right after updating: says which version you're on now.</summary>
+    public void ShowUpdated(Version version)
+    {
+        QueueToast($"UPDATED TO VERSION {version}!", "Your farm is just as you left it. See what's new in Settings → Updates.",
+            GardenBrush, 8, PopupKind.Update);
+    }
+
+    internal static void OpenWebPage(string url)
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException) { }
+    }
+
+    /// <summary>Pops up when a milestone unlocks a hat or outfit.</summary>
+    private void CheckNewCosmetics()
+    {
+        var fresh = Cosmetics.TakeNewlyUnlocked(Engine);
+        if (fresh.Count == 0) return;
+        string title = fresh.Count > 1 ? $"{fresh.Count} NEW LOOKS UNLOCKED!"
+            : fresh[0].Slot == CosmeticSlot.Hat ? "NEW HAT UNLOCKED!" : "NEW OUTFIT UNLOCKED!";
+        string body = $"{string.Join(", ", fresh.Select(c => c.Name))}. Try {(fresh.Count > 1 ? "them" : "it")} on in the panel's Wardrobe tab.";
+        QueueToast(title, body, CraftBrush, 7, PopupKind.Cosmetic);
+    }
+
+    /// <summary>
+    /// Pops up when an upgrade becomes craftable. <paramref name="quietly"/> just remembers what's
+    /// ready (used when the game starts, so you aren't told about upgrades you already knew of).
+    /// </summary>
+    private void CheckReadyUpgrades(bool quietly = false)
+    {
+        var ready = Engine.ReadyRecipes().ToList();
+        var ids = ready.Select(r => r.Id).ToHashSet();
+        bool first = _readyUpgrades is null;
+        var fresh = first ? new List<Recipe>() : ready.Where(r => !_readyUpgrades!.Contains(r.Id)).ToList();
+        _readyUpgrades = ids;
+        if (quietly || fresh.Count == 0) return;
+
+        string body = fresh.Count == 1
+            ? $"You can craft the {fresh[0].ResultName}. Open the panel's Upgrades tab."
+            : $"You can craft {fresh.Count} upgrades: {string.Join(", ", fresh.Select(r => r.ResultName))}.";
+        QueueToast("UPGRADE READY!", body, CraftBrush, 5, PopupKind.UpgradeReady);
+    }
+
+    /// <param name="kind">Which pop-up setting this follows; null for replies to something you just did (always shown).</param>
+    /// <param name="action">A button on the pop-up, e.g. ("Update now", ...).</param>
+    private void QueueToast(string title, string body, Brush accent, double seconds, PopupKind? kind = null,
+        (string Label, Action Run)? action = null)
+    {
+        if (kind is { } k && !Settings.IsPopupShown(k)) return;
+        _toastQueue.Enqueue(new Toast(title, body, accent, seconds) { Action = action });
         if (_toast is null) NextToast();
     }
 
@@ -1041,6 +1338,25 @@ public partial class StripWindow : Window
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 2, 0, 0),
         });
+        if (toast.Action is { } action)
+        {
+            var button = new Button
+            {
+                Content = action.Label,
+                FontSize = _fontSize,
+                Padding = new Thickness(10, 3, 10, 3),
+                Margin = new Thickness(0, 6, 0, 0),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Style = TryFindResource("AccentButton") as Style,
+            };
+            button.Click += (_, e) =>
+            {
+                e.Handled = true;
+                NextToast();
+                action.Run();
+            };
+            text.Children.Add(button);
+        }
         var border = new Border
         {
             Background = ToastBrush,
@@ -1051,7 +1367,7 @@ public partial class StripWindow : Window
             MaxWidth = Math.Min(Width - 8, 340),
             Child = text,
             Cursor = Cursors.Hand,
-            ToolTip = "Click to dismiss",
+            ToolTip = toast.Action is null ? "Click to dismiss" : "Click the button, or anywhere else to dismiss",
         };
         border.MouseLeftButtonUp += (_, e) => { NextToast(); e.Handled = true; };
         border.Measure(new Size(border.MaxWidth, double.PositiveInfinity));
@@ -1120,5 +1436,6 @@ public partial class StripWindow : Window
         public double Seconds { get; } = seconds;
         public double Age { get; set; }
         public FrameworkElement? Element { get; set; }
+        public (string Label, Action Run)? Action { get; init; }
     }
 }

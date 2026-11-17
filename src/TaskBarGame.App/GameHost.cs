@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Windows;
 using System.Windows.Threading;
 using TaskBarGame.Core;
 
@@ -18,11 +19,17 @@ public sealed class GameHost : IDisposable
     /// <summary>A gap longer than this (PC asleep, app frozen) counts as offline time.</summary>
     private static readonly TimeSpan SleepGap = TimeSpan.FromSeconds(20);
 
+    /// <summary>Milliseconds between game updates: normal, on battery (with Battery saver on), and while the strip is hidden.</summary>
+    private const int NormalFrameMs = 33, BatteryFrameMs = 66, HiddenFrameMs = 250;
+
     private readonly DispatcherTimer _timer;
     private readonly Stopwatch _clock = new();
     private double _lastFrame;
     private DateTime _lastWallClock;
     private double _sinceSave;
+    private double _sinceBackup;
+    private bool _backups;
+    private bool _hotkeysPaused;
 
     public GameHost() : this(new SaveManager())
     {
@@ -35,18 +42,83 @@ public sealed class GameHost : IDisposable
         Engine = new GameEngine(state ?? Saves.LoadOrCreate());
         Farmer = new FarmerAgent();
         Sprites = new SpriteCache(SpriteSheet.LoadDefault());
+        Updater = new Updater(Engine.State.Settings);
 
-        _timer = new DispatcherTimer(DispatcherPriority.Normal) { Interval = TimeSpan.FromMilliseconds(33) };
+        // Coins, crops and XP an hour: what each harvest is worth at the Market.
+        Engine.Broke += result => Rates.Add(Clock, result.Drops * Engine.MarketPrice(Items.Raw(result.Crop)),
+            result.Drops, result.FarmingXp);
+
+        _timer = new DispatcherTimer(DispatcherPriority.Normal) { Interval = TimeSpan.FromMilliseconds(NormalFrameMs) };
         _timer.Tick += OnTick;
+        Format.ShortNumbers = Settings.ShortNumbers;
     }
 
     public GameEngine Engine { get; }
     public FarmerAgent Farmer { get; }
     public SaveManager Saves { get; }
     public SpriteCache Sprites { get; }
+
+    /// <summary>Finds and installs new versions (started by the app; not used in screenshot mode).</summary>
+    public Updater Updater { get; }
+
+    /// <summary>How fast the farm is going (the Farming tab's "Right now" card).</summary>
+    public RateTracker Rates { get; } = new();
+
+    /// <summary>Seconds since the game started (the clock <see cref="Rates"/> uses).</summary>
+    public double Clock => _clock.Elapsed.TotalSeconds;
+
+    /// <summary>Why a keyboard shortcut couldn't be set up ("" when it's fine), for the Settings tab.</summary>
+    public string PanelHotkeyError { get; set; } = "";
+    public string StripHotkeyError { get; set; } = "";
+
+    /// <summary>True while the Settings tab waits for you to press a new shortcut.</summary>
+    public bool HotkeysPaused
+    {
+        get => _hotkeysPaused;
+        set
+        {
+            if (_hotkeysPaused == value) return;
+            _hotkeysPaused = value;
+            HotkeysChanged?.Invoke();
+        }
+    }
+
+    /// <summary>The shortcuts changed (or were paused): register them again.</summary>
+    public event Action? HotkeysChanged;
+
+    public void RaiseHotkeysChanged() => HotkeysChanged?.Invoke();
+
+    /// <summary>
+    /// Keeps a backup of the save now, and then every <see cref="SaveManager.BackupInterval"/> of play.
+    /// (Not in screenshot mode.)
+    /// </summary>
+    public void StartBackups()
+    {
+        _backups = true;
+        BackupNow();
+    }
+
+    /// <summary>Saves, then copies the save into the backups folder. Returns false if that failed.</summary>
+    public bool BackupNow(string? label = null)
+    {
+        _sinceBackup = 0;
+        try
+        {
+            Save();
+            Saves.CreateBackup(Engine.State, label);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
     public GameSettings Settings => Engine.State.Settings;
 
-    /// <summary>Raised about 30 times a second, after the game has been updated. Argument = seconds passed.</summary>
+    /// <summary>True while the laptop is running on battery and Battery saver is on.</summary>
+    public bool SavingBattery { get; private set; }
+
+    /// <summary>Raised about 30 times a second (less when saving battery), after the game has been updated. Argument = seconds passed.</summary>
     public event Action<double>? Frame;
 
     /// <summary>Raised after catching up on time the PC spent asleep.</summary>
@@ -62,14 +134,36 @@ public sealed class GameHost : IDisposable
     {
         _lastWallClock = DateTime.UtcNow;
         _clock.Start();
+        Rates.Start(0);
         _timer.Start();
     }
 
     /// <summary>Call after changing anything in <see cref="Settings"/>.</summary>
     public void ApplySettings()
     {
+        Format.ShortNumbers = Settings.ShortNumbers;
+        UpdateFrameRate(_stripHidden);
         Save();
         SettingsChanged?.Invoke();
+    }
+
+    private bool _stripHidden;
+
+    /// <summary>
+    /// Battery saver: the game updates less often while nothing is on screen (a fullscreen app is in
+    /// front) and, if that setting is on, while the laptop is unplugged. Crops and the farmer keep
+    /// going at the same speed either way; only the animation gets choppier.
+    /// </summary>
+    public void UpdateFrameRate(bool stripHidden)
+    {
+        _stripHidden = stripHidden;
+        bool onBattery;
+        try { onBattery = SystemParameters.PowerLineStatus == PowerLineStatus.Offline; }
+        catch (Exception) { onBattery = false; }
+        SavingBattery = Settings.BatterySaver && onBattery;
+
+        int ms = stripHidden ? HiddenFrameMs : SavingBattery ? BatteryFrameMs : NormalFrameMs;
+        if ((int)_timer.Interval.TotalMilliseconds != ms) _timer.Interval = TimeSpan.FromMilliseconds(ms);
     }
 
     public void Save()
@@ -106,12 +200,14 @@ public sealed class GameHost : IDisposable
             dt = 0;
         }
 
-        dt = Math.Clamp(dt, 0, 0.25);
+        dt = Math.Clamp(dt, 0, Math.Max(0.25, 2 * _timer.Interval.TotalSeconds));
         Engine.Tick(dt);
         Farmer.Tick(dt, Engine);
 
         _sinceSave += dt;
         if (_sinceSave >= AutosaveSeconds) Save();
+        _sinceBackup += dt;
+        if (_backups && _sinceBackup >= SaveManager.BackupInterval.TotalSeconds) BackupNow();
 
         Frame?.Invoke(dt);
     }
