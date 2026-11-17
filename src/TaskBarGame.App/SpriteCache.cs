@@ -94,6 +94,18 @@ public sealed class SpriteCache
         return Recolored(shape, $"{family}{tier}", new Dictionary<char, uint> { ['E'] = light, ['Z'] = dark });
     }
 
+    /// <summary>The Compactor: grey when you don't have one, iron for the Compactor, purple for the Dense Compactor.</summary>
+    public BitmapSource CompactorIcon(int tier)
+    {
+        var (light, dark) = tier switch
+        {
+            1 => (0xFFB0B0B0u, 0xFF6A6A6Au),
+            2 => (0xFFA97FDCu, 0xFF6E4597u),
+            _ => (0xFF8A8A8Au, 0xFF4A4A4Au),
+        };
+        return Recolored("icon_compactor", $"t{tier}", new Dictionary<char, uint> { ['I'] = light, ['i'] = dark });
+    }
+
     /// <summary>
     /// Colours for the little bits that fly out when a crop breaks: one brush per coloured pixel
     /// of the grown crop, so picking one at random matches the crop's look.

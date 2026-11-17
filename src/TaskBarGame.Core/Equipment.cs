@@ -110,6 +110,32 @@ public static class Talismans
 }
 
 /// <summary>
+/// The Compactor packs crops as they're harvested: every 160 crops become a Packed crop.
+/// The Dense Compactor also presses every 160 Packed crops into a Dense crop.
+/// </summary>
+public static class Compactors
+{
+    public const int MaxTier = 2;
+
+    /// <summary>The recipe target for the Compactor (it has no crop, slot or family).</summary>
+    public const string Target = "Compactor";
+
+    public static string Name(int tier) => tier switch
+    {
+        1 => "Compactor",
+        2 => "Dense Compactor",
+        _ => "No compactor",
+    };
+
+    public static string Effect(int tier) => tier switch
+    {
+        1 => "Packs every 160 crops into a Packed crop as they're harvested",
+        2 => "Packs every 160 crops into a Packed crop, and every 160 Packed into a Dense crop, as they're harvested",
+        _ => "Nothing yet",
+    };
+}
+
+/// <summary>
 /// Bonuses to the four farming stats. Speed, Xp and Sell are percentages; Sell raises the
 /// price the Market pays (not the Bazaar, or you could buy there and sell here for profit).
 /// </summary>
@@ -132,7 +158,7 @@ public readonly record struct StatBonus(int Fortune = 0, int Speed = 0, int Sell
     }
 }
 
-public enum UpgradeKind { Tool, Armour, Talisman }
+public enum UpgradeKind { Tool, Armour, Talisman, Compactor }
 
 public sealed record Ingredient(string ItemId, long Count)
 {
@@ -159,6 +185,7 @@ public sealed record Recipe(
     {
         UpgradeKind.Tool => Tools.Name(Crops.Get(Target), Tier),
         UpgradeKind.Armour => Armour.Name(Enum.Parse<ArmourSlot>(Target), Tier),
+        UpgradeKind.Compactor => Compactors.Name(Tier),
         _ => Talismans.Name(Enum.Parse<TalismanFamily>(Target), Tier),
     };
 }
@@ -230,6 +257,12 @@ public static class Recipes
         Talisman(TalismanFamily.Scholar, 1, Packed(Crops.Wheat, 4), 2_000, 2);
         Talisman(TalismanFamily.Scholar, 2, Packed(Crops.Pumpkin, 24), 25_000, 7);
         Talisman(TalismanFamily.Scholar, 3, Dense(Crops.Cocoa, 2), 200_000, 12);
+
+        // ------------------------------------------------ the Compactor: packs crops as they're harvested
+        list.Add(new Recipe(UpgradeKind.Compactor, Compactors.Target, 1,
+            new[] { Packed(Crops.Wheat, 8), Packed(Crops.Carrot, 8) }, 5_000, 3));
+        list.Add(new Recipe(UpgradeKind.Compactor, Compactors.Target, 2,
+            new[] { Dense(Crops.Wheat, 1), Packed(Crops.Melon, 16) }, 100_000, 9));
 
         return list;
     }

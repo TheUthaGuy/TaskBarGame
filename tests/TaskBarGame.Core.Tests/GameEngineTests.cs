@@ -216,6 +216,7 @@ public class GameEngineTests
     {
         var engine = NewEngine();
         engine.State.Talismans[TalismanFamily.Merchant] = 3; // +20%
+        engine.State.Settings.KeepForUpgrades = false;
         Give(engine, Items.Raw(Crops.Wheat), 100);
 
         Assert.Equal(Crops.Wheat.SellPrice * 1.2, engine.MarketPrice(Items.Raw(Crops.Wheat)), precision: 6);
@@ -298,6 +299,7 @@ public class GameEngineTests
     public void Selling_all_crops_keeps_packed_crops()
     {
         var engine = NewEngine();
+        engine.State.Settings.KeepForUpgrades = false;
         Give(engine, Items.Raw(Crops.Wheat), 10);
         Give(engine, Items.Raw(Crops.Pumpkin), 2);
         Give(engine, Items.Packed(Crops.Wheat), 3);
@@ -319,7 +321,8 @@ public class GameEngineTests
     public void Auto_sell_pays_coins_instead_of_filling_the_inventory()
     {
         var engine = NewEngine();
-        engine.State.Settings.AutoSell = true;
+        engine.State.Settings.KeepForUpgrades = false;
+        engine.SetAutoSell(Crops.Wheat, true);
         GrowAll(engine);
 
         var result = engine.Break(0, handBreak: false)!;
