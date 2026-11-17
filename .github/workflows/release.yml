@@ -1,0 +1,45 @@
+name: Release
+
+# Push a version tag (for example `git tag v0.2.0 && git push origin v0.2.0`) to build
+# TaskBarGame.exe on Windows and publish it as a GitHub Release. The README's download
+# links always point at the newest release.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Test
+        run: dotnet test tests/TaskBarGame.Core.Tests -c Release
+
+      - name: Build TaskBarGame.exe
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart("v")
+          dotnet publish src/TaskBarGame.App -c Release -r win-x64 --self-contained true `
+            -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:EnableCompressionInSingleFile=true -p:DebugType=none -p:Version=$version -o publish
+          Compress-Archive -Path publish/TaskBarGame.exe -DestinationPath TaskBarGame-win-x64.zip
+
+      - name: Publish the release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $notes = "docs/releases/$tag.md"
+          $notesArgs = if (Test-Path $notes) { @("--notes-file", $notes) } else { @("--generate-notes") }
+          gh release create $tag publish/TaskBarGame.exe TaskBarGame-win-x64.zip `
+            --title "TaskBarGame $tag" @notesArgs
