@@ -1,8 +1,10 @@
 using System;
 using System.IO;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
+using TaskBarGame.Core;
 
 namespace TaskBarGame.App;
 
@@ -12,6 +14,7 @@ public partial class App : Application
     private GameHost? _host;
     private bool _shownCrashMessage;
     private bool _quitting;
+    private bool _screenshotMode;
 
     /// <summary>Errors are written here so they can be reported and fixed.</summary>
     public static string ErrorLogPath => Path.Combine(
@@ -21,6 +24,12 @@ public partial class App : Application
     {
         base.OnStartup(e);
         DispatcherUnhandledException += OnUnhandledException;
+
+        if (ScreenshotTour.OutputFolder(e.Args) is string screenshotFolder)
+        {
+            StartScreenshotTour(screenshotFolder);
+            return;
+        }
 
         _singleInstance = new Mutex(initiallyOwned: true, @"Local\TaskBarGame.SingleInstance", out bool isFirst);
         if (!isFirst)
@@ -93,9 +102,48 @@ public partial class App : Application
         catch (UnauthorizedAccessException) { }
     }
 
+    /// <summary>
+    /// "TaskBarGame.exe --screenshots folder" plays a demo garden, saves screenshots and quits.
+    /// GitHub Actions uses this to keep the screenshots in the README up to date.
+    /// </summary>
+    private void StartScreenshotTour(string folder)
+    {
+        _screenshotMode = true;
+        var saves = new SaveManager(Path.Combine(Path.GetTempPath(), "TaskBarGame-screenshots", "save.json"));
+        _host = new GameHost(saves, ScreenshotTour.CreateDemoState());
+
+        var strip = new StripWindow(_host);
+        MainWindow = strip;
+        strip.Show();
+        _host.Start();
+
+        _ = RunTour();
+
+        async Task RunTour()
+        {
+            try
+            {
+                await new ScreenshotTour(_host, strip, folder).RunAsync();
+                Shutdown(0);
+            }
+            catch (Exception ex)
+            {
+                LogError(ex);
+                Shutdown(1);
+            }
+        }
+    }
+
     private void OnUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
         LogError(e.Exception);
+        if (_screenshotMode)
+        {
+            // No one is there to click a message box: fail the run instead.
+            e.Handled = true;
+            Shutdown(1);
+            return;
+        }
 
         // Keep the game running: one broken animation shouldn't lose your farm.
         e.Handled = true;

@@ -24,10 +24,15 @@ public sealed class GameHost : IDisposable
     private DateTime _lastWallClock;
     private double _sinceSave;
 
-    public GameHost()
+    public GameHost() : this(new SaveManager())
     {
-        Saves = new SaveManager();
-        Engine = new GameEngine(Saves.LoadOrCreate());
+    }
+
+    /// <param name="state">A game to play instead of the save file (used for screenshots).</param>
+    public GameHost(SaveManager saves, GameState? state = null)
+    {
+        Saves = saves;
+        Engine = new GameEngine(state ?? Saves.LoadOrCreate());
         Farmer = new FarmerAgent();
         Sprites = new SpriteCache(SpriteSheet.LoadDefault());
 

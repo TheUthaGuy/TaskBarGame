@@ -89,6 +89,9 @@ public partial class StripWindow : Window
     private Toast? _toast;
     private PanelWindow? _panel;
 
+    /// <summary>The garden panel, if it's open.</summary>
+    public PanelWindow? Panel => _panel;
+
     public StripWindow(GameHost host)
     {
         _host = host;

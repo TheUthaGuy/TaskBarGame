@@ -1,0 +1,61 @@
+name: Screenshots
+
+# Runs the game on a Windows machine in screenshot mode (a demo garden, not a real save)
+# and commits the pictures to docs/screenshots so the README always shows the current look.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "src/**"
+      - ".github/workflows/screenshots.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: screenshots-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  screenshots:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build
+        run: dotnet build src/TaskBarGame.App -c Release -o build
+
+      - name: Take screenshots
+        shell: pwsh
+        run: |
+          $out = Join-Path $PWD "docs/screenshots"
+          $game = Start-Process -FilePath "build/TaskBarGame.exe" -ArgumentList "--screenshots", "`"$out`"" -PassThru
+          if (-not $game.WaitForExit(120000)) { $game.Kill(); throw "The screenshot tour took too long." }
+          $log = Join-Path $env:APPDATA "TaskBarGame/error.log"
+          if (Test-Path $log) { Get-Content $log; Copy-Item $log $out }
+          if ($game.ExitCode -ne 0) { throw "The screenshot tour failed (exit code $($game.ExitCode))." }
+          Get-ChildItem $out | Format-Table Name, Length
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshots
+          path: docs/screenshots
+          if-no-files-found: ignore
+
+      - name: Commit screenshots
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/screenshots/*.png
+          git diff --cached --quiet
+          if ($LASTEXITCODE -ne 0) {
+            git commit -m "Update screenshots"
+            git push origin "HEAD:${{ github.ref_name }}"
+          }
