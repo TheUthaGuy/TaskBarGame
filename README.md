@@ -50,6 +50,7 @@ dotnet publish src/TaskBarGame.App -c Release -r win-x64 --self-contained true -
 |---|---|
 | Click a **grown** crop | Break it yourself: +25 Harvest Fortune, and you see the XP you earned |
 | Click a **growing** crop | Tend it: it regrows faster |
+| **Hold the button and drag** along the row | Break (or tend) every crop you pass over |
 | Right-click the row | Choose which crop to plant (the whole row changes) |
 | Click the **farmer's head** or the **coins** | Open the panel |
 | Right-click the farmer or the strip | Quick menu: plant, sell crops, strip size, position, show-on-hover, quit |
@@ -128,6 +129,20 @@ Every 1,000 crops a hoe breaks adds +1 Fortune for that crop (up to +30).
 | Merchant's | Market sell price % | Potato, then Melon |
 | Scholar's | Farming XP % | Wheat, then Pumpkin, then Cocoa |
 
+**Compactor:** packs crops for you as they're harvested, so you don't have to press Pack.
+
+| Tier | What it does | Made from |
+|---|---|---|
+| Compactor | Every 160 crops become 1 Packed crop | 8 Packed Wheat + 8 Packed Carrot + 5,000 coins (Garden 3) |
+| Dense Compactor | Also presses every 160 Packed into 1 Dense crop | 1 Dense Wheat + 16 Packed Melon + 100,000 coins (Garden 9) |
+
+You can turn it off for any crop in the Inventory tab. It leaves alone any plain crops your next upgrades
+use as they are (like the 48 crops for a first hoe).
+
+The number on the **Upgrades** tab is how many upgrades you can craft right now, and a popup tells you
+when a new one becomes ready. If an upgrade is only missing ingredients, **Buy missing** buys them on
+the Bazaar in one click and shows what that costs.
+
 ### Bazaar
 
 Buy and sell crops, packed crops and dense crops with other (pretend) farmers in the **Bazaar** tab.
@@ -140,10 +155,30 @@ Buy and sell crops, packed crops and dense crops with other (pretend) farmers in
   bit by bit while buyers are paying that much. **Buy order** bids a bit under the buy price: your coins
   are set aside and the items arrive while sellers are that cheap. Orders keep filling while the game is
   closed, and you can cancel them to get back whatever hasn't filled.
+- Type **your own price** for a sell offer or buy order, or leave the box empty for the automatic one
+  (just better than the current price, so it fills soon). You're warned if your price is worse than
+  trading straight away.
+- The **chart** shows the item's sell price over the last 2 hours, so you can tell a good time to sell.
+- The **search box** finds items by name: "melon" shows Melon, Packed Melon and Dense Melon.
 - On average the Bazaar pays about 20% more than the Market. Buying packed and dense crops here is a
   quick way to get materials for upgrades.
 
+### Inventory
+
 The **Inventory** tab is for packing crops and selling quickly to the Market.
+
+- **Pack ▾** lets you choose how many to pack (1, 5, 10... or all). **Pack everything** packs it all.
+- **Lock** an item and it's never sold: not by a Sell button, auto-sell or the Bazaar.
+- **Keep enough crops for my next upgrades** (on by default): selling to the Market, Sell all crops and
+  auto-sell keep back what your next hoes, armour, talismans and Compactor need, counting the crops you
+  still have to pack. Each item shows how many it's keeping.
+- **Auto-sell** is chosen crop by crop: those crops are sold to the Market as soon as they're harvested
+  (apart from what's kept for upgrades). The same list turns the Compactor on or off for each crop.
+
+<img src="docs/screenshots/panel-inventory-bottom.png" width="48%" alt="The bottom of the Inventory tab: auto-sell and Compactor switches for every crop, and what your upgrades need">
+
+The **Farming** tab's crop guide shows roughly how many coins an hour each crop would make you, with
+your hoes, Fortune and speed, and marks the best one.
 
 <p>
   <img src="docs/screenshots/panel-farming.png" width="32%" alt="Farming tab: Farming level and where your Harvest Fortune comes from">
@@ -162,7 +197,16 @@ In the panel's **Settings** tab (or the right-click menu):
 
 - **Size:** Small / Normal / Large.
 - **Position:** Left / Center / Right of the screen.
-- Farmer auto-farming, auto-sell, floating numbers, hide during fullscreen apps, start with Windows.
+- **Pop-ups:** choose which ones you see (level-ups, collection tiers, upgrades ready, crafted upgrades,
+  Bazaar orders, welcome back), or pause them all for a while.
+- **Short numbers:** 12.3K and 1.23M instead of 12,345 and 1,234,567.
+- **Battery saver** (on by default): the strip animates less often while the laptop is on battery. The
+  farmer and your crops keep the same pace. While a fullscreen app hides the strip, the game always
+  updates less often.
+- Farmer auto-farming, keeping crops for upgrades, floating numbers, hide during fullscreen apps, start
+  with Windows.
+
+The panel opens where you last dragged it, on the tab you last had open.
 
 Your save file is `%APPDATA%\TaskBarGame Harvest Edition\save.json` (with a `.bak` backup). If something
 breaks, details are written to `%APPDATA%\TaskBarGame Harvest Edition\error.log`.
@@ -194,7 +238,7 @@ dotnet test
 ### Screenshots
 
 The game has a screenshot mode that plays a demo field (it never touches your save), saves pictures
-of the strip and every panel tab, then quits:
+of the strip and every panel tab (and the bottom of the longer ones), then quits:
 
 ```bash
 TaskBarGame.exe --screenshots docs\screenshots

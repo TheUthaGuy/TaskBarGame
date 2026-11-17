@@ -394,7 +394,7 @@ public sealed class CropSettingRow : ObservableObject
         }
         var needs = engine.UpgradeNeeds(Crop);
         var parts = new List<string>();
-        if (needs.Raw > 0) parts.Add(Format.Number(needs.Raw));
+        if (needs.Raw > 0) parts.Add($"{Format.Number(needs.Raw)} {Crop.Name}");
         if (needs.Packed > 0) parts.Add($"{Format.Number(needs.Packed)} Packed");
         if (needs.Dense > 0) parts.Add($"{Format.Number(needs.Dense)} Dense");
         KeptText = parts.Count == 0 ? "Nothing needed right now" : "Upgrades need " + string.Join(" + ", parts);
