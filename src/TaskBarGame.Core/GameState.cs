@@ -37,6 +37,12 @@ public sealed class GameState
 
     public BazaarState Bazaar { get; set; } = new();
 
+    /// <summary>Visitors, the Visitor Shop, the Composter and timed boosts.</summary>
+    public GardenState Garden { get; set; } = new();
+
+    /// <summary>Rare finds: how many you've found and are holding, by rare find id.</summary>
+    public Dictionary<string, RareFindState> RareFinds { get; set; } = new();
+
     /// <summary>Hats and outfits whose unlocking you've been told about.</summary>
     public HashSet<string> UnlockedCosmetics { get; set; } = new();
 
@@ -66,6 +72,19 @@ public sealed class GameState
         Talismans ??= new();
         Bazaar ??= new();
         UnlockedCosmetics ??= new();
+        Garden ??= new();
+        RareFinds ??= new();
+        foreach (var id in RareFinds.Keys.ToList())
+        {
+            var find = RareFinds[id];
+            if (Core.RareFinds.Find(id) is null || find is null)
+            {
+                RareFinds.Remove(id);
+                continue;
+            }
+            find.Found = Math.Max(0, find.Found);
+            find.Held = Math.Clamp(find.Held, 0, find.Found);
+        }
         Settings ??= new();
         Stats ??= new();
 
@@ -96,6 +115,7 @@ public sealed class GameState
 
         Field.Normalize();
         Bazaar.Normalize();
+        Garden.Normalize();
         Settings.Normalize();
 
         if (LastSavedUtc > DateTime.UtcNow || LastSavedUtc == default)
@@ -266,6 +286,8 @@ public enum PopupKind
     WelcomeBack,
     Update,
     Cosmetic,
+    Visitor,
+    RareDrop,
 }
 
 public sealed class GameStats

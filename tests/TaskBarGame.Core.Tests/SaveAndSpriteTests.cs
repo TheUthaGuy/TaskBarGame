@@ -145,14 +145,14 @@ public class SpriteSheetTests
             "farmer_idle", "farmer_blink", "farmer_walk1", "farmer_walk2",
             "farmer_farm1", "farmer_farm2", "farmer_swing",
             "coin", "sparkle", "sack", "crate",
-            "icon_hoe", "icon_helmet", "icon_chestplate", "icon_leggings", "icon_boots",
-            "icon_charm", "icon_ring", "icon_relic", "icon_compactor",
-            "hat_cap", "hat_bandana", "hat_tophat", "hat_flowers", "hat_crown",
+            "icon_compactor",
+            "hat_cap", "hat_bandana", "hat_tophat", "hat_flowers", "hat_crown", "hat_hood", "hat_starhat", "visitor", "bubble",
+            "rare_clover", "rare_seed", "rare_coin", "rare_horseshoe", "rare_star", "rare_acorn",
         };
         foreach (var name in required.Concat(Crops.All.Select(c => c.RipeSprite)))
             Assert.True(sheet.Contains(name), $"sprites.txt is missing [sprite {name}]");
 
-        foreach (var name in required.Where(n => n.StartsWith("farmer") || n.StartsWith("stage") || n.StartsWith("soil") || n.StartsWith("icon") || n.StartsWith("hat"))
+        foreach (var name in required.Where(n => n.StartsWith("farmer") || n.StartsWith("stage") || n.StartsWith("soil") || n.StartsWith("icon") || n.StartsWith("hat") || n.StartsWith("rare"))
                      .Concat(Crops.All.Select(c => c.RipeSprite)))
         {
             Assert.Equal(16, sheet[name].Width);
@@ -161,10 +161,58 @@ public class SpriteSheetTests
     }
 
     [Fact]
+    public void Every_crop_has_a_tool_with_a_picture()
+    {
+        // The pictures live in the app (src/TaskBarGame.App/Assets/Tools); find them from the test's folder.
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "TaskBarGame.sln"))) dir = dir.Parent;
+        Assert.NotNull(dir);
+        string tools = Path.Combine(dir!.FullName, "src", "TaskBarGame.App", "Assets", "Tools");
+
+        foreach (var crop in Crops.All)
+        {
+            Assert.True(File.Exists(Path.Combine(tools, Tools.Texture(crop) + ".png")), $"{crop.Name}: missing {Tools.Texture(crop)}.png");
+            Assert.DoesNotContain("Hoe", Tools.Name(crop, 1).Replace("Carrot Hoe", ""));
+        }
+        Assert.Equal("Reinforced Pumpkin Dicer", Tools.Name(Crops.Pumpkin, 2));
+        Assert.Equal(Crops.All.Count, Crops.All.Select(Tools.Texture).Distinct().Count());
+    }
+
+    [Fact]
+    public void Every_armour_piece_and_talisman_has_a_picture()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "TaskBarGame.sln"))) dir = dir.Parent;
+        string assets = Path.Combine(dir!.FullName, "src", "TaskBarGame.App", "Assets");
+
+        var armour = new HashSet<string>();
+        foreach (var slot in Armour.Slots)
+            for (int tier = 0; tier <= Armour.MaxTier; tier++)
+            {
+                string name = Armour.Texture(slot, tier);
+                Assert.True(File.Exists(Path.Combine(assets, "Armour", name + ".png")), $"missing Armour/{name}.png");
+                if (tier > 0) armour.Add(name);
+            }
+        Assert.Equal(12, armour.Count); // a different picture for every piece of every set
+
+        var talismans = new HashSet<string>();
+        foreach (var family in Talismans.Families)
+            for (int tier = 0; tier <= Talismans.MaxTier; tier++)
+            {
+                string name = Talismans.Texture(family, tier);
+                Assert.True(File.Exists(Path.Combine(assets, "Talismans", name + ".png")), $"missing Talismans/{name}.png");
+                if (tier > 0) talismans.Add(name);
+            }
+        Assert.Equal(12, talismans.Count);
+        Assert.Equal("farm_overalls_orange", Armour.Texture(ArmourSlot.Chestplate, 2));
+        Assert.Equal("talisman_purple", Talismans.Texture(TalismanFamily.Scholar, 3));
+    }
+
+    [Fact]
     public void Recolourable_palette_colours_are_defined()
     {
         var palette = SpriteSheet.LoadDefault().Palette;
-        foreach (char c in "AaIiEZNnb")
+        foreach (char c in "IiNnbTjQ")
             Assert.True(palette.ContainsKey(c), $"palette is missing '{c}'");
     }
 

@@ -84,13 +84,27 @@ internal sealed class ScreenshotTour
         state.Inventory["carrot"] = 120;
         state.Inventory["potato"] = 95;
         state.Inventory["packed_melon"] = 9;
-        state.Inventory["sugarcane"] = 75; // enough for a Sugar Cane Hoe: shows "Upgrades 1"
+        state.Inventory["sugarcane"] = 75; // enough for a Cane Cutter: shows "Upgrades 1"
         state.Stats.TotalBreaks = 18_730;
         state.Stats.HandBreaks = 412;
         state.Stats.CoinsEarned = 96_420;
         state.Stats.ItemsCrafted = 10;
 
         state.Settings.HideInFullscreen = false;
+        // The garden: visitors arrived during the warm-up above; some tokens, and the Composter at work.
+        state.Garden.NextVisitorSeconds = 9 * 60;
+        state.Garden.Tokens = 23;
+        state.Garden.VisitorsServed = 14;
+        state.Garden.Compost = 7;
+        state.Garden.Matter = 6_200;
+        state.Garden.CompostProgress = 240;
+        state.Garden.Upgrades["rich_soil"] = 2;
+        state.Garden.Upgrades["busy_composter"] = 1;
+        state.Garden.Boosts["fertiliser"] = 14 * 60;
+        state.Garden.OwnedCosmetics.Add("hood");
+        state.RareFinds["clover"] = new RareFindState { Found = 3, Held = 2 };
+        state.RareFinds["seed"] = new RareFindState { Found = 1, Held = 1 };
+
         Cosmetics.TakeNewlyUnlocked(new GameEngine(state, new Random(1))); // no "new hat" pop-up in the pictures
         state.LastSavedUtc = DateTime.UtcNow;
         return state;
@@ -114,8 +128,8 @@ internal sealed class ScreenshotTour
         _strip.TogglePanel();
         await Wait(0.8);
         var panel = _strip.Panel ?? throw new InvalidOperationException("The garden panel didn't open.");
-        string[] tabs = { "field", "farming", "upgrades", "collections", "bazaar", "inventory", "wardrobe", "settings" };
-        string[] alsoScrolledDown = { "farming", "upgrades", "inventory", "settings" };
+        string[] tabs = { "garden", "farming", "upgrades", "collections", "visitors", "bazaar", "inventory", "wardrobe", "settings" };
+        string[] alsoScrolledDown = { "garden", "farming", "upgrades", "visitors", "inventory", "settings" };
         for (int i = 0; i < tabs.Length; i++)
         {
             panel.Tabs.SelectedIndex = i;

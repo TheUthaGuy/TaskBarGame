@@ -22,7 +22,7 @@ public sealed partial class PanelViewModel : ObservableObject
         nameof(AutoHarvest), nameof(KeepForUpgrades), nameof(FloatingText), nameof(HideInFullscreen),
         nameof(StartWithWindows), nameof(ShortNumbers), nameof(BatterySaver),
         nameof(PausePopups), nameof(PopupLevelUps), nameof(PopupCollections), nameof(PopupCrafted),
-        nameof(PopupBazaar), nameof(PopupUpgradeReady), nameof(PopupWelcomeBack), nameof(PopupUpdates), nameof(PopupCosmetics),
+        nameof(PopupBazaar), nameof(PopupUpgradeReady), nameof(PopupWelcomeBack), nameof(PopupUpdates), nameof(PopupCosmetics), nameof(PopupVisitors), nameof(PopupRareDrops),
         nameof(CheckForUpdates), nameof(InstallUpdatesAutomatically),
     };
 
@@ -99,6 +99,7 @@ public sealed partial class PanelViewModel : ObservableObject
         InitBazaar();
         InitUpdates();
         InitBuddy();
+        InitGarden();
         Refresh();
     }
 
@@ -278,6 +279,8 @@ public sealed partial class PanelViewModel : ObservableObject
     public bool PopupWelcomeBack { get => ShowsPopup(PopupKind.WelcomeBack); set => ShowPopup(PopupKind.WelcomeBack, value); }
     public bool PopupUpdates { get => ShowsPopup(PopupKind.Update); set => ShowPopup(PopupKind.Update, value); }
     public bool PopupCosmetics { get => ShowsPopup(PopupKind.Cosmetic); set => ShowPopup(PopupKind.Cosmetic, value); }
+    public bool PopupVisitors { get => ShowsPopup(PopupKind.Visitor); set => ShowPopup(PopupKind.Visitor, value); }
+    public bool PopupRareDrops { get => ShowsPopup(PopupKind.RareDrop); set => ShowPopup(PopupKind.RareDrop, value); }
 
     private bool ShowsPopup(PopupKind kind) => !Settings.HiddenPopups.Contains(kind);
 
@@ -349,6 +352,7 @@ public sealed partial class PanelViewModel : ObservableObject
         RefreshBazaar();
         RefreshUpdates();
         RefreshBuddy();
+        RefreshGarden();
     }
 
     private void RefreshField()
@@ -386,10 +390,10 @@ public sealed partial class PanelViewModel : ObservableObject
         FieldText = $"The farmer laps the row every {Format.Number(Engine.LapSeconds, 1)}s (it regrows in "
                     + $"{Format.Number(crop.RegrowSeconds, 1)}s) · {Format.Number(Engine.GetFortune(crop, false))} Harvest Fortune";
         int toolTier = Engine.ActiveTool.Tier;
-        ActiveToolIcon = toolTier > 0 ? _host.Sprites.ToolIcon(toolTier) : _host.Sprites.ToolIcon(0);
+        ActiveToolIcon = _host.Sprites.ToolIcon(crop, toolTier);
         ActiveToolText = toolTier > 0
             ? $"The farmer is using the {Tools.Name(crop, toolTier)} (+{Tools.Fortune(toolTier)} Fortune, +{Tools.CounterFortune(Engine.ActiveTool.Breaks)} from {Format.Number(Engine.ActiveTool.Breaks)} broken)."
-            : $"The farmer has no {crop.Name} Hoe yet. Craft one in Upgrades for more crops.";
+            : $"The farmer has no {Tools.ToolName(crop)} yet. Craft one in Upgrades for more crops.";
         foreach (var row in CropChoices) row.Update(Engine);
 
         CanExpand = Engine.CanExpandField(out var next, out string reason);

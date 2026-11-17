@@ -53,7 +53,7 @@ public static class FarmingSkill
 /// </summary>
 public static class GardenProgression
 {
-    public const int MaxLevel = 15;
+    public const int MaxLevel = 17;
 
     /// <summary>Garden XP for breaking one crop.</summary>
     public const int XpPerBreak = 1;
@@ -77,6 +77,8 @@ public static class GardenProgression
         314_000,
         414_000,
         540_000,  // level 15
+        700_000,  // level 16: Wild Rose
+        900_000,  // level 17: Nether Wart
     };
 
     public static long TotalXpFor(int level) => TotalXpForLevel[Math.Clamp(level, 1, MaxLevel)];

@@ -10,30 +10,6 @@ namespace TaskBarGame.App;
 public sealed class SpriteCache
 {
     // Light and dark colour for each tier, as 0xAARRGGBB. Index 0 = not owned.
-    private static readonly (uint Light, uint Dark)[] HoeColours =
-    {
-        (0xFF8A8A8A, 0xFF4A4A4A), // none (shown greyed out)
-        (0xFFA39A8E, 0xFF6B645B), // Basic: flint
-        (0xFFE2E6EA, 0xFF8D949B), // Reinforced: iron
-        (0xFFFFD84A, 0xFFC08A10), // Masterwork: gold
-    };
-
-    private static readonly (uint Light, uint Dark)[] ArmourColours =
-    {
-        (0xFF8A8A8A, 0xFF4A4A4A), // none
-        (0xFFF2D36B, 0xFFB8892A), // Straw
-        (0xFFF39A3C, 0xFFB0561A), // Harvester
-        (0xFF6FE08F, 0xFF1F8A4A), // Verdant
-    };
-
-    private static readonly Dictionary<TalismanFamily, (uint Light, uint Dark)> TalismanColours = new()
-    {
-        [TalismanFamily.Clover] = (0xFF7FE08A, 0xFF2F9A4A),
-        [TalismanFamily.Swiftstep] = (0xFF8EE8FF, 0xFF2A8AB8),
-        [TalismanFamily.Merchant] = (0xFFFFE066, 0xFFB8860B),
-        [TalismanFamily.Scholar] = (0xFFC9A0FF, 0xFF6A3FB0),
-    };
-
     private readonly SpriteSheet _sheet;
     private readonly Dictionary<string, BitmapSource> _images = new();
     private readonly Dictionary<string, IReadOnlyList<Brush>> _particles = new();
@@ -69,11 +45,12 @@ public sealed class SpriteCache
         ["meadow"] = (0xFFF5F1E6, 0xFF4A9E3F, 0xFF2E6B2E),
         ["twilight"] = (0xFFC9A0FF, 0xFF4B3F8C, 0xFF2E2660),
         ["golden"] = (0xFFFFF0A0, 0xFFE8B923, 0xFFA87B16),
+        ["wanderer"] = (0xFF59C7EE, 0xFF6E6E6E, 0xFF444444),
     };
 
     /// <summary>
-    /// A farmer frame in a hat and outfit, holding the hoe of the given tier (0 = empty hands;
-    /// -1 = leave the frame's hands as drawn). Other hats replace the straw hat in sprites.txt
+    /// A farmer frame in a hat and outfit. <paramref name="hoeTier"/> 0 or more = empty hands (the
+    /// strip draws the tool separately); -1 = the frame as drawn. Other hats replace the straw hat in sprites.txt
     /// (h/H/e) and are lined up with its band, which moves down a pixel on some walking frames.
     /// </summary>
     public BitmapSource Farmer(string frame, int hoeTier, string hat, string outfit)
@@ -88,17 +65,13 @@ public sealed class SpriteCache
             if (_sheet.Palette.TryGetValue(letter, out var original)) swaps[original] = colour;
         }
 
-        if (hoeTier == 0)
+        if (hoeTier >= 0)
         {
+            // Take the little hoe drawn in sprites.txt out of the farmer's hands: the strip draws
+            // the crop's real tool picture there instead.
             Swap('N', 0);
             Swap('n', 0);
             Swap('b', 0);
-        }
-        else if (hoeTier > 0)
-        {
-            var (light, dark) = HoeColours[Math.Clamp(hoeTier, 0, Tools.MaxTier)];
-            Swap('N', light);
-            Swap('n', dark);
         }
         var (shirt, overalls, overallsDark) = OutfitColours.TryGetValue(outfit, out var colours) ? colours : OutfitColours["classic"];
         Swap('R', shirt);
@@ -143,25 +116,86 @@ public sealed class SpriteCache
         return image;
     }
 
-    public BitmapSource ToolIcon(int tier)
+    /// <summary>The four blue shades every tool picture's blade is drawn with (the Masterwork look).</summary>
+    private static readonly uint[] BladeBlues = { 0xFF1D6F6A, 0xFF36B3A8, 0xFF7FE6DA, 0xFFE6FFFB };
+
+    /// <summary>The blade's shades for each tier, dark to light: none (faded), Basic iron, Reinforced gold, Masterwork blue.</summary>
+    private static readonly uint[][] BladeColours =
     {
-        var (light, dark) = HoeColours[Math.Clamp(tier, 0, Tools.MaxTier)];
-        return Recolored("icon_hoe", $"t{tier}", new Dictionary<char, uint> { ['I'] = light, ['i'] = dark });
+        new uint[] { 0xFF4A4A4A, 0xFF6E6E6E, 0xFF8E8E8E, 0xFFB0B0B0 },
+        new uint[] { 0xFF4A4F57, 0xFF8A929C, 0xFFC9CED6, 0xFFF4F6F8 },
+        new uint[] { 0xFF8A5A0A, 0xFFD99A1C, 0xFFFFD84A, 0xFFFFF6C8 },
+        BladeBlues,
+    };
+
+    /// <summary>
+    /// A crop's tool picture (from Assets/Tools) with its blade in the tier's colour: iron, gold or
+    /// blue. Tier 0 (not crafted yet) is shown faded and grey.
+    /// </summary>
+    public BitmapSource ToolIcon(CropDef crop, int tier)
+    {
+        tier = Math.Clamp(tier, 0, Tools.MaxTier);
+        string key = $"tool:{crop.Id}#{tier}";
+        if (_images.TryGetValue(key, out var image)) return image;
+
+        var pixels = LoadPicture("Tools", Tools.Texture(crop), out int width, out int height);
+
+        var swaps = new Dictionary<uint, uint>();
+        for (int i = 0; i < BladeBlues.Length; i++) swaps[BladeBlues[i]] = BladeColours[tier][i];
+        for (int i = 0; i < pixels.Length; i++)
+        {
+            if (swaps.TryGetValue(pixels[i], out var swapped)) pixels[i] = swapped;
+            else if (tier == 0 && pixels[i] >> 24 != 0) pixels[i] = Grey(pixels[i]);
+            if (tier == 0 && pixels[i] >> 24 != 0) pixels[i] = (pixels[i] & 0x00FFFFFF) | 0x99000000; // faded
+        }
+
+        image = BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null, pixels, width * 4);
+        image.Freeze();
+        _images[key] = image;
+        return image;
     }
 
-    public BitmapSource ArmourIcon(ArmourSlot slot, int tier)
+    private static uint Grey(uint argb)
     {
-        var (light, dark) = ArmourColours[Math.Clamp(tier, 0, Armour.MaxTier)];
-        return Recolored("icon_" + slot.ToString().ToLowerInvariant(), $"t{tier}",
-            new Dictionary<char, uint> { ['A'] = light, ['a'] = dark });
+        uint r = (argb >> 16) & 0xFF, g = (argb >> 8) & 0xFF, b = argb & 0xFF;
+        uint y = (r * 30 + g * 59 + b * 11) / 100;
+        return (argb & 0xFF000000) | (y << 16) | (y << 8) | y;
     }
 
-    /// <summary>Charm, Ring or Relic shape, in the talisman's own colour (tier 0 shows a grey charm).</summary>
-    public BitmapSource TalismanIcon(TalismanFamily family, int tier)
+    /// <summary>An armour piece's picture (from Assets/Armour); tier 0 (not crafted yet) is faded and grey.</summary>
+    public BitmapSource ArmourIcon(ArmourSlot slot, int tier) =>
+        Picture("Armour", Armour.Texture(slot, tier), faded: tier <= 0);
+
+    /// <summary>A talisman's picture (from Assets/Talismans); tier 0 (not crafted yet) is faded and grey.</summary>
+    public BitmapSource TalismanIcon(TalismanFamily family, int tier) =>
+        Picture("Talismans", Talismans.Texture(family, tier), faded: tier <= 0);
+
+    /// <summary>A 16x16 picture from the app's Assets folder, optionally faded to grey.</summary>
+    private BitmapSource Picture(string folder, string name, bool faded)
     {
-        string shape = tier switch { 2 => "icon_ring", 3 => "icon_relic", _ => "icon_charm" };
-        var (light, dark) = tier <= 0 ? (0xFF8A8A8Au, 0xFF4A4A4Au) : TalismanColours[family];
-        return Recolored(shape, $"{family}{tier}", new Dictionary<char, uint> { ['E'] = light, ['Z'] = dark });
+        string key = $"{folder}/{name}#{(faded ? "faded" : "")}";
+        if (_images.TryGetValue(key, out var image)) return image;
+
+        var pixels = LoadPicture(folder, name, out int width, out int height);
+        if (faded)
+            for (int i = 0; i < pixels.Length; i++)
+                if (pixels[i] >> 24 != 0) pixels[i] = (Grey(pixels[i]) & 0x00FFFFFF) | 0x99000000;
+
+        image = BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null, pixels, width * 4);
+        image.Freeze();
+        _images[key] = image;
+        return image;
+    }
+
+    private static uint[] LoadPicture(string folder, string name, out int width, out int height)
+    {
+        var source = new BitmapImage(new Uri($"pack://application:,,,/Assets/{folder}/{name}.png"));
+        var converted = new FormatConvertedBitmap(source, PixelFormats.Bgra32, null, 0);
+        width = converted.PixelWidth;
+        height = converted.PixelHeight;
+        var pixels = new uint[width * height];
+        converted.CopyPixels(pixels, width * 4, 0);
+        return pixels;
     }
 
     /// <summary>The Compactor: grey when you don't have one, iron for the Compactor, purple for the Dense Compactor.</summary>
@@ -174,6 +208,33 @@ public sealed class SpriteCache
             _ => (0xFF8A8A8Au, 0xFF4A4A4Au),
         };
         return Recolored("icon_compactor", $"t{tier}", new Dictionary<char, uint> { ['I'] = light, ['i'] = dark });
+    }
+
+    /// <summary>A rare find's picture, or its dark outline if you haven't found one yet.</summary>
+    public BitmapSource RareFindIcon(RareFindDef find, bool found)
+    {
+        if (found) return this[find.Sprite];
+        string key = find.Sprite + "#unknown";
+        if (_images.TryGetValue(key, out var image)) return image;
+        var sprite = _sheet[find.Sprite];
+        var pixels = (uint[])sprite.Pixels.Clone();
+        for (int i = 0; i < pixels.Length; i++)
+            if (pixels[i] >> 24 != 0) pixels[i] = 0xAA3A4A3D;
+        image = ToBitmap(sprite, pixels);
+        _images[key] = image;
+        return image;
+    }
+
+    /// <summary>A visitor in their own shirt and hair colours.</summary>
+    public BitmapSource Visitor(VisitorDef visitor)
+    {
+        static uint Hex(string hex) => 0xFF000000 | Convert.ToUInt32(hex, 16);
+        return Recolored("visitor", visitor.Id, new Dictionary<char, uint>
+        {
+            ['T'] = Hex(visitor.Shirt),
+            ['j'] = Hex(visitor.ShirtDark),
+            ['Q'] = Hex(visitor.Hair),
+        });
     }
 
     /// <summary>

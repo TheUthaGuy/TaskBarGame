@@ -84,6 +84,29 @@ public partial class PanelWindow : Window
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
 
+    /// <summary>Switches to a tab by its name ("VisitorsTab").</summary>
+    public void ShowTab(string name)
+    {
+        if (FindName(name) is TabItem tab) Tabs.SelectedItem = tab;
+    }
+
+    /// <summary>The Composter's Add ▾ button: a menu of items to put in (all of it).</summary>
+    private void ComposterAdd_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement button) return;
+        var menu = new ContextMenu { PlacementTarget = button, Placement = PlacementMode.Bottom };
+        menu.Items.Add(new MenuItem { Header = "Put all of it in the Composter", IsEnabled = false });
+        menu.Items.Add(new Separator());
+        foreach (var (item, count) in _vm.ComposterChoices)
+        {
+            var entry = new MenuItem { Header = $"{item.Name} (x{Format.Number(count)})" };
+            entry.Click += (_, _) => _vm.AddToComposter(item);
+            menu.Items.Add(entry);
+        }
+        if (menu.Items.Count == 2) menu.Items.Add(new MenuItem { Header = "Nothing to put in (locked items stay out)", IsEnabled = false });
+        menu.IsOpen = true;
+    }
+
     /// <summary>The Pack ▾ button: a menu of how many to pack.</summary>
     private void Pack_Click(object sender, RoutedEventArgs e)
     {

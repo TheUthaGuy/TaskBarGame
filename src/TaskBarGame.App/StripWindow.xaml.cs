@@ -75,8 +75,15 @@ public partial class StripWindow : Window
     private Canvas _homeLayer = new();
     private Canvas _fxLayer = new();
     private Image _farmer = new();
+    private Image _tool = new();                       // the crop's tool, in the farmer's hand
+    private readonly RotateTransform _toolSwing = new();
     private Rectangle _farmerHit = new();
     private Grid? _lockSlot;
+    private Grid? _visitorSpot;                         // where waiting visitors stand
+    private Image _visitorImage = new();
+    private Image _visitorBubble = new();
+    private TextBlock _visitorCount = new();
+    private bool _builtVisitors;
     private TextBlock? _lockTip;
     private TextBlock _coinsText = new();
     private TextBlock _levelsText = new();
@@ -167,7 +174,7 @@ public partial class StripWindow : Window
         _host.Frame += OnFrame;
         _host.CaughtUp += report =>
         {
-            if (!report.IsEmpty) ShowOfflineReport(report);
+            if (!report.IsEmpty || report.VisitorsArrived > 0) ShowOfflineReport(report);
         };
         _host.SettingsChanged += () =>
         {
@@ -187,8 +194,10 @@ public partial class StripWindow : Window
         _host.Farmer.Teleported += () => SpawnTeleportSparkles(Engine.FieldLength);
         Engine.Changed += () =>
         {
-            if (Engine.FieldLength != _builtLength) RequestLayout();
+            if (Engine.FieldLength != _builtLength || Engine.VisitorsUnlocked != _builtVisitors) RequestLayout();
         };
+        Engine.VisitorArrived += OnVisitorArrived;
+        Engine.RareFound += OnRareFound;
     }
 
     /// <summary>The panel, if it's open.</summary>
@@ -237,9 +246,11 @@ public partial class StripWindow : Window
         bool canGrow = FieldProgression.Next(length) is not null;
         double rowWidth = (length + 2) * _tile; // the row plus a teleport pad at each end
         double lockWidth = canGrow ? _tile + _pad : 0;
+        bool visitors = Engine.VisitorsUnlocked;
+        double visitorWidth = visitors ? _tile + _pad : 0;
         double hudWidth = _fontSize * 10.5;
 
-        _stripWidth = _pad + rowWidth + lockWidth + 2 * _pad + hudWidth + _pad;
+        _stripWidth = _pad + rowWidth + lockWidth + visitorWidth + 2 * _pad + hudWidth + _pad;
         _stripHeight = Math.Max(20 * _unit, _fontSize * 2.9 + 8);
         _tileTop = PopupSpace + _stripHeight - _tile - 2 * _unit;
 
@@ -275,7 +286,10 @@ public partial class StripWindow : Window
         Root.Children.Add(_stripLayer);
         Root.Children.Add(_homeLayer);
 
-        BuildStrip(length, canGrow, rowWidth + lockWidth, hudWidth);
+        BuildStrip(length, canGrow, rowWidth + lockWidth + visitorWidth, hudWidth);
+        if (visitors) BuildVisitorSpot(TileLeft(length + 1) + _pad + lockWidth);
+        else _visitorSpot = null;
+        _builtVisitors = visitors;
         BuildHomePad(homePadLeft, homePadWidth);
         BuildFarmer();
         Root.Children.Add(_fxLayer);
@@ -413,6 +427,119 @@ public partial class StripWindow : Window
         Place(_stripLayer, _lockSlot, x, _tileTop);
     }
 
+    /// <summary>The spot after the field where a waiting visitor stands, with a "!" above them.</summary>
+    private void BuildVisitorSpot(double x)
+    {
+        _visitorImage = SpriteImage(null, _tile);
+        _visitorBubble = SpriteImage(_host.Sprites["bubble"], _tile);
+        _visitorBubble.IsHitTestVisible = false;
+        _visitorBubble.RenderTransform = _lockBob;
+        _visitorCount = new TextBlock
+        {
+            Foreground = TextBrush,
+            FontWeight = FontWeights.Bold,
+            FontSize = Math.Max(9, _fontSize - 2),
+            Effect = TextShadow,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            IsHitTestVisible = false,
+        };
+        _visitorSpot = new Grid
+        {
+            Width = _tile,
+            Height = _tile,
+            Background = Brushes.Transparent,
+            Cursor = Cursors.Hand,
+            ToolTip = new ToolTip { Content = new TextBlock() },
+        };
+        ToolTipService.SetInitialShowDelay(_visitorSpot, 200);
+        _visitorSpot.Children.Add(_visitorImage);
+        _visitorSpot.Children.Add(_visitorCount);
+        _visitorSpot.MouseLeftButtonUp += (_, e) => { OpenPanelOn("VisitorsTab"); e.Handled = true; };
+        _visitorSpot.MouseRightButtonUp += (_, e) => { OpenMainMenu(_visitorSpot); e.Handled = true; };
+        Place(_stripLayer, _visitorSpot, x, _tileTop);
+        Place(_stripLayer, _visitorBubble, x + 2 * _unit, _tileTop - 9 * _unit);
+    }
+
+    /// <summary>Shows the first waiting visitor (and how many are waiting), or an empty spot.</summary>
+    private void UpdateVisitorSpot()
+    {
+        if (_visitorSpot is null) return;
+        var visitors = Engine.Visitors;
+        var tip = (TextBlock)((ToolTip)_visitorSpot.ToolTip).Content;
+        if (visitors.Count == 0)
+        {
+            _visitorImage.Source = null;
+            _visitorBubble.Visibility = Visibility.Hidden;
+            _visitorCount.Text = "";
+            tip.Text = $"Visitors wait here. The next one comes in about {Format.Duration(Engine.State.Garden.NextVisitorSeconds)}.";
+            return;
+        }
+        var first = visitors[0];
+        var source = _host.Sprites.Visitor(first.Visitor);
+        if (!ReferenceEquals(_visitorImage.Source, source)) _visitorImage.Source = source;
+        _visitorBubble.Visibility = Visibility.Visible;
+        _visitorCount.Text = visitors.Count > 1 ? visitors.Count.ToString() : "";
+        tip.Text = visitors.Count == 1
+            ? $"{first.Visitor.Name} wants {DescribeWants(first)}. Click to see visitors."
+            : $"{visitors.Count} visitors are waiting. Click to see what they want.";
+    }
+
+    private static string DescribeWants(VisitorRequest request) =>
+        string.Join(" and ", request.Wants.Select(w => $"{Format.Number(w.Count)} {w.Item.Name}"));
+
+    private static readonly IReadOnlyList<Brush> RareBrushes = new[]
+    {
+        Format.Brush("#FFF0A0"), Format.Brush("#F5C542"), Format.Brush("#FFFFFF"), Format.Brush("#E8B923"),
+    };
+
+    /// <summary>A rare find: gold sparkles and "RARE!" over the crop, and a pop-up.</summary>
+    private void OnRareFound(RareDrop drop)
+    {
+        if (_expanded && !_hiddenForFullscreen && drop.TileIndex >= 0 && drop.TileIndex < _tiles.Count && _unit > 0)
+        {
+            double left = TileLeft(drop.TileIndex), pixel = Math.Max(2, _unit);
+            for (int i = 0; i < 18; i++)
+            {
+                var shape = new Rectangle { Width = pixel, Height = pixel, Fill = RareBrushes[_rng.Next(RareBrushes.Count)], IsHitTestVisible = false };
+                var particle = new Particle(shape)
+                {
+                    X = left + _tile * (0.1 + 0.8 * _rng.NextDouble()),
+                    Y = _tileTop + _tile * (0.2 + 0.6 * _rng.NextDouble()),
+                    Vx = (_rng.NextDouble() * 2 - 1) * 10 * pixel,
+                    Vy = -(12 + _rng.NextDouble() * 16) * pixel,
+                    Gravity = -4 * pixel,
+                    Life = 0.8 + _rng.NextDouble() * 0.6,
+                };
+                Place(_fxLayer, shape, particle.X, particle.Y);
+                _particles.Add(particle);
+            }
+            AddTextFloater("RARE!", left + _tile / 2, _tileTop - 4 * _unit, GoldBrush, life: 2.2);
+        }
+
+        string body = drop.First
+            ? $"New in your album: {drop.Find.Bonus.Describe()}, for good! (Collections tab)"
+            : $"Another one! It sells for {Format.Coins((long)Engine.RareFindPrice(drop.Find))} (Collections tab).";
+        QueueToast($"RARE DROP: {drop.Find.Name.ToUpperInvariant()}!", body, GoldBrush, 8, PopupKind.RareDrop,
+            ("See the album", () => OpenPanelOn("CollectionsTab")));
+    }
+
+    private void OnVisitorArrived(VisitorRequest request)
+    {
+        UpdateVisitorSpot();
+        QueueToast($"VISITOR: {request.Visitor.Name.ToUpperInvariant()}",
+            $"Wants {DescribeWants(request)} for {Format.Coins(request.Coins)} and {request.Tokens} tokens.",
+            GardenBrush, 8, PopupKind.Visitor, ("See visitors", () => OpenPanelOn("VisitorsTab")));
+    }
+
+    /// <summary>Opens the panel (if it isn't open) on one tab.</summary>
+    public void OpenPanelOn(string tabName)
+    {
+        if (_panel is null) TogglePanel();
+        _panel?.ShowTab(tabName);
+        _panel?.Activate();
+    }
+
     /// <summary>The small patch the farmer stands on while the strip is tucked away (hover mode).</summary>
     private void BuildHomePad(double left, double width)
     {
@@ -437,6 +564,13 @@ public partial class StripWindow : Window
 
     private void BuildFarmer()
     {
+        // The tool goes behind the farmer, so their hand is drawn over the handle (gripping it).
+        _tool = SpriteImage(null, _tile);
+        _tool.IsHitTestVisible = false;
+        _tool.RenderTransform = _toolSwing;
+        _tool.Visibility = Visibility.Hidden;
+        Root.Children.Add(_tool);
+
         _farmer = SpriteImage(_host.Sprites["farmer_idle"], _tile);
         _farmer.IsHitTestVisible = false;
         _farmer.RenderTransformOrigin = new Point(0.5, 0.5);
@@ -634,10 +768,10 @@ public partial class StripWindow : Window
             facing = farmer.Facing;
         }
 
-        // The hoe in the farmer's hands matches the hoe you own for the planted crop, and they wear
-        // the hat and outfit picked in the Wardrobe.
+        // The farmer wears the hat and outfit picked in the Wardrobe. While farming, they hold the
+        // tool for the planted crop (drawn separately below, so it can swing).
         bool holdsHoe = frame is "farmer_swing" or "farmer_farm1" or "farmer_farm2";
-        var source = _host.Sprites.Farmer(frame, holdsHoe ? Engine.ActiveTool.Tier : -1, _hatId, _outfitId);
+        var source = _host.Sprites.Farmer(frame, holdsHoe ? 0 : -1, _hatId, _outfitId);
         if (!ReferenceEquals(_farmer.Source, source)) _farmer.Source = source;
         _farmerFlip.ScaleX = facing;
         Canvas.SetLeft(_farmer, x);
@@ -660,6 +794,48 @@ public partial class StripWindow : Window
             _teleportArrivalShown = false;
         }
         _farmer.Opacity = opacity;
+        UpdateTool(frame, x, facing, opacity);
+    }
+
+    /// <summary>Where the farmer's hand is in each farming frame (sprite pixels).</summary>
+    private static (int X, int Y) HandIn(string frame) => frame switch
+    {
+        "farmer_swing" => (13, 10),
+        "farmer_farm2" => (12, 12),
+        _ => (12, 11),
+    };
+
+    /// <summary>
+    /// The tool in the farmer's hand: held up and forward while they walk the row, and swung down
+    /// onto each crop they break (a quick chop, then back up).
+    /// </summary>
+    private void UpdateTool(string frame, double farmerX, int facing, double opacity)
+    {
+        int tier = Engine.ActiveTool.Tier;
+        bool farming = frame is "farmer_swing" or "farmer_farm1" or "farmer_farm2";
+        if (!_expanded || !farming || tier <= 0 || facing <= 0)
+        {
+            _tool.Visibility = Visibility.Hidden;
+            return;
+        }
+
+        // Every tool picture has its handle in the bottom-left corner; the hand holds it here.
+        const double gripX = 4.5, gripY = 11.5;
+        var (handX, handY) = HandIn(frame);
+        var source = _host.Sprites.ToolIcon(Engine.FieldCrop, tier);
+        if (!ReferenceEquals(_tool.Source, source)) _tool.Source = source;
+        Canvas.SetLeft(_tool, farmerX + (handX + 0.5 - gripX) * _unit);
+        Canvas.SetTop(_tool, _tileTop + (handY + 0.5 - gripY) * _unit);
+
+        _toolSwing.CenterX = gripX * _unit;
+        _toolSwing.CenterY = gripY * _unit;
+        var farmer = _host.Farmer;
+        double t = farmer.IsSwinging ? Math.Clamp(farmer.SinceSwing / FarmerAgent.SwingDuration, 0, 1) : 1;
+        const double down = 95; // degrees: the blade comes down in front of the farmer
+        _toolSwing.Angle = t < 0.35 ? down * t / 0.35 : down * (1 - (t - 0.35) / 0.65);
+
+        _tool.Opacity = opacity;
+        _tool.Visibility = Visibility.Visible;
     }
 
     /// <summary>Things that don't need updating 30 times a second.</summary>
@@ -668,6 +844,7 @@ public partial class StripWindow : Window
         _hatId = Cosmetics.WornHat(Engine).Id;
         _outfitId = Cosmetics.WornOutfit(Engine).Id;
         _coinsText.Text = Format.Number(Engine.State.Coins);
+        UpdateVisitorSpot();
         // While a new version is waiting, say so under the coins (the panel's Settings tab has the button).
         var updater = _host.Updater;
         if (updater.State is UpdateState.Available or UpdateState.Installed && updater.Release is { } release)
@@ -1232,6 +1409,10 @@ public partial class StripWindow : Window
             body += $" Farming {report.FarmingLevelBefore} → {report.FarmingLevelAfter}!";
         if (report.GardenLevelAfter > report.GardenLevelBefore)
             body += $" Garden {report.GardenLevelBefore} → {report.GardenLevelAfter}!";
+        if (report.VisitorsArrived > 0)
+            body += report.VisitorsArrived == 1 ? " A visitor is waiting." : $" {report.VisitorsArrived} visitors are waiting.";
+        if (report.CompostMade > 0) body += $" The Composter made {Format.Number(report.CompostMade)} Compost.";
+        if (report.RareFinds > 0) body += report.RareFinds == 1 ? " They found something rare!" : $" They found {report.RareFinds} rare things!";
         QueueToast("WELCOME BACK!", body, GoldBrush, 9, PopupKind.WelcomeBack);
     }
 

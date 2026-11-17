@@ -17,6 +17,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- The farming tools' pictures (16x16), one per crop. -->
+    <Resource Include="Assets\Tools\*.png" />
+    <!-- Armour (farm hat, overalls, trousers, work boots) and talismans (necklace, ring, star). -->
+    <Resource Include="Assets\Armour\*.png" />
+    <Resource Include="Assets\Talismans\*.png" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\TaskBarGame.Core\TaskBarGame.Core.csproj" />
   </ItemGroup>
 

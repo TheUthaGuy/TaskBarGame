@@ -48,10 +48,12 @@ public static class Crops
     public static readonly CropDef Cactus    = new("cactus",    "Cactus",       4.0,  2,   9,  4, 10, "#49B07C");
     public static readonly CropDef Mushroom  = new("mushroom",  "Mushroom",     4.5,  1,  24,  5, 12, "#E04A3C");
     public static readonly CropDef Moonbloom = new("moonbloom", "Moonbloom",    5.0,  1,  40,  8, 15, "#A97FDC");
+    public static readonly CropDef WildRose  = new("wildrose",  "Wild Rose",    5.0,  2,  24,  9, 16, "#E2445A");
+    public static readonly CropDef NetherWart = new("netherwart", "Nether Wart", 5.5,  3,  19, 10, 17, "#9C1A2C");
 
     public static readonly IReadOnlyList<CropDef> All = new[]
     {
-        Wheat, Carrot, Potato, SugarCane, Pumpkin, Melon, Cocoa, Cactus, Mushroom, Moonbloom,
+        Wheat, Carrot, Potato, SugarCane, Pumpkin, Melon, Cocoa, Cactus, Mushroom, Moonbloom, WildRose, NetherWart,
     };
 
     private static readonly Dictionary<string, CropDef> ById =

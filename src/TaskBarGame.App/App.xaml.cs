@@ -75,7 +75,7 @@ public partial class App : Application
             StartUpdater(_host);
 
             if (justUpdated) strip.ShowUpdated(Updater.CurrentVersion);
-            if (!offline.IsEmpty && offline.Away >= TimeSpan.FromMinutes(1))
+            if ((!offline.IsEmpty || offline.VisitorsArrived > 0) && offline.Away >= TimeSpan.FromMinutes(1))
                 strip.ShowOfflineReport(offline);
         }
         catch (Exception ex)

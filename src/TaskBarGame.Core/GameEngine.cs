@@ -29,6 +29,9 @@ public sealed class OfflineReport
     public int FarmingLevelAfter { get; set; }
     public int GardenLevelBefore { get; set; }
     public int GardenLevelAfter { get; set; }
+    public int VisitorsArrived { get; set; }
+    public long CompostMade { get; set; }
+    public long RareFinds { get; set; }
 
     public bool IsEmpty => Breaks == 0;
 }
@@ -131,7 +134,7 @@ public sealed partial class GameEngine
         return tool;
     }
 
-    /// <summary>The hoe the farmer is holding: always the one for the planted crop.</summary>
+    /// <summary>The tool the farmer is holding: always the one for the planted crop.</summary>
     public ToolState ActiveTool => GetTool(FieldCrop);
 
     public int GetArmourTier(ArmourSlot slot) => State.Armour.GetValueOrDefault(slot);
@@ -153,9 +156,12 @@ public sealed partial class GameEngine
         }
     }
 
-    public int SpeedPercent => EquipmentBonus.Speed;
-    public int SellPercent => EquipmentBonus.Sell;
-    public int XpPercent => EquipmentBonus.Xp;
+    /// <summary>Equipment plus the garden (Composter upgrades and running boosts).</summary>
+    public StatBonus TotalBonus => EquipmentBonus + GardenBonus + RareFindsBonus;
+
+    public int SpeedPercent => TotalBonus.Speed;
+    public int SellPercent => TotalBonus.Sell;
+    public int XpPercent => TotalBonus.Xp;
 
     /// <summary>What the Market pays for one of an item, with your Market sell price bonus.</summary>
     public double MarketPrice(ItemDef item) => item.SellPrice * (1 + SellPercent / 100.0);
@@ -175,13 +181,19 @@ public sealed partial class GameEngine
             new($"Farming Level {FarmingLevel}", FarmingLevel * FarmingSkill.FortunePerLevel),
             new($"{crop.Name} collection", GetCollectionTier(crop) * CollectionTiers.FortunePerTier),
             new(Tools.Name(crop, tool.Tier), Tools.Fortune(tool.Tier)),
-            new($"{crop.Name} Hoe counter ({tool.Breaks:N0} broken)", Tools.CounterFortune(tool.Breaks)),
+            new($"{Tools.ToolName(crop)} counter ({tool.Breaks:N0} broken)", Tools.CounterFortune(tool.Breaks)),
         };
         foreach (var slot in Armour.Slots)
             sources.Add(new StatSource(Armour.Name(slot, GetArmourTier(slot)), Armour.Fortune(GetArmourTier(slot))));
         sources.Add(new StatSource($"{Armour.SetName(FullSetTier)} set bonus", Armour.SetBonus(FullSetTier).Fortune));
         sources.Add(new StatSource(Talismans.Name(TalismanFamily.Clover, GetTalismanTier(TalismanFamily.Clover)),
             Talismans.Bonus(TalismanFamily.Clover, GetTalismanTier(TalismanFamily.Clover)).Fortune));
+        foreach (var upgrade in Garden.Upgrades.Where(u => u.PerLevel.Fortune != 0 && UpgradeLevel(u) > 0))
+            sources.Add(new StatSource($"{upgrade.Name} {UpgradeLevel(upgrade)} (Composter)", upgrade.PerLevel.Fortune * UpgradeLevel(upgrade)));
+        foreach (var (boost, left) in ActiveBoosts.Where(b => b.Boost.Bonus.Fortune != 0))
+            sources.Add(new StatSource($"{boost.Name} ({Math.Ceiling(left / 60):0}m left)", boost.Bonus.Fortune));
+        foreach (var find in RareFinds.All.Where(f => f.Bonus.Fortune != 0 && RareFind(f).Found > 0))
+            sources.Add(new StatSource($"{find.Name} (rare find)", find.Bonus.Fortune));
         if (handBreak) sources.Add(new StatSource("Breaking it yourself", HandBreakFortuneBonus));
         return sources.Where(s => s.Amount != 0).ToList();
     }
@@ -197,6 +209,9 @@ public sealed partial class GameEngine
         if (seconds <= 0 || !double.IsFinite(seconds)) return;
         GrowCrops(seconds);
         BazaarTick(seconds);
+        VisitorTick(seconds);
+        CompostTick(seconds);
+        BoostTick(seconds);
     }
 
     private void GrowCrops(double seconds)
@@ -445,41 +460,62 @@ public sealed partial class GameEngine
         if (seconds > 0)
         {
             report.Counted = TimeSpan.FromSeconds(seconds);
+            long compostBefore = State.Garden.Compost;
+            long rareBefore = State.RareFinds.Values.Sum(f => f.Found);
             _quiet = true;
-            try { BazaarTick(seconds); }
+            try
+            {
+                BazaarTick(seconds);
+                report.VisitorsArrived = VisitorTick(seconds);
+                CompostTick(seconds);
+            }
             finally { _quiet = false; }
+            report.CompostMade = State.Garden.Compost - compostBefore;
 
             if (!State.Settings.FarmerAutoHarvest)
             {
+                BoostTick(seconds);
                 GrowCrops(seconds);
             }
             else
             {
                 long coinsBefore = State.Coins;
                 double xpBefore = State.FarmingXp;
-                long breaks = (long)Math.Floor(seconds * OfflineBreaksPerSecond());
 
+                // Boosts run out part-way through: farm in stretches, each with the boosts running then.
+                double remaining = seconds, owed = 0;
                 _quiet = true;
                 try
                 {
-                    for (long i = 0; i < breaks; i++)
-                        report.Drops += BreakInternal(-1, handBreak: false).Drops;
+                    while (remaining > 0)
+                    {
+                        double stretch = remaining;
+                        foreach (var (_, left) in ActiveBoosts) stretch = Math.Min(stretch, left);
+                        owed += stretch * OfflineBreaksPerSecond();
+                        long breaks = (long)Math.Floor(owed);
+                        owed -= breaks;
+                        for (long i = 0; i < breaks; i++)
+                            report.Drops += BreakInternal(-1, handBreak: false).Drops;
+                        report.Breaks += breaks;
+                        BoostTick(stretch);
+                        remaining -= stretch;
+                    }
                 }
                 finally
                 {
                     _quiet = false;
                 }
 
-                report.Breaks = breaks;
                 report.Coins = State.Coins - coinsBefore;
                 report.FarmingXp = State.FarmingXp - xpBefore;
                 GrowCrops(seconds); // the row is grown again when you come back
             }
+            report.RareFinds = State.RareFinds.Values.Sum(f => f.Found) - rareBefore;
         }
 
         report.FarmingLevelAfter = FarmingLevel;
         report.GardenLevelAfter = GardenLevel;
-        if (!report.IsEmpty) RaiseChanged();
+        if (!report.IsEmpty || report.VisitorsArrived > 0 || report.CompostMade > 0) RaiseChanged();
         return report;
     }
 
@@ -506,6 +542,8 @@ public sealed partial class GameEngine
         State.Talismans.Clear();
         State.Compactor = 0;
         State.UnlockedCosmetics.Clear();
+        State.Garden = new GardenState();
+        State.RareFinds.Clear();
         State.Bazaar = new BazaarState();
         EnsureBazaarPrices();
         State.Stats = new GameStats();
@@ -538,6 +576,7 @@ public sealed partial class GameEngine
 
         var tool = GetTool(crop);
         if (tool.Tier > 0) tool.Breaks++;
+        RollRareFind(tile);
 
         int tierAfter = GetCollectionTier(crop);
         long gardenXp = GardenProgression.XpPerBreak;
