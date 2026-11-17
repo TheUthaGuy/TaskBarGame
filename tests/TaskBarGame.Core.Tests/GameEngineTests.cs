@@ -292,7 +292,7 @@ public class GameEngineTests
         Assert.Equal(160 * Crops.Melon.SellPrice, packed.SellPrice);
         Assert.Equal(160L * 160 * Crops.Melon.SellPrice, Items.Dense(Crops.Melon).SellPrice);
         Assert.Equal("Packed Melon", packed.Name);
-        Assert.Equal(30, Items.All.Count());
+        Assert.Equal(36, Items.All.Count());
     }
 
     [Fact]

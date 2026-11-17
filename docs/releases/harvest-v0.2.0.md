@@ -18,6 +18,8 @@ Windows may say "Windows protected your PC" because the game isn't signed yet: c
 - The **Visitor Shop**: boosts, compost, benches for more visitors, and Wardrobe items.
 - The **Composter** turns spare crops into Compost for permanent upgrades and fertiliser.
 - A **tool for every crop** (sickle, dicer, shovel...) in iron, gold and blue, swung by the farmer.
+- Two new top crops, **Wild Rose** and **Nether Wart**, at Garden Levels 16 and 17.
+- **Rare finds**: a tiny chance per crop of something rare, collected in an album for lasting bonuses.
 
 ## Quality of life
 

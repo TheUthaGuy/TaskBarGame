@@ -365,11 +365,52 @@
                 </TabItem>
 
                 <!-- ============================================================ COLLECTIONS -->
-                <TabItem Header="Collections">
+                <TabItem x:Name="CollectionsTab" Header="Collections">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel Margin="0,0,6,0">
                             <TextBlock Style="{StaticResource Muted}" Margin="2,0,0,10"
                                        Text="Every crop you harvest counts toward its collection. Each tier gives that crop more Harvest Fortune, plus Garden XP. Hover over a crop to see every tier." />
+
+                            <!-- The Rare Finds album -->
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding RareFindsTitle}" Style="{StaticResource H3}" />
+                                    <TextBlock Style="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,8"
+                                               Text="Any crop you break has a tiny chance of turning up something rare. The first of each goes in this album and gives a bonus for good; more of them sell for lots of coins." />
+                                    <ItemsControl ItemsSource="{Binding RareFindRows}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <DockPanel Margin="0,3">
+                                                    <Button DockPanel.Dock="Right" Content="{Binding SellText}" Command="{Binding SellCommand}"
+                                                            IsEnabled="{Binding CanSell}" MinWidth="140" FontSize="12" VerticalAlignment="Center"
+                                                            ToolTip="Sell the ones you're holding to the Market (the album bonus stays)" />
+                                                    <Image Source="{Binding Icon}" Style="{StaticResource PixelIcon}" Width="32" Height="32" />
+                                                    <StackPanel Margin="10,0" VerticalAlignment="Center">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold" />
+                                                            <TextBlock Text="{Binding Chance, Mode=OneWay}" Style="{StaticResource Muted}" FontSize="11"
+                                                                       Margin="8,0,0,0" VerticalAlignment="Center" />
+                                                        </StackPanel>
+                                                        <TextBlock Text="{Binding BonusText, Mode=OneWay}" FontSize="12">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsFound}" Value="True">
+                                                                            <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                        <TextBlock Text="{Binding CountText}" Foreground="{StaticResource GoldBrush}" FontSize="11" />
+                                                    </StackPanel>
+                                                </DockPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
                             <ItemsControl ItemsSource="{Binding CollectionRows}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
@@ -1011,6 +1052,7 @@
                                         <CheckBox Content="New versions" IsChecked="{Binding PopupUpdates}" Width="190" />
                                         <CheckBox Content="New hats and outfits" IsChecked="{Binding PopupCosmetics}" Width="190" />
                                         <CheckBox Content="Visitors arriving" IsChecked="{Binding PopupVisitors}" Width="190" />
+                                        <CheckBox Content="Rare drops" IsChecked="{Binding PopupRareDrops}" Width="190" />
                                     </WrapPanel>
                                 </StackPanel>
                             </Border>

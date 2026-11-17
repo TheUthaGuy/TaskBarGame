@@ -25,6 +25,8 @@ public static class Tools
         ["cactus"] = ("Cactus Knife", "cactus_knife"),
         ["mushroom"] = ("Fungi Cutter", "fungi_cutter"),
         ["moonbloom"] = ("Eclipse Sickle", "eclipse_sickle"),
+        ["wildrose"] = ("Rose Cutter", "rose_cutter"),
+        ["netherwart"] = ("Wart Cutter", "wart_cutter"),
     };
 
     /// <summary>Every this many crops broken with a crop's tool adds +1 Harvest Fortune for that crop.</summary>

@@ -148,11 +148,12 @@ public class SpriteSheetTests
             "icon_helmet", "icon_chestplate", "icon_leggings", "icon_boots",
             "icon_charm", "icon_ring", "icon_relic", "icon_compactor",
             "hat_cap", "hat_bandana", "hat_tophat", "hat_flowers", "hat_crown", "hat_hood", "hat_starhat", "visitor", "bubble",
+            "rare_clover", "rare_seed", "rare_coin", "rare_horseshoe", "rare_star", "rare_acorn",
         };
         foreach (var name in required.Concat(Crops.All.Select(c => c.RipeSprite)))
             Assert.True(sheet.Contains(name), $"sprites.txt is missing [sprite {name}]");
 
-        foreach (var name in required.Where(n => n.StartsWith("farmer") || n.StartsWith("stage") || n.StartsWith("soil") || n.StartsWith("icon") || n.StartsWith("hat"))
+        foreach (var name in required.Where(n => n.StartsWith("farmer") || n.StartsWith("stage") || n.StartsWith("soil") || n.StartsWith("icon") || n.StartsWith("hat") || n.StartsWith("rare"))
                      .Concat(Crops.All.Select(c => c.RipeSprite)))
         {
             Assert.Equal(16, sheet[name].Width);

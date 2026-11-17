@@ -102,6 +102,8 @@ internal sealed class ScreenshotTour
         state.Garden.Upgrades["busy_composter"] = 1;
         state.Garden.Boosts["fertiliser"] = 14 * 60;
         state.Garden.OwnedCosmetics.Add("hood");
+        state.RareFinds["clover"] = new RareFindState { Found = 3, Held = 2 };
+        state.RareFinds["seed"] = new RareFindState { Found = 1, Held = 1 };
 
         Cosmetics.TakeNewlyUnlocked(new GameEngine(state, new Random(1))); // no "new hat" pop-up in the pictures
         state.LastSavedUtc = DateTime.UtcNow;

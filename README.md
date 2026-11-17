@@ -83,7 +83,7 @@ back, a popup tells you what they did.
 ### Progression
 
 - **Farming skill (levels 0-50):** XP from every crop broken. Each level gives **+4 Harvest Fortune** and coins.
-- **Garden level (1-15):** Garden XP from every crop broken and every collection tier. Garden levels
+- **Garden level (1-17):** Garden XP from every crop broken and every collection tier. Garden levels
   unlock crops, upgrades and field expansions.
 - **Field:** starts at 10 crops and expands up to 24.
 - **Collections:** 10 tiers per crop, each giving +2 Fortune for that crop and Garden XP. The
@@ -108,6 +108,8 @@ worth more per crop broken.
 | Cactus | 10 | 4s | 2 | 9 | 18 |
 | Mushroom | 12 | 4.5s | 1 | 24 | 24 |
 | Moonbloom | 15 | 5s | 1 | 40 | 40 |
+| Wild Rose | 16 | 5s | 2 | 24 | 48 |
+| Nether Wart | 17 | 5.5s | 3 | 19 | 57 |
 
 ### Upgrades (crafted in the Upgrades tab)
 
@@ -121,6 +123,7 @@ planted, swinging it down onto each crop.
 | Potato | Potato Shovel | Cactus | Cactus Knife |
 | Sugar Cane | Cane Cutter | Mushroom | Fungi Cutter |
 | Pumpkin | Pumpkin Dicer | Moonbloom | Eclipse Sickle |
+| Wild Rose | Rose Cutter | Nether Wart | Wart Cutter |
 
 | Tier | Blade | Fortune for its crop | Made from |
 |---|---|---|---|
@@ -160,6 +163,21 @@ use as they are (like the 48 crops for a first tool).
 The number on the **Upgrades** tab is how many upgrades you can craft right now, and a popup tells you
 when a new one becomes ready. If an upgrade is only missing ingredients, **Buy missing** buys them on
 the Bazaar in one click and shows what that costs.
+
+### Rare finds
+
+Every crop broken (by the farmer or by you, even while the game is closed) has a tiny chance of turning
+up something rare, with a pop-up and a burst of gold sparkles. The first of each kind goes in the
+**Rare Finds** album (Collections tab) and gives a bonus for good; more of them sell for lots of coins.
+
+| Rare find | Chance per crop | First find gives | Sells for |
+|---|---|---|---|
+| Four-Leaf Clover | 1 in 5,000 | +5 Harvest Fortune | 2,000 |
+| Golden Seed | 1 in 20,000 | +3% Farming Speed | 10,000 |
+| Ancient Coin | 1 in 40,000 | +5% Market sell price | 25,000 |
+| Lucky Horseshoe | 1 in 60,000 | +5% Farming XP | 40,000 |
+| Star Fragment | 1 in 150,000 | +10 Harvest Fortune | 100,000 |
+| Crystal Acorn | 1 in 400,000 | +5% Farming Speed and +5% Farming XP | 250,000 |
 
 ### Visitors
 

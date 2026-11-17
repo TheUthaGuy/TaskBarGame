@@ -31,6 +31,7 @@ public sealed class OfflineReport
     public int GardenLevelAfter { get; set; }
     public int VisitorsArrived { get; set; }
     public long CompostMade { get; set; }
+    public long RareFinds { get; set; }
 
     public bool IsEmpty => Breaks == 0;
 }
@@ -156,7 +157,7 @@ public sealed partial class GameEngine
     }
 
     /// <summary>Equipment plus the garden (Composter upgrades and running boosts).</summary>
-    public StatBonus TotalBonus => EquipmentBonus + GardenBonus;
+    public StatBonus TotalBonus => EquipmentBonus + GardenBonus + RareFindsBonus;
 
     public int SpeedPercent => TotalBonus.Speed;
     public int SellPercent => TotalBonus.Sell;
@@ -191,6 +192,8 @@ public sealed partial class GameEngine
             sources.Add(new StatSource($"{upgrade.Name} {UpgradeLevel(upgrade)} (Composter)", upgrade.PerLevel.Fortune * UpgradeLevel(upgrade)));
         foreach (var (boost, left) in ActiveBoosts.Where(b => b.Boost.Bonus.Fortune != 0))
             sources.Add(new StatSource($"{boost.Name} ({Math.Ceiling(left / 60):0}m left)", boost.Bonus.Fortune));
+        foreach (var find in RareFinds.All.Where(f => f.Bonus.Fortune != 0 && RareFind(f).Found > 0))
+            sources.Add(new StatSource($"{find.Name} (rare find)", find.Bonus.Fortune));
         if (handBreak) sources.Add(new StatSource("Breaking it yourself", HandBreakFortuneBonus));
         return sources.Where(s => s.Amount != 0).ToList();
     }
@@ -458,6 +461,7 @@ public sealed partial class GameEngine
         {
             report.Counted = TimeSpan.FromSeconds(seconds);
             long compostBefore = State.Garden.Compost;
+            long rareBefore = State.RareFinds.Values.Sum(f => f.Found);
             _quiet = true;
             try
             {
@@ -506,6 +510,7 @@ public sealed partial class GameEngine
                 report.FarmingXp = State.FarmingXp - xpBefore;
                 GrowCrops(seconds); // the row is grown again when you come back
             }
+            report.RareFinds = State.RareFinds.Values.Sum(f => f.Found) - rareBefore;
         }
 
         report.FarmingLevelAfter = FarmingLevel;
@@ -538,6 +543,7 @@ public sealed partial class GameEngine
         State.Compactor = 0;
         State.UnlockedCosmetics.Clear();
         State.Garden = new GardenState();
+        State.RareFinds.Clear();
         State.Bazaar = new BazaarState();
         EnsureBazaarPrices();
         State.Stats = new GameStats();
@@ -570,6 +576,7 @@ public sealed partial class GameEngine
 
         var tool = GetTool(crop);
         if (tool.Tier > 0) tool.Breaks++;
+        RollRareFind(tile);
 
         int tierAfter = GetCollectionTier(crop);
         long gardenXp = GardenProgression.XpPerBreak;

@@ -197,6 +197,7 @@ public partial class StripWindow : Window
             if (Engine.FieldLength != _builtLength || Engine.VisitorsUnlocked != _builtVisitors) RequestLayout();
         };
         Engine.VisitorArrived += OnVisitorArrived;
+        Engine.RareFound += OnRareFound;
     }
 
     /// <summary>The panel, if it's open.</summary>
@@ -486,6 +487,42 @@ public partial class StripWindow : Window
 
     private static string DescribeWants(VisitorRequest request) =>
         string.Join(" and ", request.Wants.Select(w => $"{Format.Number(w.Count)} {w.Item.Name}"));
+
+    private static readonly IReadOnlyList<Brush> RareBrushes = new[]
+    {
+        Format.Brush("#FFF0A0"), Format.Brush("#F5C542"), Format.Brush("#FFFFFF"), Format.Brush("#E8B923"),
+    };
+
+    /// <summary>A rare find: gold sparkles and "RARE!" over the crop, and a pop-up.</summary>
+    private void OnRareFound(RareDrop drop)
+    {
+        if (_expanded && !_hiddenForFullscreen && drop.TileIndex >= 0 && drop.TileIndex < _tiles.Count && _unit > 0)
+        {
+            double left = TileLeft(drop.TileIndex), pixel = Math.Max(2, _unit);
+            for (int i = 0; i < 18; i++)
+            {
+                var shape = new Rectangle { Width = pixel, Height = pixel, Fill = RareBrushes[_rng.Next(RareBrushes.Count)], IsHitTestVisible = false };
+                var particle = new Particle(shape)
+                {
+                    X = left + _tile * (0.1 + 0.8 * _rng.NextDouble()),
+                    Y = _tileTop + _tile * (0.2 + 0.6 * _rng.NextDouble()),
+                    Vx = (_rng.NextDouble() * 2 - 1) * 10 * pixel,
+                    Vy = -(12 + _rng.NextDouble() * 16) * pixel,
+                    Gravity = -4 * pixel,
+                    Life = 0.8 + _rng.NextDouble() * 0.6,
+                };
+                Place(_fxLayer, shape, particle.X, particle.Y);
+                _particles.Add(particle);
+            }
+            AddTextFloater("RARE!", left + _tile / 2, _tileTop - 4 * _unit, GoldBrush, life: 2.2);
+        }
+
+        string body = drop.First
+            ? $"New in your album: {drop.Find.Bonus.Describe()}, for good! (Collections tab)"
+            : $"Another one! It sells for {Format.Coins((long)Engine.RareFindPrice(drop.Find))} (Collections tab).";
+        QueueToast($"RARE DROP: {drop.Find.Name.ToUpperInvariant()}!", body, GoldBrush, 8, PopupKind.RareDrop,
+            ("See the album", () => OpenPanelOn("CollectionsTab")));
+    }
 
     private void OnVisitorArrived(VisitorRequest request)
     {
@@ -1375,6 +1412,7 @@ public partial class StripWindow : Window
         if (report.VisitorsArrived > 0)
             body += report.VisitorsArrived == 1 ? " A visitor is waiting." : $" {report.VisitorsArrived} visitors are waiting.";
         if (report.CompostMade > 0) body += $" The Composter made {Format.Number(report.CompostMade)} Compost.";
+        if (report.RareFinds > 0) body += report.RareFinds == 1 ? " They found something rare!" : $" They found {report.RareFinds} rare things!";
         QueueToast("WELCOME BACK!", body, GoldBrush, 9, PopupKind.WelcomeBack);
     }
 

@@ -138,9 +138,9 @@ public static class Garden
         new("gale", "Captain Gale", VisitorRarity.Rare, "A long voyage needs fresh food for the crew.",
             new[] { "melon", "sugarcane", "cocoa" }, 6, "2C4F8F", "1E365F", "F2F2F2"),
         new("fern", "Fern the Florist", VisitorRarity.Rare, "Pumpkins for the fair, and something rare for my window.",
-            new[] { "pumpkin", "moonbloom", "melon" }, 7, "F06A9E", "B04070", "F2D36B"),
+            new[] { "pumpkin", "moonbloom", "wildrose", "melon" }, 7, "F06A9E", "B04070", "F2D36B"),
         new("orrin", "Orrin the Stargazer", VisitorRarity.Legendary, "The stars say your field holds something special.",
-            new[] { "moonbloom", "mushroom", "cocoa" }, 9, "3B2F6B", "251D45", "B0B0B0"),
+            new[] { "netherwart", "moonbloom", "mushroom", "cocoa" }, 9, "3B2F6B", "251D45", "B0B0B0"),
     };
 
     public static VisitorDef Visitor(string id) => Visitors.FirstOrDefault(v => v.Id == id) ?? Visitors[0];

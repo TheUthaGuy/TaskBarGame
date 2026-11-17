@@ -54,8 +54,16 @@ public sealed partial class PanelViewModel
     /// <summary>"Lucky Seeds +40 Fortune (23m left) · Fertiliser +30 Fortune (8m left)", or "".</summary>
     public string BoostsText { get => _boostsText; private set => Set(ref _boostsText, value); }
 
+    private string _rareFindsTitle = "";
+
+    // ---------------------------------------------------------------- Collections tab: the Rare Finds album
+
+    public IReadOnlyList<RareFindRow> RareFindRows { get; private set; } = Array.Empty<RareFindRow>();
+    public string RareFindsTitle { get => _rareFindsTitle; private set => Set(ref _rareFindsTitle, value); }
+
     private void InitGarden()
     {
+        RareFindRows = RareFinds.All.Select(f => new RareFindRow(_host, f)).ToList();
         ShopRows = Garden.Shop.Select(item => new ShopRow(_host, item, message =>
         {
             GardenMessage = message;
@@ -100,6 +108,8 @@ public sealed partial class PanelViewModel
     private void RefreshGarden()
     {
         var garden = Engine.State.Garden;
+        RareFindsTitle = $"Rare finds: {Engine.RareFindsInAlbum} of {RareFinds.All.Count}";
+        foreach (var row in RareFindRows) row.Update();
 
         // ---- visitors
         VisitorsUnlocked = Engine.VisitorsUnlocked;
@@ -336,5 +346,49 @@ public sealed class ComposterUpgradeRow : ObservableObject
         CanBuy = engine.CanBuyUpgrade(Upgrade, out string reason);
         BuyText = level >= Upgrade.MaxLevel ? "Maxed" : $"Buy · {Format.Number(Upgrade.CostFor(level + 1))} Compost";
         Status = CanBuy || level >= Upgrade.MaxLevel ? "" : reason;
+    }
+}
+
+/// <summary>A rare find in the Collections tab's album.</summary>
+public sealed class RareFindRow : ObservableObject
+{
+    private readonly GameHost _host;
+    private ImageSource? _icon;
+    private string _countText = "";
+    private string _sellText = "";
+    private bool _canSell;
+    private bool _isFound;
+
+    public RareFindRow(GameHost host, RareFindDef find)
+    {
+        _host = host;
+        Find = find;
+        SellCommand = new RelayCommand(() =>
+        {
+            host.Engine.SellRareFind(find.Id, long.MaxValue);
+            host.Save();
+        });
+    }
+
+    public RareFindDef Find { get; }
+    public string Name => Find.Name;
+    public string Chance => $"1 in {Format.Number(Find.OneIn)} crops";
+    public string BonusText => "First find: " + Find.Bonus.Describe() + ", for good";
+    public ICommand SellCommand { get; }
+    public ImageSource? Icon { get => _icon; private set => Set(ref _icon, value); }
+    public string CountText { get => _countText; private set => Set(ref _countText, value); }
+    public string SellText { get => _sellText; private set => Set(ref _sellText, value); }
+    public bool CanSell { get => _canSell; private set => Set(ref _canSell, value); }
+    public bool IsFound { get => _isFound; private set => Set(ref _isFound, value); }
+
+    public void Update()
+    {
+        var engine = _host.Engine;
+        var state = engine.RareFind(Find);
+        IsFound = state.Found > 0;
+        Icon = _host.Sprites.RareFindIcon(Find, IsFound);
+        CountText = IsFound ? $"Found {Format.Number(state.Found)} · holding {Format.Number(state.Held)}" : "Not found yet";
+        CanSell = state.Held > 0;
+        SellText = CanSell ? $"Sell for {Format.Number((long)Math.Floor(state.Held * engine.RareFindPrice(Find)))}" : "Nothing to sell";
     }
 }

@@ -209,6 +209,21 @@ public sealed class SpriteCache
         return Recolored("icon_compactor", $"t{tier}", new Dictionary<char, uint> { ['I'] = light, ['i'] = dark });
     }
 
+    /// <summary>A rare find's picture, or its dark outline if you haven't found one yet.</summary>
+    public BitmapSource RareFindIcon(RareFindDef find, bool found)
+    {
+        if (found) return this[find.Sprite];
+        string key = find.Sprite + "#unknown";
+        if (_images.TryGetValue(key, out var image)) return image;
+        var sprite = _sheet[find.Sprite];
+        var pixels = (uint[])sprite.Pixels.Clone();
+        for (int i = 0; i < pixels.Length; i++)
+            if (pixels[i] >> 24 != 0) pixels[i] = 0xAA3A4A3D;
+        image = ToBitmap(sprite, pixels);
+        _images[key] = image;
+        return image;
+    }
+
     /// <summary>A visitor in their own shirt and hair colours.</summary>
     public BitmapSource Visitor(VisitorDef visitor)
     {
