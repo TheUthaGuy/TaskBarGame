@@ -1,8 +1,8 @@
 # TaskBarGame: Harvest Edition
 
-> **This is the `harvest-edition` branch**, a version of TaskBarGame that plays more like Skyblock-style
-> farming. It isn't merged into `main`; the original game lives there. The two editions keep separate
-> saves, so you can play both.
+> **This is the Harvest Edition** (the `harvest-edition` branch, the repo's default), a version of
+> TaskBarGame that plays more like Skyblock-style farming. The original game lives on the `main`
+> branch. The two editions keep separate saves, so you can play both.
 
 A farming game that lives just above your Windows taskbar while you work. Your field is **one long row
 of crops**. Your farmer walks it with their hoe, breaking every grown crop as they pass, then steps on a
