@@ -26,4 +26,13 @@ Windows may say "Windows protected your PC" because the game isn't signed yet: c
 - The panel opens where you left it.
 - **Automatic updates** (it asks first, or installs by itself if you turn that on).
 
+## Taskbar buddy
+
+- **Keyboard shortcuts** from any app: Ctrl+Alt+F opens the panel, Ctrl+Alt+H hides the strip (both
+  changeable).
+- Put the strip on **any monitor**.
+- A **Wardrobe** of hats and outfits for your farmer, unlocked by milestones.
+- **Right now:** how many coins, crops and Farming XP an hour your farm is making.
+- **Backups** every couple of hours, plus export and import.
+
 Your save is kept separately from the original TaskBarGame, so you can play both.

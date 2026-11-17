@@ -505,6 +505,7 @@ public sealed partial class GameEngine
         State.Armour.Clear();
         State.Talismans.Clear();
         State.Compactor = 0;
+        State.UnlockedCosmetics.Clear();
         State.Bazaar = new BazaarState();
         EnsureBazaarPrices();
         State.Stats = new GameStats();

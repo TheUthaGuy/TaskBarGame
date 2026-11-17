@@ -103,6 +103,15 @@ public partial class StripWindow : Window
     private bool _dragFarming;
     private int _dragLastTile = -1;
 
+    // Hidden with the keyboard shortcut (or the menu) until it's pressed again.
+    private bool _hiddenByUser;
+
+    // The farmer's hat and outfit (checked a few times a second, not every frame).
+    private string _hatId = Cosmetics.DefaultHat;
+    private string _outfitId = Cosmetics.DefaultOutfit;
+
+    private const int PanelHotkeyId = 1, StripHotkeyId = 2;
+
     // The farmer's breaks since the last "+N" floater.
     private CropDef? _pendingCrop;
     private long _pendingDrops;
@@ -126,7 +135,13 @@ public partial class StripWindow : Window
         {
             _hwnd = new WindowInteropHelper(this).Handle;
             NativeMethods.MakeOverlayWindow(_hwnd);
+            HwndSource.FromHwnd(_hwnd)?.AddHook(WndProc);
+            RegisterHotkeys();
         };
+        Closed += (_, _) => UnregisterHotkeys();
+        _host.HotkeysChanged += RegisterHotkeys;
+        Microsoft.Win32.SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
+        Closed += (_, _) => Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
         Loaded += (_, _) =>
         {
             _expanded = Settings.StripMode == StripMode.Always;
@@ -156,6 +171,7 @@ public partial class StripWindow : Window
         };
         _host.SettingsChanged += () =>
         {
+            RegisterHotkeys();
             RequestLayout();
             if (Settings.StripMode == StripMode.Always) SetExpanded(true);
             else if (!ShouldStayExpanded()) SetExpanded(false);
@@ -460,9 +476,27 @@ public partial class StripWindow : Window
         canvas.Children.Add(element);
     }
 
-    /// <summary>Sits the window just above the taskbar.</summary>
+    /// <summary>Sits the window just above the taskbar of the chosen monitor (the main one by default).</summary>
     private void Reposition()
     {
+        if (_hwnd != IntPtr.Zero && ChosenMonitor() is { } monitor && NativeMethods.WindowRect(_hwnd) is { } rect)
+        {
+            // In real pixels, so it works when monitors use different Windows scaling.
+            var work = monitor.WorkArea;
+            double scale = VisualTreeHelper.GetDpi(this).DpiScaleX;
+            int margin = (int)Math.Round(ScreenMargin * scale);
+            int x = Settings.Anchor switch
+            {
+                StripAnchor.Right => work.X + work.Width - margin - rect.Width,
+                StripAnchor.Center => work.X + (work.Width - rect.Width) / 2,
+                _ => work.X + margin,
+            };
+            x = Math.Max(work.X, Math.Min(x, work.X + work.Width - rect.Width));
+            int y = work.Y + work.Height - rect.Height;
+            if (rect.X != x || rect.Y != y) NativeMethods.MoveWindow(_hwnd, x, y);
+            return;
+        }
+
         var area = SystemParameters.WorkArea;
         double left = Settings.Anchor switch
         {
@@ -475,6 +509,19 @@ public partial class StripWindow : Window
         if (Math.Abs(Left - left) > 0.5) Left = left;
         if (Math.Abs(Top - top) > 0.5) Top = top;
     }
+
+    /// <summary>The monitor picked in Settings, or the main one (also if the picked one is unplugged).</summary>
+    private static MonitorInfo? ChosenMonitorFor(string? deviceName)
+    {
+        var monitors = NativeMethods.Monitors();
+        return monitors.FirstOrDefault(m => m.DeviceName == deviceName)
+               ?? monitors.FirstOrDefault(m => m.IsPrimary)
+               ?? monitors.FirstOrDefault();
+    }
+
+    private MonitorInfo? ChosenMonitor() => ChosenMonitorFor(Settings.Monitor);
+
+    private void OnDisplaySettingsChanged(object? sender, EventArgs e) => Dispatcher.BeginInvoke(Reposition);
 
     private void OnSystemParametersChanged(object? sender, PropertyChangedEventArgs e)
     {
@@ -587,10 +634,10 @@ public partial class StripWindow : Window
             facing = farmer.Facing;
         }
 
-        // The hoe in the farmer's hands matches the hoe you own for the planted crop.
-        var source = frame is "farmer_swing" or "farmer_farm1" or "farmer_farm2"
-            ? _host.Sprites.FarmerWithHoe(frame, Engine.ActiveTool.Tier)
-            : _host.Sprites[frame];
+        // The hoe in the farmer's hands matches the hoe you own for the planted crop, and they wear
+        // the hat and outfit picked in the Wardrobe.
+        bool holdsHoe = frame is "farmer_swing" or "farmer_farm1" or "farmer_farm2";
+        var source = _host.Sprites.Farmer(frame, holdsHoe ? Engine.ActiveTool.Tier : -1, _hatId, _outfitId);
         if (!ReferenceEquals(_farmer.Source, source)) _farmer.Source = source;
         _farmerFlip.ScaleX = facing;
         Canvas.SetLeft(_farmer, x);
@@ -618,6 +665,8 @@ public partial class StripWindow : Window
     /// <summary>Things that don't need updating 30 times a second.</summary>
     private void UpdateSlow()
     {
+        _hatId = Cosmetics.WornHat(Engine).Id;
+        _outfitId = Cosmetics.WornOutfit(Engine).Id;
         _coinsText.Text = Format.Number(Engine.State.Coins);
         // While a new version is waiting, say so under the coins (the panel's Settings tab has the button).
         var updater = _host.Updater;
@@ -652,7 +701,7 @@ public partial class StripWindow : Window
     {
         if (_hwnd == IntPtr.Zero) return;
 
-        bool hide = Settings.HideInFullscreen && NativeMethods.IsFullscreenAppInFront(_hwnd);
+        bool hide = _hiddenByUser || (Settings.HideInFullscreen && NativeMethods.IsFullscreenAppInFront(_hwnd));
         if (hide != _hiddenForFullscreen)
         {
             _hiddenForFullscreen = hide;
@@ -661,6 +710,7 @@ public partial class StripWindow : Window
         }
         _host.UpdateFrameRate(stripHidden: _hiddenForFullscreen);
         CheckReadyUpgrades();
+        CheckNewCosmetics();
         if (_hiddenForFullscreen) return;
 
         Reposition();
@@ -789,6 +839,8 @@ public partial class StripWindow : Window
 
         menu.Items.Add(CheckItem("Farmer farms by themselves", Settings.FarmerAutoHarvest,
             () => Settings.FarmerAutoHarvest = !Settings.FarmerAutoHarvest));
+        if (Hotkey.Parse(Settings.StripHotkey) is { } stripKey && _host.StripHotkeyError.Length == 0)
+            menu.Items.Add(MakeItem($"Hide the strip (press {stripKey} to bring it back)", ToggleHiddenByUser));
         menu.Items.Add(new Separator());
         menu.Items.Add(MakeItem("Quit TaskBarGame", () => ((App)Application.Current).Quit()));
         ShowMenu(menu, target);
@@ -862,8 +914,95 @@ public partial class StripWindow : Window
             _panel.Left = Math.Max(area.Left, Math.Min(left, area.Right - _panel.Width));
             _panel.Top = Math.Max(area.Top, Top + PopupSpace - _panel.Height - 8);
         }
+        bool placeNearStrip = SavedPanelPosition(_panel) is null;
         _panel.Show();
+        if (placeNearStrip)
+        {
+            PlacePanelNearStrip(_panel);
+            // Moving onto a monitor with different scaling resizes the panel: place it again.
+            _panel.DpiChanged += (sender, _) => Dispatcher.BeginInvoke(() =>
+            {
+                if (sender is PanelWindow panel && panel.IsVisible) PlacePanelNearStrip(panel);
+            });
+        }
         _panel.Activate();
+    }
+
+    /// <summary>Puts the panel just above the strip, on the strip's monitor (in real pixels).</summary>
+    private void PlacePanelNearStrip(PanelWindow panel)
+    {
+        var panelHwnd = new WindowInteropHelper(panel).Handle;
+        if (_hwnd == IntPtr.Zero || panelHwnd == IntPtr.Zero) return;
+        if (NativeMethods.WindowRect(_hwnd) is not { } strip || NativeMethods.WindowRect(panelHwnd) is not { } rect) return;
+        if (NativeMethods.MonitorOf(_hwnd) is not { } monitor) return;
+
+        double scale = VisualTreeHelper.GetDpi(this).DpiScaleX;
+        int stripLeft = strip.X + (int)Math.Round(_stripLeft * scale);
+        int stripWidth = (int)Math.Round(_stripWidth * scale);
+        int x = Settings.Anchor switch
+        {
+            StripAnchor.Right => stripLeft + stripWidth - rect.Width,
+            StripAnchor.Center => stripLeft + (stripWidth - rect.Width) / 2,
+            _ => stripLeft,
+        };
+        int y = strip.Y + (int)Math.Round((PopupSpace - 8) * scale) - rect.Height;
+        var work = monitor.WorkArea;
+        x = Math.Max(work.X, Math.Min(x, work.X + work.Width - rect.Width));
+        y = Math.Max(work.Y, Math.Min(y, work.Y + work.Height - rect.Height));
+        NativeMethods.MoveWindow(panelHwnd, x, y);
+    }
+
+    // ================================================================== keyboard shortcuts
+
+    /// <summary>(Re)registers Ctrl+Alt+F and Ctrl+Alt+H (or whatever was picked in Settings).</summary>
+    private void RegisterHotkeys()
+    {
+        if (_hwnd == IntPtr.Zero) return;
+        UnregisterHotkeys();
+        if (_host.HotkeysPaused) return; // Settings is waiting for you to press a new one
+
+        _host.PanelHotkeyError = Register(PanelHotkeyId, Settings.PanelHotkey);
+        _host.StripHotkeyError = Register(StripHotkeyId, Settings.StripHotkey);
+
+        string Register(int id, string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return "";
+            if (Hotkey.Parse(text) is not { } hotkey) return $"\"{text}\" isn't a shortcut the game understands.";
+            return NativeMethods.RegisterHotKey(_hwnd, id, hotkey.NativeModifiers, hotkey.NativeKey)
+                ? ""
+                : $"{hotkey} is already used by another app. Pick a different one.";
+        }
+    }
+
+    private void UnregisterHotkeys()
+    {
+        if (_hwnd == IntPtr.Zero) return;
+        NativeMethods.UnregisterHotKey(_hwnd, PanelHotkeyId);
+        NativeMethods.UnregisterHotKey(_hwnd, StripHotkeyId);
+    }
+
+    private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (msg != NativeMethods.WM_HOTKEY) return IntPtr.Zero;
+        switch (wParam.ToInt32())
+        {
+            case PanelHotkeyId:
+                TogglePanel();
+                handled = true;
+                break;
+            case StripHotkeyId:
+                ToggleHiddenByUser();
+                handled = true;
+                break;
+        }
+        return IntPtr.Zero;
+    }
+
+    /// <summary>Hides the strip (and the farmer) until the shortcut is pressed again.</summary>
+    public void ToggleHiddenByUser()
+    {
+        _hiddenByUser = !_hiddenByUser;
+        UpdateWindowState();
     }
 
     /// <summary>The panel's saved spot, if its title bar would still be on screen there.</summary>
@@ -1131,6 +1270,17 @@ public partial class StripWindow : Window
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
         }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException) { }
+    }
+
+    /// <summary>Pops up when a milestone unlocks a hat or outfit.</summary>
+    private void CheckNewCosmetics()
+    {
+        var fresh = Cosmetics.TakeNewlyUnlocked(Engine);
+        if (fresh.Count == 0) return;
+        string title = fresh.Count > 1 ? $"{fresh.Count} NEW LOOKS UNLOCKED!"
+            : fresh[0].Slot == CosmeticSlot.Hat ? "NEW HAT UNLOCKED!" : "NEW OUTFIT UNLOCKED!";
+        string body = $"{string.Join(", ", fresh.Select(c => c.Name))}. Try {(fresh.Count > 1 ? "them" : "it")} on in the panel's Wardrobe tab.";
+        QueueToast(title, body, CraftBrush, 7, PopupKind.Cosmetic);
     }
 
     /// <summary>

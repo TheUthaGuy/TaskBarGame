@@ -27,6 +27,9 @@ public sealed class GameHost : IDisposable
     private double _lastFrame;
     private DateTime _lastWallClock;
     private double _sinceSave;
+    private double _sinceBackup;
+    private bool _backups;
+    private bool _hotkeysPaused;
 
     public GameHost() : this(new SaveManager())
     {
@@ -41,6 +44,10 @@ public sealed class GameHost : IDisposable
         Sprites = new SpriteCache(SpriteSheet.LoadDefault());
         Updater = new Updater(Engine.State.Settings);
 
+        // Coins, crops and XP an hour: what each harvest is worth at the Market.
+        Engine.Broke += result => Rates.Add(Clock, result.Drops * Engine.MarketPrice(Items.Raw(result.Crop)),
+            result.Drops, result.FarmingXp);
+
         _timer = new DispatcherTimer(DispatcherPriority.Normal) { Interval = TimeSpan.FromMilliseconds(NormalFrameMs) };
         _timer.Tick += OnTick;
         Format.ShortNumbers = Settings.ShortNumbers;
@@ -53,6 +60,59 @@ public sealed class GameHost : IDisposable
 
     /// <summary>Finds and installs new versions (started by the app; not used in screenshot mode).</summary>
     public Updater Updater { get; }
+
+    /// <summary>How fast the farm is going (the Farming tab's "Right now" card).</summary>
+    public RateTracker Rates { get; } = new();
+
+    /// <summary>Seconds since the game started (the clock <see cref="Rates"/> uses).</summary>
+    public double Clock => _clock.Elapsed.TotalSeconds;
+
+    /// <summary>Why a keyboard shortcut couldn't be set up ("" when it's fine), for the Settings tab.</summary>
+    public string PanelHotkeyError { get; set; } = "";
+    public string StripHotkeyError { get; set; } = "";
+
+    /// <summary>True while the Settings tab waits for you to press a new shortcut.</summary>
+    public bool HotkeysPaused
+    {
+        get => _hotkeysPaused;
+        set
+        {
+            if (_hotkeysPaused == value) return;
+            _hotkeysPaused = value;
+            HotkeysChanged?.Invoke();
+        }
+    }
+
+    /// <summary>The shortcuts changed (or were paused): register them again.</summary>
+    public event Action? HotkeysChanged;
+
+    public void RaiseHotkeysChanged() => HotkeysChanged?.Invoke();
+
+    /// <summary>
+    /// Keeps a backup of the save now, and then every <see cref="SaveManager.BackupInterval"/> of play.
+    /// (Not in screenshot mode.)
+    /// </summary>
+    public void StartBackups()
+    {
+        _backups = true;
+        BackupNow();
+    }
+
+    /// <summary>Saves, then copies the save into the backups folder. Returns false if that failed.</summary>
+    public bool BackupNow(string? label = null)
+    {
+        _sinceBackup = 0;
+        try
+        {
+            Save();
+            Saves.CreateBackup(Engine.State, label);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
     public GameSettings Settings => Engine.State.Settings;
 
     /// <summary>True while the laptop is running on battery and Battery saver is on.</summary>
@@ -74,6 +134,7 @@ public sealed class GameHost : IDisposable
     {
         _lastWallClock = DateTime.UtcNow;
         _clock.Start();
+        Rates.Start(0);
         _timer.Start();
     }
 
@@ -145,6 +206,8 @@ public sealed class GameHost : IDisposable
 
         _sinceSave += dt;
         if (_sinceSave >= AutosaveSeconds) Save();
+        _sinceBackup += dt;
+        if (_backups && _sinceBackup >= SaveManager.BackupInterval.TotalSeconds) BackupNow();
 
         Frame?.Invoke(dt);
     }

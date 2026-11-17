@@ -68,6 +68,8 @@ internal sealed class ScreenshotTour
         state.Settings.AutoSellCrops.Add("potato");
         state.Settings.LockedItems.Add("packed_melon");
         state.Settings.CompactorSkips.Add("carrot");
+        state.Settings.Hat = "cap";
+        state.Settings.Outfit = "harvest";
 
         state.Collections["wheat"] = 52_000;
         state.Collections["carrot"] = 30_000;
@@ -89,6 +91,7 @@ internal sealed class ScreenshotTour
         state.Stats.ItemsCrafted = 10;
 
         state.Settings.HideInFullscreen = false;
+        Cosmetics.TakeNewlyUnlocked(new GameEngine(state, new Random(1))); // no "new hat" pop-up in the pictures
         state.LastSavedUtc = DateTime.UtcNow;
         return state;
     }
@@ -111,7 +114,7 @@ internal sealed class ScreenshotTour
         _strip.TogglePanel();
         await Wait(0.8);
         var panel = _strip.Panel ?? throw new InvalidOperationException("The garden panel didn't open.");
-        string[] tabs = { "field", "farming", "upgrades", "collections", "bazaar", "inventory", "settings" };
+        string[] tabs = { "field", "farming", "upgrades", "collections", "bazaar", "inventory", "wardrobe", "settings" };
         string[] alsoScrolledDown = { "farming", "upgrades", "inventory", "settings" };
         for (int i = 0; i < tabs.Length; i++)
         {

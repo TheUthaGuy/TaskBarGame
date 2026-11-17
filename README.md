@@ -59,6 +59,8 @@ dotnet publish src/TaskBarGame.App -c Release -r win-x64 --self-contained true -
 | Click the **farmer's head** or the **coins** | Open the panel |
 | Right-click the farmer or the strip | Quick menu: plant, sell crops, strip size, position, show-on-hover, quit |
 | Click the **lock** at the end of the row | Make the row longer (when you have the coins and Garden level) |
+| **Ctrl+Alt+F**, from any app | Open or close the panel |
+| **Ctrl+Alt+H**, from any app | Hide or show the strip (both shortcuts can be changed in Settings) |
 
 The farmer farms the row the way you would by hand: walking it from left to right breaking every grown
 crop, then stepping on the teleport pad at the end, which sends them back to the pad at the start for the
@@ -184,7 +186,25 @@ The **Inventory** tab is for packing crops and selling quickly to the Market.
 <img src="docs/screenshots/panel-inventory-bottom.png" width="48%" alt="The bottom of the Inventory tab: auto-sell and Compactor switches for every crop, and what your upgrades need">
 
 The **Farming** tab's crop guide shows roughly how many coins an hour each crop would make you, with
-your hoes, Fortune and speed, and marks the best one.
+your hoes, Fortune and speed, and marks the best one. Its **Right now** card measures how fast your farm
+is actually going (coins, crops and Farming XP an hour, over the last 10 minutes and since the game
+started), so you can see whether an upgrade made a difference.
+
+### Wardrobe
+
+Milestones unlock hats and outfits for your farmer. They're just for looks: pick one in the
+**Wardrobe** tab and the farmer wears it on the strip.
+
+| Hat | Unlocked by | Outfit | Unlocked by |
+|---|---|---|---|
+| Straw Hat | Every farmer starts with one | Classic Overalls | Every farmer starts with these |
+| Farmer's Cap | Farming Level 10 | Harvest Brown | Garden Level 5 |
+| Bandana | Breaking 10,000 crops | Meadow Green | Breaking 1,000 crops by hand |
+| Top Hat | Earning 1,000,000 coins from selling | Twilight Purple | Garden Level 10 |
+| Flower Crown | Maxing out any collection | Golden Harvest | Wearing a full Verdant armour set |
+| Golden Crown | Farming Level 50 | | |
+
+<img src="docs/screenshots/panel-wardrobe.png" width="48%" alt="The Wardrobe tab: the farmer in a cap, with hats and outfits to unlock">
 
 <p>
   <img src="docs/screenshots/panel-farming.png" width="32%" alt="Farming tab: Farming level and where your Harvest Fortune comes from">
@@ -203,6 +223,9 @@ In the panel's **Settings** tab (or the right-click menu):
 
 - **Size:** Small / Normal / Large.
 - **Position:** Left / Center / Right of the screen.
+- **Monitor:** which monitor the strip sits on (it sits above that monitor's taskbar, or at the bottom
+  of the screen if it has none). If that monitor is unplugged, the strip goes back to the main one.
+- **Keyboard shortcuts:** click one and press the keys you want (with Ctrl, Alt or Win), or choose None.
 - **Pop-ups:** choose which ones you see (level-ups, collection tiers, upgrades ready, crafted upgrades,
   Bazaar orders, welcome back), or pause them all for a while.
 - **Short numbers:** 12.3K and 1.23M instead of 12,345 and 1,234,567.
@@ -229,7 +252,11 @@ release. When there is one, a pop-up asks if you want it, and the strip says so 
 - This works for the single `TaskBarGame-HarvestEdition.exe` from a release. A copy built from the source
   code as a folder of files tells you about new versions but has to be updated by hand.
 
-Your save file is `%APPDATA%\TaskBarGame Harvest Edition\save.json` (with a `.bak` backup). If something
+Your save file is `%APPDATA%\TaskBarGame Harvest Edition\save.json` (with a `.bak` backup).
+The game also keeps the last 10 **backups** in the `backups` folder next to it: one each time it starts
+and one every 2 hours. In **Settings → Save file** you can restore one, make one now, **export** your
+farm to a file and **import** one. Restoring or importing backs up your current farm first, then restarts
+the game to load the other one. If something
 breaks, details are written to `%APPDATA%\TaskBarGame Harvest Edition\error.log`.
 
 ## Changing the game

@@ -57,8 +57,16 @@ public partial class PanelWindow : Window
 
         PreviewKeyDown += (_, e) =>
         {
+            // Waiting for a new keyboard shortcut in Settings: the keys go there.
+            var key = e.Key == Key.System ? e.SystemKey : e.Key;
+            if (_vm.OnCaptureKey(key, Keyboard.Modifiers))
+            {
+                e.Handled = true;
+                return;
+            }
             if (e.Key == Key.Escape) Close();
         };
+        Closed += (_, _) => _host.HotkeysPaused = false;
     }
 
     private void OnGameChanged() => _vm.Refresh();

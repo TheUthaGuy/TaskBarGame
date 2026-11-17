@@ -193,6 +193,17 @@
                                 </StackPanel>
                             </Border>
 
+                            <!-- How fast the farm is going: did that upgrade help? -->
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <TextBlock Text="Right now" Style="{StaticResource Muted}" />
+                                    <TextBlock Text="{Binding RatesHeadline}" Style="{StaticResource H2}" Foreground="{StaticResource GoldBrush}" />
+                                    <TextBlock Text="{Binding RatesDetail}" Style="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0" />
+                                    <TextBlock Text="{Binding RatesSession}" Style="{StaticResource Muted}" FontSize="12" Margin="0,2,0,0"
+                                               Visibility="{Binding RatesSession, Converter={StaticResource TextToVisibility}}" />
+                                </StackPanel>
+                            </Border>
+
                             <Border Style="{StaticResource Card}">
                                 <StackPanel>
                                     <TextBlock Text="{Binding FortuneTitle}" Style="{StaticResource H3}" />
@@ -653,6 +664,95 @@
                     </ScrollViewer>
                 </TabItem>
 
+                <!-- ============================================================ WARDROBE -->
+                <TabItem Header="Wardrobe">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="0,0,6,0">
+                            <Border Style="{StaticResource Card}">
+                                <DockPanel>
+                                    <Image Source="{Binding WardrobePreview}" Style="{StaticResource PixelIcon}" Width="64" Height="64" />
+                                    <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
+                                        <TextBlock Text="Your farmer" Style="{StaticResource H2}" />
+                                        <TextBlock Text="{Binding WornText}" Style="{StaticResource Muted}" />
+                                        <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap"
+                                                   Text="Reach milestones to unlock new hats and outfits, then click one to wear it. Just for looks." />
+                                    </StackPanel>
+                                </DockPanel>
+                            </Border>
+                            <TextBlock Text="Hats" Style="{StaticResource H3}" Margin="2,2,0,8" />
+                            <ItemsControl ItemsSource="{Binding HatRows}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Command="{Binding WearCommand}" IsEnabled="{Binding IsUnlocked}" Width="186" Margin="0,0,8,8"
+                                                Padding="8,6" HorizontalContentAlignment="Left"
+                                                ToolTip="{Binding Milestone}" ToolTipService.ShowOnDisabled="True">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsWorn}" Value="True">
+                                                            <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                                            <Setter Property="Background" Value="{StaticResource RowBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                            <DockPanel Width="168">
+                                                <Image Source="{Binding Preview}" Style="{StaticResource PixelIcon}" Width="40" Height="40" />
+                                                <StackPanel Margin="8,0,0,0" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Text="{Binding Milestone, Mode=OneWay}" Foreground="{StaticResource MutedBrush}" FontSize="11"
+                                                               TextWrapping="Wrap" />
+                                                    <TextBlock Text="{Binding Status}" Foreground="{StaticResource GoldBrush}" FontSize="11" />
+                                                </StackPanel>
+                                            </DockPanel>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="Outfits" Style="{StaticResource H3}" Margin="2,6,0,8" />
+                            <ItemsControl ItemsSource="{Binding OutfitRows}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Command="{Binding WearCommand}" IsEnabled="{Binding IsUnlocked}" Width="186" Margin="0,0,8,8"
+                                                Padding="8,6" HorizontalContentAlignment="Left"
+                                                ToolTip="{Binding Milestone}" ToolTipService.ShowOnDisabled="True">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsWorn}" Value="True">
+                                                            <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                                            <Setter Property="Background" Value="{StaticResource RowBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                            <DockPanel Width="168">
+                                                <Image Source="{Binding Preview}" Style="{StaticResource PixelIcon}" Width="40" Height="40" />
+                                                <StackPanel Margin="8,0,0,0" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Text="{Binding Milestone, Mode=OneWay}" Foreground="{StaticResource MutedBrush}" FontSize="11"
+                                                               TextWrapping="Wrap" />
+                                                    <TextBlock Text="{Binding Status}" Foreground="{StaticResource GoldBrush}" FontSize="11" />
+                                                </StackPanel>
+                                            </DockPanel>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
                 <!-- ============================================================ SETTINGS -->
                 <TabItem Header="Settings">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -676,6 +776,16 @@
                                         <RadioButton Content="Center" IsChecked="{Binding AnchorCenter}" />
                                         <RadioButton Content="Right" IsChecked="{Binding AnchorRight}" />
                                     </StackPanel>
+                                    <TextBlock Text="Monitor" Style="{StaticResource Muted}" Margin="0,10,0,0" />
+                                    <ItemsControl ItemsSource="{Binding MonitorChoices}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <RadioButton Content="{Binding Label}" IsChecked="{Binding IsChosen}" GroupName="StripMonitor" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock Text="Plug in another monitor to put the strip on it." Style="{StaticResource Muted}" FontSize="12"
+                                               Visibility="{Binding HasOneMonitor, Converter={StaticResource BoolToVisibility}}" />
                                 </StackPanel>
                             </Border>
 
@@ -687,6 +797,34 @@
                                     <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="26,0,0,4" TextWrapping="Wrap"
                                                Text="Auto-sell is chosen crop by crop at the bottom of the Inventory tab." />
                                     <CheckBox Content="Start the Harvest Edition when Windows starts" IsChecked="{Binding StartWithWindows}" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <TextBlock Text="Keyboard shortcuts" Style="{StaticResource H3}" Margin="0,0,0,6" />
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="200" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Text="Open or close the panel" VerticalAlignment="Center" />
+                                        <Button Grid.Column="1" Content="{Binding PanelHotkeyText}" Command="{Binding ChangePanelHotkeyCommand}"
+                                                MinWidth="150" Margin="0,0,6,6" ToolTip="Click, then press the keys you want" />
+                                        <Button Grid.Column="2" Content="None" Command="{Binding ClearPanelHotkeyCommand}" Margin="0,0,0,6"
+                                                ToolTip="No shortcut" />
+                                        <TextBlock Grid.Row="1" Text="Hide or show the strip" VerticalAlignment="Center" />
+                                        <Button Grid.Row="1" Grid.Column="1" Content="{Binding StripHotkeyText}" Command="{Binding ChangeStripHotkeyCommand}"
+                                                MinWidth="150" Margin="0,0,6,0" ToolTip="Click, then press the keys you want" />
+                                        <Button Grid.Row="1" Grid.Column="2" Content="None" Command="{Binding ClearStripHotkeyCommand}"
+                                                ToolTip="No shortcut" />
+                                    </Grid>
+                                    <TextBlock Text="{Binding HotkeyMessage}" Style="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0" />
                                 </StackPanel>
                             </Border>
 
@@ -714,6 +852,7 @@
                                         <CheckBox Content="Bazaar orders filled" IsChecked="{Binding PopupBazaar}" Width="190" />
                                         <CheckBox Content="Welcome back report" IsChecked="{Binding PopupWelcomeBack}" Width="190" />
                                         <CheckBox Content="New versions" IsChecked="{Binding PopupUpdates}" Width="190" />
+                                        <CheckBox Content="New hats and outfits" IsChecked="{Binding PopupCosmetics}" Width="190" />
                                     </WrapPanel>
                                 </StackPanel>
                             </Border>
@@ -748,8 +887,33 @@
                             <Border Style="{StaticResource Card}">
                                 <StackPanel>
                                     <TextBlock Text="Save file" Style="{StaticResource H3}" />
-                                    <TextBlock Text="{Binding SavePath, Mode=OneWay}" Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,10" />
-                                    <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding SavePath, Mode=OneWay}" Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,8" />
+                                    <WrapPanel>
+                                        <Button Content="Export..." Command="{Binding ExportSaveCommand}" Margin="0,0,8,6"
+                                                ToolTip="Save a copy of your farm somewhere you choose" />
+                                        <Button Content="Import..." Command="{Binding ImportSaveCommand}" Margin="0,0,8,6"
+                                                ToolTip="Load a farm you exported (your current one is backed up first)" />
+                                        <Button Content="Back up now" Command="{Binding BackupNowCommand}" Margin="0,0,8,6" />
+                                        <Button Content="Open backups folder" Command="{Binding OpenBackupsFolderCommand}" Margin="0,0,8,6" />
+                                    </WrapPanel>
+                                    <TextBlock Text="{Binding BackupMessage}" Foreground="{StaticResource GoldBrush}" FontSize="12" TextWrapping="Wrap"
+                                               Visibility="{Binding BackupMessage, Converter={StaticResource TextToVisibility}}" Margin="0,0,0,6" />
+                                    <TextBlock Style="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,6"
+                                               Text="Backups: the game keeps the last 10, one each time it starts and then every 2 hours. Restore one if something goes wrong." />
+                                    <ItemsControl ItemsSource="{Binding Backups}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <DockPanel Margin="0,2">
+                                                    <Button DockPanel.Dock="Right" Content="Restore" Command="{Binding RestoreCommand}" FontSize="12" Padding="10,3" />
+                                                    <StackPanel VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding When}" FontSize="12" />
+                                                        <TextBlock Text="{Binding Summary}" Style="{StaticResource Muted}" FontSize="11" />
+                                                    </StackPanel>
+                                                </DockPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                                         <Button Content="Quit game" Click="Quit_Click" Margin="0,0,8,0" />
                                         <Button Content="Reset progress..." Style="{StaticResource DangerButton}" Click="Reset_Click" />
                                     </StackPanel>

@@ -21,6 +21,9 @@ public partial class App : Application
     /// <summary>Passed to the new version when the game restarts after updating itself.</summary>
     private const string UpdatedArgument = "--updated";
 
+    /// <summary>Passed to the game when it restarts to load a restored or imported save.</summary>
+    private const string RestartedArgument = "--restarted";
+
     /// <summary>Errors are written here so they can be reported and fixed.</summary>
     /// <summary>The name shown in message boxes and window titles.</summary>
     public const string Title = "TaskBarGame: Harvest Edition";
@@ -40,8 +43,9 @@ public partial class App : Application
         }
 
         bool justUpdated = e.Args.Contains(UpdatedArgument);
+        bool restarted = justUpdated || e.Args.Contains(RestartedArgument);
         _singleInstance = new Mutex(initiallyOwned: true, @"Local\TaskBarGame.HarvestEdition.SingleInstance", out bool isFirst);
-        if (!isFirst && justUpdated)
+        if (!isFirst && restarted)
         {
             // The old version is still closing: wait for it.
             try { isFirst = _singleInstance.WaitOne(TimeSpan.FromSeconds(15)); }
@@ -67,6 +71,7 @@ public partial class App : Application
             strip.Closed += (_, _) => Quit();
             strip.Show();
             _host.Start();
+            _host.StartBackups();
             StartUpdater(_host);
 
             if (justUpdated) strip.ShowUpdated(Updater.CurrentVersion);
@@ -123,6 +128,33 @@ public partial class App : Application
         {
             LogError(ex);
             MessageBox.Show($"The update is installed, but the game couldn't restart by itself. Start it again to play the new version.\n\n{ex.Message}",
+                Title, MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        Shutdown();
+    }
+
+    /// <summary>
+    /// Restarts the game without saving, so it loads a save file that was just put in place
+    /// (restoring a backup or importing a save).
+    /// </summary>
+    public void RestartToLoadSave()
+    {
+        if (Environment.ProcessPath is not { } exe) return;
+        _quitting = true;
+        _host?.Dispose();
+        _host = null; // don't save over the save that was just put in place
+
+        _singleInstance?.ReleaseMutex();
+        _singleInstance?.Dispose();
+        _singleInstance = null;
+        try
+        {
+            Process.Start(new ProcessStartInfo(exe, RestartedArgument) { UseShellExecute = false });
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or IOException)
+        {
+            LogError(ex);
+            MessageBox.Show($"The save is in place, but the game couldn't restart by itself. Start it again to play it.\n\n{ex.Message}",
                 Title, MessageBoxButton.OK, MessageBoxImage.Information);
         }
         Shutdown();

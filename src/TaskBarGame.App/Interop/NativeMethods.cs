@@ -1,8 +1,15 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Windows;
 
 namespace TaskBarGame.App.Interop;
+
+/// <summary>A monitor, in real screen pixels.</summary>
+/// <param name="DeviceName">Windows' name for it, like \\.\DISPLAY2 (saved in the settings).</param>
+/// <param name="WorkArea">The part not covered by its taskbar.</param>
+internal sealed record MonitorInfo(string DeviceName, bool IsPrimary, Int32Rect Bounds, Int32Rect WorkArea);
 
 /// <summary>The few Windows API calls WPF doesn't offer directly.</summary>
 internal static class NativeMethods
@@ -16,7 +23,53 @@ internal static class NativeMethods
     private const uint SWP_NOMOVE = 0x0002;
     private const uint SWP_NOACTIVATE = 0x0010;
 
+    private const uint SWP_NOZORDER = 0x0004;
     private const uint MONITOR_DEFAULTTONEAREST = 2;
+    private const uint MONITORINFOF_PRIMARY = 1;
+
+    public const int WM_HOTKEY = 0x0312;
+    public const uint MOD_ALT = 0x1, MOD_CONTROL = 0x2, MOD_SHIFT = 0x4, MOD_WIN = 0x8, MOD_NOREPEAT = 0x4000;
+
+    /// <summary>Every monitor, the main one first.</summary>
+    public static IReadOnlyList<MonitorInfo> Monitors()
+    {
+        var list = new List<MonitorInfo>();
+        EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, (monitor, _, _, _) =>
+        {
+            var info = new MONITORINFOEX { cbSize = Marshal.SizeOf<MONITORINFOEX>() };
+            if (GetMonitorInfoEx(monitor, ref info))
+                list.Add(new MonitorInfo(info.szDevice, (info.dwFlags & MONITORINFOF_PRIMARY) != 0,
+                    ToRect(info.rcMonitor), ToRect(info.rcWork)));
+            return true;
+        }, IntPtr.Zero);
+        list.Sort((a, b) => a.IsPrimary == b.IsPrimary ? a.Bounds.X.CompareTo(b.Bounds.X) : a.IsPrimary ? -1 : 1);
+        return list;
+    }
+
+    /// <summary>The monitor a window is (mostly) on.</summary>
+    public static MonitorInfo? MonitorOf(IntPtr hwnd)
+    {
+        IntPtr monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+        var info = new MONITORINFOEX { cbSize = Marshal.SizeOf<MONITORINFOEX>() };
+        return monitor != IntPtr.Zero && GetMonitorInfoEx(monitor, ref info)
+            ? new MonitorInfo(info.szDevice, (info.dwFlags & MONITORINFOF_PRIMARY) != 0, ToRect(info.rcMonitor), ToRect(info.rcWork))
+            : null;
+    }
+
+    /// <summary>A window's position and size in real screen pixels.</summary>
+    public static Int32Rect? WindowRect(IntPtr hwnd) => GetWindowRect(hwnd, out RECT r) ? ToRect(r) : null;
+
+    /// <summary>Moves a window (without resizing it) to a spot in real screen pixels.</summary>
+    public static void MoveWindow(IntPtr hwnd, int x, int y) =>
+        SetWindowPos(hwnd, IntPtr.Zero, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+
+    /// <summary>Asks Windows to tell <paramref name="hwnd"/> (WM_HOTKEY) when a key combination is pressed anywhere.</summary>
+    public static bool RegisterHotKey(IntPtr hwnd, int id, uint modifiers, uint key) =>
+        RegisterHotKeyNative(hwnd, id, modifiers | MOD_NOREPEAT, key);
+
+    public static void UnregisterHotKey(IntPtr hwnd, int id) => UnregisterHotKeyNative(hwnd, id);
+
+    private static Int32Rect ToRect(RECT r) => new(r.Left, r.Top, r.Right - r.Left, r.Bottom - r.Top);
 
     /// <summary>
     /// Hides the window from Alt+Tab and stops clicks on it from stealing focus
@@ -74,6 +127,36 @@ internal static class NativeMethods
         public RECT rcWork;
         public uint dwFlags;
     }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct MONITORINFOEX
+    {
+        public int cbSize;
+        public RECT rcMonitor;
+        public RECT rcWork;
+        public uint dwFlags;
+
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
+        public string szDevice;
+    }
+
+    private delegate bool MonitorEnumProc(IntPtr monitor, IntPtr hdc, IntPtr rect, IntPtr data);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr clip, MonitorEnumProc callback, IntPtr data);
+
+    [DllImport("user32.dll", EntryPoint = "GetMonitorInfoW", CharSet = CharSet.Unicode)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetMonitorInfoEx(IntPtr monitor, ref MONITORINFOEX info);
+
+    [DllImport("user32.dll", EntryPoint = "RegisterHotKey", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool RegisterHotKeyNative(IntPtr hwnd, int id, uint modifiers, uint key);
+
+    [DllImport("user32.dll", EntryPoint = "UnregisterHotKey")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool UnregisterHotKeyNative(IntPtr hwnd, int id);
 
     private static IntPtr GetWindowLongPtr(IntPtr hwnd, int index) =>
         IntPtr.Size == 8 ? GetWindowLongPtr64(hwnd, index) : new IntPtr(GetWindowLong32(hwnd, index));

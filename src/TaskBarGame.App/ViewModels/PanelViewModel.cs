@@ -22,7 +22,7 @@ public sealed partial class PanelViewModel : ObservableObject
         nameof(AutoHarvest), nameof(KeepForUpgrades), nameof(FloatingText), nameof(HideInFullscreen),
         nameof(StartWithWindows), nameof(ShortNumbers), nameof(BatterySaver),
         nameof(PausePopups), nameof(PopupLevelUps), nameof(PopupCollections), nameof(PopupCrafted),
-        nameof(PopupBazaar), nameof(PopupUpgradeReady), nameof(PopupWelcomeBack), nameof(PopupUpdates),
+        nameof(PopupBazaar), nameof(PopupUpgradeReady), nameof(PopupWelcomeBack), nameof(PopupUpdates), nameof(PopupCosmetics),
         nameof(CheckForUpdates), nameof(InstallUpdatesAutomatically),
     };
 
@@ -62,7 +62,6 @@ public sealed partial class PanelViewModel : ObservableObject
     {
         _host = host;
         CoinIcon = host.Sprites["coin"];
-        FarmerIcon = host.Sprites["farmer_idle"];
         LockIcon = host.Sprites["lock"];
 
         CropChoices = Crops.All
@@ -99,6 +98,7 @@ public sealed partial class PanelViewModel : ObservableObject
         AutoSellNoneCommand = new RelayCommand(() => SetAutoSellForAll(false));
         InitBazaar();
         InitUpdates();
+        InitBuddy();
         Refresh();
     }
 
@@ -106,7 +106,10 @@ public sealed partial class PanelViewModel : ObservableObject
     private GameSettings Settings => _host.Settings;
 
     public ImageSource CoinIcon { get; }
-    public ImageSource FarmerIcon { get; }
+    private ImageSource? _farmerIcon;
+
+    /// <summary>The farmer in the title bar, in their current hat and outfit.</summary>
+    public ImageSource? FarmerIcon { get => _farmerIcon; private set => Set(ref _farmerIcon, value); }
     public ImageSource LockIcon { get; }
     public string CoinsText { get => _coinsText; private set => Set(ref _coinsText, value); }
 
@@ -274,6 +277,7 @@ public sealed partial class PanelViewModel : ObservableObject
     public bool PopupUpgradeReady { get => ShowsPopup(PopupKind.UpgradeReady); set => ShowPopup(PopupKind.UpgradeReady, value); }
     public bool PopupWelcomeBack { get => ShowsPopup(PopupKind.WelcomeBack); set => ShowPopup(PopupKind.WelcomeBack, value); }
     public bool PopupUpdates { get => ShowsPopup(PopupKind.Update); set => ShowPopup(PopupKind.Update, value); }
+    public bool PopupCosmetics { get => ShowsPopup(PopupKind.Cosmetic); set => ShowPopup(PopupKind.Cosmetic, value); }
 
     private bool ShowsPopup(PopupKind kind) => !Settings.HiddenPopups.Contains(kind);
 
@@ -344,6 +348,7 @@ public sealed partial class PanelViewModel : ObservableObject
         RefreshMarket();
         RefreshBazaar();
         RefreshUpdates();
+        RefreshBuddy();
     }
 
     private void RefreshField()

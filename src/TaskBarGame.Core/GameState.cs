@@ -37,6 +37,9 @@ public sealed class GameState
 
     public BazaarState Bazaar { get; set; } = new();
 
+    /// <summary>Hats and outfits whose unlocking you've been told about.</summary>
+    public HashSet<string> UnlockedCosmetics { get; set; } = new();
+
     public GameSettings Settings { get; set; } = new();
     public GameStats Stats { get; set; } = new();
 
@@ -62,6 +65,7 @@ public sealed class GameState
         Armour ??= new();
         Talismans ??= new();
         Bazaar ??= new();
+        UnlockedCosmetics ??= new();
         Settings ??= new();
         Stats ??= new();
 
@@ -198,6 +202,19 @@ public sealed class GameSettings
     /// <summary>Update the strip less often while the laptop is on battery.</summary>
     public bool BatterySaver { get; set; } = true;
 
+    /// <summary>The monitor the strip sits on (Windows' name for it, like \\.\DISPLAY2); null = the main one.</summary>
+    public string? Monitor { get; set; }
+
+    /// <summary>Keyboard shortcut that opens or closes the panel from any app ("" = none).</summary>
+    public string PanelHotkey { get; set; } = "Ctrl+Alt+F";
+
+    /// <summary>Keyboard shortcut that hides or shows the strip from any app ("" = none).</summary>
+    public string StripHotkey { get; set; } = "Ctrl+Alt+H";
+
+    /// <summary>The farmer's hat and outfit (see <see cref="Cosmetics"/>).</summary>
+    public string Hat { get; set; } = Cosmetics.DefaultHat;
+    public string Outfit { get; set; } = Cosmetics.DefaultOutfit;
+
     /// <summary>Where the panel was last moved to (null = above the strip).</summary>
     public double? PanelLeft { get; set; }
     public double? PanelTop { get; set; }
@@ -220,6 +237,10 @@ public sealed class GameSettings
         LockedItems ??= new();
         CompactorSkips ??= new();
         HiddenPopups ??= new();
+        PanelHotkey ??= "";
+        StripHotkey ??= "";
+        if (Cosmetics.Hats.All(c => c.Id != Hat)) Hat = Cosmetics.DefaultHat;
+        if (Cosmetics.Outfits.All(c => c.Id != Outfit)) Outfit = Cosmetics.DefaultOutfit;
 
         if (AutoSell == true)
             foreach (var crop in Crops.All) AutoSellCrops.Add(crop.Id);
@@ -244,6 +265,7 @@ public enum PopupKind
     UpgradeReady,
     WelcomeBack,
     Update,
+    Cosmetic,
 }
 
 public sealed class GameStats
