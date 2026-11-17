@@ -24,7 +24,11 @@ Click the farmer (or your coins) to open the panel:
 
 ## Running it
 
-Build the `.exe` yourself, or download the one GitHub builds for this branch: open
+Once a Harvest Edition release is out, download `TaskBarGame-HarvestEdition.exe` from the
+[Releases](https://github.com/TheUthaGuy/TaskBarGame/releases) page (look for a `harvest-v` tag). It
+updates itself from then on.
+
+Until then, build the `.exe` yourself, or download the one GitHub builds for this branch: open
 [Actions → Build](https://github.com/TheUthaGuy/TaskBarGame/actions/workflows/build.yml?query=branch%3Aharvest-edition),
 click the newest run, and download **TaskBarGame-win-x64** under **Artifacts** (you need to be signed
 in to GitHub). The [Download](#download) links at the bottom give the original edition, not this one.
@@ -205,10 +209,25 @@ In the panel's **Settings** tab (or the right-click menu):
 - **Battery saver** (on by default): the strip animates less often while the laptop is on battery. The
   farmer and your crops keep the same pace. While a fullscreen app hides the strip, the game always
   updates less often.
+- **Updates:** check for new versions, and install them without asking if you like (see [Updates](#updates)).
 - Farmer auto-farming, keeping crops for upgrades, floating numbers, hide during fullscreen apps, start
   with Windows.
 
 The panel opens where you last dragged it, on the tab you last had open.
+
+### Updates
+
+A little after it starts, and then every 6 hours, the game looks on GitHub for a newer Harvest Edition
+release. When there is one, a pop-up asks if you want it, and the strip says so under your coins.
+
+- **Update now** (in the pop-up, or **Settings → Updates**) downloads the new version, checks that it's
+  exactly the file GitHub published (its SHA-256 checksum), saves your farm and restarts the game. If the
+  check fails, nothing is installed.
+- Turn on **Install new versions without asking** to have updates installed in the background. They
+  start the next time the game opens (or straight away with **Restart now**).
+- **Check now** looks for a new version straight away; **What's new** opens the release page.
+- This works for the single `TaskBarGame-HarvestEdition.exe` from a release. A copy built from the source
+  code as a folder of files tells you about new versions but has to be updated by hand.
 
 Your save file is `%APPDATA%\TaskBarGame Harvest Edition\save.json` (with a `.bak` backup). If something
 breaks, details are written to `%APPDATA%\TaskBarGame Harvest Edition\error.log`.
@@ -253,19 +272,24 @@ stand-in for it.
 
 ### Making a release
 
-Releases are for the original edition on `main`. **Don't publish one from this branch**: the
-download links always give the newest release, so it would replace the original game's download.
+Harvest Edition releases are tagged `harvest-v<version>` (for example `harvest-v0.2.0`), so they never
+mix with the original edition's `v0.1.0` releases. They're also never marked as the repo's "latest"
+release, so the original edition's download links on `main` keep working.
 
-1. Set the new version in `src/TaskBarGame.App/TaskBarGame.App.csproj` (`<Version>`) and in the
-   [Download](#download) section below.
-2. Write the release notes in `docs/releases/v<version>.md` (copy the previous one).
-3. On GitHub, open **Actions → Release → Run workflow**, type the version (for example `0.2.0`) and
-   click **Run workflow**.
+1. Set the new version in `src/TaskBarGame.App/TaskBarGame.App.csproj` (`<Version>`).
+2. Write the release notes in `docs/releases/harvest-v<version>.md` (copy the previous one).
+3. On GitHub, open **Actions → Release (Harvest Edition) → Run workflow**, pick the branch to release
+   (for example `harvest-edition`), type the version (for example `0.2.0`) and click **Run workflow**.
 
-About two minutes later `TaskBarGame.exe` is on the
-[Releases](https://github.com/TheUthaGuy/TaskBarGame/releases) page. The download links below always
-point at the newest release, so they never need changing. (Publishing a release from the Releases
-page, or pushing a `v0.2.0` tag, also works: the workflow adds the game files either way.)
+About two minutes later the release has three files: `TaskBarGame-HarvestEdition.exe`, a zipped copy,
+and `TaskBarGame-HarvestEdition.exe.sha256` (the checksum the game checks updates against). Copies of
+the game that are already installed find it by themselves (see [Updates](#updates)). Pushing a
+`harvest-v0.2.0` tag also works.
+
+To try updating without publishing anything, set the `TBG_UPDATE_FEED` environment variable to the
+address of a file shaped like GitHub's
+[list of releases](https://docs.github.com/en/rest/releases/releases#list-releases): the game then
+checks that instead of GitHub.
 
 ### Project layout
 

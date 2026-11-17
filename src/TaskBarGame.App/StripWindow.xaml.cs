@@ -165,6 +165,9 @@ public partial class StripWindow : Window
         Engine.CollectionTierReached += OnCollectionTier;
         Engine.Crafted += OnCrafted;
         Engine.OrderFilled += OnOrderFilled;
+        _host.Updater.Found += OnUpdateFound;
+        _host.Updater.InstalledInBackground += OnUpdateInstalled;
+        _host.Updater.InstallFailed += message => QueueToast("UPDATE DIDN'T INSTALL", message, DangerBrush, 8);
         _host.Farmer.Teleported += () => SpawnTeleportSparkles(Engine.FieldLength);
         Engine.Changed += () =>
         {
@@ -616,7 +619,18 @@ public partial class StripWindow : Window
     private void UpdateSlow()
     {
         _coinsText.Text = Format.Number(Engine.State.Coins);
-        _levelsText.Text = $"Farming {Engine.FarmingLevel} · Garden {Engine.GardenLevel}";
+        // While a new version is waiting, say so under the coins (the panel's Settings tab has the button).
+        var updater = _host.Updater;
+        if (updater.State is UpdateState.Available or UpdateState.Installed && updater.Release is { } release)
+        {
+            _levelsText.Text = updater.State == UpdateState.Installed ? "Update installed: restart" : $"Version {release.Version} is out!";
+            _levelsText.Foreground = GardenBrush;
+        }
+        else
+        {
+            _levelsText.Text = $"Farming {Engine.FarmingLevel} · Garden {Engine.GardenLevel}";
+            _levelsText.Foreground = TextBrush;
+        }
 
         foreach (var view in _tiles)
             if (view.Index < Engine.FieldLength) view.Tip.Text = DescribeTile(view.Index);
@@ -1082,6 +1096,43 @@ public partial class StripWindow : Window
         QueueToast("WELCOME BACK!", body, GoldBrush, 9, PopupKind.WelcomeBack);
     }
 
+    private static App CurrentApp => (App)Application.Current;
+
+    private void OnUpdateFound(ReleaseInfo release)
+    {
+        QueueToast("NEW VERSION OUT!",
+            $"{release.Name} is out (you have {Updater.CurrentVersion}). Update now: your farm is saved and the game restarts.",
+            GardenBrush, 30, PopupKind.Update,
+            Updater.CanInstall ? ("Update now", () =>
+            {
+                QueueToast("UPDATING...", $"Downloading version {release.Version}. The game restarts when it's ready.", GardenBrush, 6);
+                CurrentApp.UpdateNow();
+            }) : ("See what's new", () => OpenWebPage(release.PageUrl)));
+    }
+
+    private void OnUpdateInstalled(ReleaseInfo release)
+    {
+        QueueToast("UPDATE INSTALLED",
+            $"Version {release.Version} starts the next time the game opens.",
+            GardenBrush, 30, PopupKind.Update, ("Restart now", CurrentApp.RestartIntoNewVersion));
+    }
+
+    /// <summary>Right after updating: says which version you're on now.</summary>
+    public void ShowUpdated(Version version)
+    {
+        QueueToast($"UPDATED TO VERSION {version}!", "Your farm is just as you left it. See what's new in Settings → Updates.",
+            GardenBrush, 8, PopupKind.Update);
+    }
+
+    internal static void OpenWebPage(string url)
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException) { }
+    }
+
     /// <summary>
     /// Pops up when an upgrade becomes craftable. <paramref name="quietly"/> just remembers what's
     /// ready (used when the game starts, so you aren't told about upgrades you already knew of).
@@ -1102,10 +1153,12 @@ public partial class StripWindow : Window
     }
 
     /// <param name="kind">Which pop-up setting this follows; null for replies to something you just did (always shown).</param>
-    private void QueueToast(string title, string body, Brush accent, double seconds, PopupKind? kind = null)
+    /// <param name="action">A button on the pop-up, e.g. ("Update now", ...).</param>
+    private void QueueToast(string title, string body, Brush accent, double seconds, PopupKind? kind = null,
+        (string Label, Action Run)? action = null)
     {
         if (kind is { } k && !Settings.IsPopupShown(k)) return;
-        _toastQueue.Enqueue(new Toast(title, body, accent, seconds));
+        _toastQueue.Enqueue(new Toast(title, body, accent, seconds) { Action = action });
         if (_toast is null) NextToast();
     }
 
@@ -1135,6 +1188,25 @@ public partial class StripWindow : Window
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 2, 0, 0),
         });
+        if (toast.Action is { } action)
+        {
+            var button = new Button
+            {
+                Content = action.Label,
+                FontSize = _fontSize,
+                Padding = new Thickness(10, 3, 10, 3),
+                Margin = new Thickness(0, 6, 0, 0),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Style = TryFindResource("AccentButton") as Style,
+            };
+            button.Click += (_, e) =>
+            {
+                e.Handled = true;
+                NextToast();
+                action.Run();
+            };
+            text.Children.Add(button);
+        }
         var border = new Border
         {
             Background = ToastBrush,
@@ -1145,7 +1217,7 @@ public partial class StripWindow : Window
             MaxWidth = Math.Min(Width - 8, 340),
             Child = text,
             Cursor = Cursors.Hand,
-            ToolTip = "Click to dismiss",
+            ToolTip = toast.Action is null ? "Click to dismiss" : "Click the button, or anywhere else to dismiss",
         };
         border.MouseLeftButtonUp += (_, e) => { NextToast(); e.Handled = true; };
         border.Measure(new Size(border.MaxWidth, double.PositiveInfinity));
@@ -1214,5 +1286,6 @@ public partial class StripWindow : Window
         public double Seconds { get; } = seconds;
         public double Age { get; set; }
         public FrameworkElement? Element { get; set; }
+        public (string Label, Action Run)? Action { get; init; }
     }
 }

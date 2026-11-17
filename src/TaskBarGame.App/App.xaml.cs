@@ -1,5 +1,7 @@
 using System;
+using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -15,6 +17,9 @@ public partial class App : Application
     private bool _shownCrashMessage;
     private bool _quitting;
     private bool _screenshotMode;
+
+    /// <summary>Passed to the new version when the game restarts after updating itself.</summary>
+    private const string UpdatedArgument = "--updated";
 
     /// <summary>Errors are written here so they can be reported and fixed.</summary>
     /// <summary>The name shown in message boxes and window titles.</summary>
@@ -34,7 +39,14 @@ public partial class App : Application
             return;
         }
 
+        bool justUpdated = e.Args.Contains(UpdatedArgument);
         _singleInstance = new Mutex(initiallyOwned: true, @"Local\TaskBarGame.HarvestEdition.SingleInstance", out bool isFirst);
+        if (!isFirst && justUpdated)
+        {
+            // The old version is still closing: wait for it.
+            try { isFirst = _singleInstance.WaitOne(TimeSpan.FromSeconds(15)); }
+            catch (AbandonedMutexException) { isFirst = true; }
+        }
         if (!isFirst)
         {
             MessageBox.Show("The Harvest Edition is already running. Look just above your taskbar!",
@@ -55,7 +67,9 @@ public partial class App : Application
             strip.Closed += (_, _) => Quit();
             strip.Show();
             _host.Start();
+            StartUpdater(_host);
 
+            if (justUpdated) strip.ShowUpdated(Updater.CurrentVersion);
             if (!offline.IsEmpty && offline.Away >= TimeSpan.FromMinutes(1))
                 strip.ShowOfflineReport(offline);
         }
@@ -67,6 +81,51 @@ public partial class App : Application
             _host = null; // don't save a half-started game over a good save file
             Shutdown();
         }
+    }
+
+    /// <summary>A problem with updates must never stop the game from starting.</summary>
+    private static void StartUpdater(GameHost host)
+    {
+        try
+        {
+            host.Updater.Start();
+        }
+        catch (Exception ex)
+        {
+            LogError(ex, "Updates are off until the game restarts.");
+        }
+    }
+
+    /// <summary>Downloads and installs the new version, then restarts into it (the "Update now" button).</summary>
+    public async void UpdateNow()
+    {
+        if (_host is null) return;
+        if (await _host.Updater.InstallAsync()) RestartIntoNewVersion();
+    }
+
+    /// <summary>Saves, then starts the newly installed version and closes this one.</summary>
+    public void RestartIntoNewVersion()
+    {
+        if (_host is null || Environment.ProcessPath is not { } exe) return;
+        _host.Save();
+        _quitting = true;
+
+        // Let the new version take the "only one copy running" lock straight away.
+        _singleInstance?.ReleaseMutex();
+        _singleInstance?.Dispose();
+        _singleInstance = null;
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(exe, UpdatedArgument) { UseShellExecute = false });
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or IOException)
+        {
+            LogError(ex);
+            MessageBox.Show($"The update is installed, but the game couldn't restart by itself. Start it again to play the new version.\n\n{ex.Message}",
+                Title, MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        Shutdown();
     }
 
     /// <summary>Saves and closes the game.</summary>

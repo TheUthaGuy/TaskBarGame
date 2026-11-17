@@ -186,6 +186,12 @@ public sealed class GameSettings
     /// <summary>No pop-ups at all for now (except ones for buttons you press).</summary>
     public bool PausePopups { get; set; }
 
+    /// <summary>Look for a new version on GitHub now and then.</summary>
+    public bool CheckForUpdates { get; set; } = true;
+
+    /// <summary>Install new versions without asking first (otherwise a pop-up asks).</summary>
+    public bool InstallUpdatesAutomatically { get; set; }
+
     /// <summary>Show big numbers as "1.2M" instead of "1,234,567".</summary>
     public bool ShortNumbers { get; set; }
 
@@ -237,6 +243,7 @@ public enum PopupKind
     BazaarOrder,
     UpgradeReady,
     WelcomeBack,
+    Update,
 }
 
 public sealed class GameStats

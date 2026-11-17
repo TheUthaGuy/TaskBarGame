@@ -39,6 +39,7 @@ public sealed class GameHost : IDisposable
         Engine = new GameEngine(state ?? Saves.LoadOrCreate());
         Farmer = new FarmerAgent();
         Sprites = new SpriteCache(SpriteSheet.LoadDefault());
+        Updater = new Updater(Engine.State.Settings);
 
         _timer = new DispatcherTimer(DispatcherPriority.Normal) { Interval = TimeSpan.FromMilliseconds(NormalFrameMs) };
         _timer.Tick += OnTick;
@@ -49,6 +50,9 @@ public sealed class GameHost : IDisposable
     public FarmerAgent Farmer { get; }
     public SaveManager Saves { get; }
     public SpriteCache Sprites { get; }
+
+    /// <summary>Finds and installs new versions (started by the app; not used in screenshot mode).</summary>
+    public Updater Updater { get; }
     public GameSettings Settings => Engine.State.Settings;
 
     /// <summary>True while the laptop is running on battery and Battery saver is on.</summary>

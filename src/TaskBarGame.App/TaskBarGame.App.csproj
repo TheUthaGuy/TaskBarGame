@@ -10,7 +10,8 @@
     <AssemblyName>TaskBarGame</AssemblyName>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>0.1.0</Version>
+    <!-- The Harvest Edition's version. Releases set it from the version you type (see .github/workflows/release.yml). -->
+    <Version>0.2.0</Version>
     <!-- Lets the project build on Linux/macOS too (for CI). It still only runs on Windows. -->
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>

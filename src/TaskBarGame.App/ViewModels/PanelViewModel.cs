@@ -22,7 +22,8 @@ public sealed partial class PanelViewModel : ObservableObject
         nameof(AutoHarvest), nameof(KeepForUpgrades), nameof(FloatingText), nameof(HideInFullscreen),
         nameof(StartWithWindows), nameof(ShortNumbers), nameof(BatterySaver),
         nameof(PausePopups), nameof(PopupLevelUps), nameof(PopupCollections), nameof(PopupCrafted),
-        nameof(PopupBazaar), nameof(PopupUpgradeReady), nameof(PopupWelcomeBack),
+        nameof(PopupBazaar), nameof(PopupUpgradeReady), nameof(PopupWelcomeBack), nameof(PopupUpdates),
+        nameof(CheckForUpdates), nameof(InstallUpdatesAutomatically),
     };
 
     private readonly GameHost _host;
@@ -97,6 +98,7 @@ public sealed partial class PanelViewModel : ObservableObject
         AutoSellAllCommand = new RelayCommand(() => SetAutoSellForAll(true));
         AutoSellNoneCommand = new RelayCommand(() => SetAutoSellForAll(false));
         InitBazaar();
+        InitUpdates();
         Refresh();
     }
 
@@ -271,6 +273,7 @@ public sealed partial class PanelViewModel : ObservableObject
     public bool PopupBazaar { get => ShowsPopup(PopupKind.BazaarOrder); set => ShowPopup(PopupKind.BazaarOrder, value); }
     public bool PopupUpgradeReady { get => ShowsPopup(PopupKind.UpgradeReady); set => ShowPopup(PopupKind.UpgradeReady, value); }
     public bool PopupWelcomeBack { get => ShowsPopup(PopupKind.WelcomeBack); set => ShowPopup(PopupKind.WelcomeBack, value); }
+    public bool PopupUpdates { get => ShowsPopup(PopupKind.Update); set => ShowPopup(PopupKind.Update, value); }
 
     private bool ShowsPopup(PopupKind kind) => !Settings.HiddenPopups.Contains(kind);
 
@@ -340,6 +343,7 @@ public sealed partial class PanelViewModel : ObservableObject
         foreach (var row in CollectionRows) row.Update(Engine);
         RefreshMarket();
         RefreshBazaar();
+        RefreshUpdates();
     }
 
     private void RefreshField()

@@ -713,7 +713,35 @@
                                         <CheckBox Content="Crafted upgrades" IsChecked="{Binding PopupCrafted}" Width="190" />
                                         <CheckBox Content="Bazaar orders filled" IsChecked="{Binding PopupBazaar}" Width="190" />
                                         <CheckBox Content="Welcome back report" IsChecked="{Binding PopupWelcomeBack}" Width="190" />
+                                        <CheckBox Content="New versions" IsChecked="{Binding PopupUpdates}" Width="190" />
                                     </WrapPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding VersionText, Mode=OneWay}" Style="{StaticResource Muted}"
+                                                   VerticalAlignment="Bottom" />
+                                        <TextBlock Text="Updates" Style="{StaticResource H3}" />
+                                    </DockPanel>
+                                    <TextBlock Text="{Binding UpdateStatus}" Foreground="{StaticResource GoldBrush}" TextWrapping="Wrap" Margin="0,6,0,8" />
+                                    <WrapPanel>
+                                        <Button Content="Update now" Style="{StaticResource AccentButton}" Command="{Binding UpdateNowCommand}"
+                                                Margin="0,0,8,6" ToolTip="Download the new version, check it, save your farm and restart"
+                                                Visibility="{Binding CanUpdateNow, Converter={StaticResource BoolToVisibility}}" />
+                                        <Button Content="Restart now" Style="{StaticResource AccentButton}" Command="{Binding RestartForUpdateCommand}"
+                                                Margin="0,0,8,6" Visibility="{Binding CanRestartForUpdate, Converter={StaticResource BoolToVisibility}}" />
+                                        <Button Content="Check now" Command="{Binding CheckNowCommand}" Margin="0,0,8,6"
+                                                IsEnabled="{Binding IsUpdateBusy, Converter={StaticResource Not}}" />
+                                        <Button Content="What's new" Command="{Binding OpenReleasePageCommand}" Margin="0,0,8,6"
+                                                ToolTip="Open the release page on GitHub"
+                                                Visibility="{Binding HasReleasePage, Converter={StaticResource BoolToVisibility}}" />
+                                    </WrapPanel>
+                                    <CheckBox Content="Check for new versions automatically" IsChecked="{Binding CheckForUpdates}" />
+                                    <CheckBox Content="Install new versions without asking (they start the next time the game opens)"
+                                              IsChecked="{Binding InstallUpdatesAutomatically}"
+                                              IsEnabled="{Binding CheckForUpdates}" />
                                 </StackPanel>
                             </Border>
 
