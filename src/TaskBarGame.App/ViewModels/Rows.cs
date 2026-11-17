@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Windows.Input;
 using System.Windows.Media;
 using TaskBarGame.Core;
@@ -196,6 +197,8 @@ public sealed class CollectionRow : ObservableObject
     private string _tierText = "";
     private string _countText = "";
     private string _rewardText = "";
+    private string _maxText = "";
+    private string _tiersTip = "";
     private double _progress;
     private double _rowOpacity = 1;
 
@@ -213,6 +216,13 @@ public sealed class CollectionRow : ObservableObject
     public string TierText { get => _tierText; private set => Set(ref _tierText, value); }
     public string CountText { get => _countText; private set => Set(ref _countText, value); }
     public string RewardText { get => _rewardText; private set => Set(ref _rewardText, value); }
+
+    /// <summary>"Max (Tier X): 2,000,000 · 3% of the way there".</summary>
+    public string MaxText { get => _maxText; private set => Set(ref _maxText, value); }
+
+    /// <summary>Every tier: how many it needs and what it gives (the row's tooltip).</summary>
+    public string TiersTip { get => _tiersTip; private set => Set(ref _tiersTip, value); }
+
     public double Progress { get => _progress; private set => Set(ref _progress, value); }
     public double RowOpacity { get => _rowOpacity; private set => Set(ref _rowOpacity, value); }
 
@@ -224,9 +234,16 @@ public sealed class CollectionRow : ObservableObject
         long? next = CollectionTiers.NextThreshold(Crop, collected);
         long previous = tier == 0 ? 0 : thresholds[tier - 1];
 
-        TierText = tier == 0 ? "Not started"
+        long max = CollectionTiers.MaxThreshold(Crop);
+        string maxTier = Format.Roman(CollectionTiers.MaxTier);
+        TierText = tier == 0 ? $"Not started · {CollectionTiers.MaxTier} tiers"
             : next is null ? $"Tier {Format.Roman(tier)} · MAXED"
-            : $"Tier {Format.Roman(tier)}";
+            : $"Tier {Format.Roman(tier)} of {maxTier}";
+        MaxText = next is null
+            ? $"Maxed out: Tier {maxTier} needed {Format.Number(max)} {Crop.Name}"
+            : $"Max (Tier {maxTier}): {Format.Number(max)} {Crop.Name} · {MaxProgress(collected, max)} of the way there";
+        TiersTip = string.Join("\n", thresholds.Select((t, i) =>
+            $"{(i < tier ? "✓" : "   ")} Tier {Format.Roman(i + 1)}: {Format.Number(t)}  (+{(i + 1) * CollectionTiers.FortunePerTier} {Crop.Name} Fortune)"));
         CountText = next is null
             ? $"{Format.Number(collected)} collected"
             : $"{Format.Number(collected)} / {Format.Number(next.Value)}";
@@ -235,6 +252,13 @@ public sealed class CollectionRow : ObservableObject
             ? $"Tier I: +{CollectionTiers.FortunePerTier} {Crop.Name} Fortune"
             : $"+{tier * CollectionTiers.FortunePerTier} {Crop.Name} Fortune";
         RowOpacity = engine.IsCropUnlocked(Crop) || collected > 0 ? 1 : 0.45;
+    }
+
+    /// <summary>"3%", or "under 1%" so a started collection never reads 0%.</summary>
+    private static string MaxProgress(long collected, long max)
+    {
+        double percent = 100.0 * collected / max;
+        return collected > 0 && percent < 1 ? "under 1%" : $"{Math.Floor(percent):0}%";
     }
 }
 

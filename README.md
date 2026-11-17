@@ -78,7 +78,9 @@ back, a popup tells you what they did.
 - **Garden level (1-15):** Garden XP from every crop broken and every collection tier. Garden levels
   unlock crops, upgrades and field expansions.
 - **Field:** starts at 10 crops and expands up to 24.
-- **Collections:** 10 tiers per crop, each giving +2 Fortune for that crop and Garden XP.
+- **Collections:** 10 tiers per crop, each giving +2 Fortune for that crop and Garden XP. The
+  Collections tab shows each crop's max (how many Tier X needs, from 2,000,000 Wheat to 10,000,000
+  Melon) and how far you are towards it. Hover over a crop to see every tier.
 - **Packing:** 160 crops pack into 1 **Packed** crop, and 160 Packed into 1 **Dense** crop. Packed crops
   sell for the same as the crops inside, but you need them for crafting.
 
@@ -183,7 +185,7 @@ your hoes, Fortune and speed, and marks the best one.
 <p>
   <img src="docs/screenshots/panel-farming.png" width="32%" alt="Farming tab: Farming level and where your Harvest Fortune comes from">
   <img src="docs/screenshots/panel-inventory.png" width="32%" alt="Inventory tab: crops, packed crops in sacks and dense crops in crates">
-  <img src="docs/screenshots/panel-collections.png" width="32%" alt="Collections tab: tier progress for every crop">
+  <img src="docs/screenshots/panel-collections.png" width="32%" alt="Collections tab: tier progress for every crop, and the max collection for each">
 </p>
 
 ### Settings

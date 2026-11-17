@@ -306,11 +306,11 @@
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel Margin="0,0,6,0">
                             <TextBlock Style="{StaticResource Muted}" Margin="2,0,0,10"
-                                       Text="Every crop you harvest counts toward its collection. Each tier gives that crop more Harvest Fortune, plus Garden XP." />
+                                       Text="Every crop you harvest counts toward its collection. Each tier gives that crop more Harvest Fortune, plus Garden XP. Hover over a crop to see every tier." />
                             <ItemsControl ItemsSource="{Binding CollectionRows}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Style="{StaticResource Row}" Opacity="{Binding RowOpacity}">
+                                        <Border Style="{StaticResource Row}" Opacity="{Binding RowOpacity}" ToolTip="{Binding TiersTip}">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="Auto" />
@@ -330,6 +330,8 @@
                                                                    Foreground="{StaticResource MutedBrush}" FontSize="12" />
                                                         <TextBlock Text="{Binding CountText}" Foreground="{StaticResource MutedBrush}" FontSize="12" />
                                                     </DockPanel>
+                                                    <TextBlock Text="{Binding MaxText}" Foreground="{StaticResource GoldBrush}" FontSize="11"
+                                                               Margin="0,2,0,0" />
                                                 </StackPanel>
                                             </Grid>
                                         </Border>
