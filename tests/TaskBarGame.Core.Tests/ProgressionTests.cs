@@ -8,11 +8,11 @@ public class ProgressionTests
     public void Farming_levels_follow_the_xp_table()
     {
         Assert.Equal(0, FarmingSkill.LevelForXp(0));
-        Assert.Equal(0, FarmingSkill.LevelForXp(49));
-        Assert.Equal(1, FarmingSkill.LevelForXp(50));
-        Assert.Equal(2, FarmingSkill.LevelForXp(125));
+        Assert.Equal(0, FarmingSkill.LevelForXp(99));
+        Assert.Equal(1, FarmingSkill.LevelForXp(100));
+        Assert.Equal(2, FarmingSkill.LevelForXp(250));
         Assert.Equal(FarmingSkill.MaxLevel, FarmingSkill.LevelForXp(long.MaxValue));
-        Assert.Equal(0.5, FarmingSkill.ProgressToNext(25), precision: 6);
+        Assert.Equal(0.5, FarmingSkill.ProgressToNext(50), precision: 6);
         Assert.Equal(1, FarmingSkill.ProgressToNext(FarmingSkill.TotalXpFor(FarmingSkill.MaxLevel)));
     }
 
@@ -27,8 +27,8 @@ public class ProgressionTests
     public void Garden_levels_follow_the_xp_table()
     {
         Assert.Equal(1, GardenProgression.LevelForXp(0));
-        Assert.Equal(1, GardenProgression.LevelForXp(199));
-        Assert.Equal(2, GardenProgression.LevelForXp(200));
+        Assert.Equal(1, GardenProgression.LevelForXp(399));
+        Assert.Equal(2, GardenProgression.LevelForXp(400));
         Assert.Equal(GardenProgression.MaxLevel, GardenProgression.LevelForXp(long.MaxValue));
         for (int level = 2; level <= GardenProgression.MaxLevel; level++)
             Assert.True(GardenProgression.TotalXpFor(level) > GardenProgression.TotalXpFor(level - 1));

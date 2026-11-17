@@ -53,13 +53,13 @@ public static class Armour
     public static StatBonus SetBonus(int tier) => tier switch
     {
         1 => new StatBonus(Speed: 5),
-        2 => new StatBonus(Regrow: 10),
+        2 => new StatBonus(Fortune: 15, Speed: 5),
         3 => new StatBonus(Fortune: 25, Xp: 10),
         _ => new StatBonus(),
     };
 }
 
-public enum TalismanFamily { Clover, Swiftstep, Sprout, Scholar }
+public enum TalismanFamily { Clover, Swiftstep, Merchant, Scholar }
 
 /// <summary>
 /// Talismans: four kinds, each upgraded Charm → Ring → Relic. You just need to own one;
@@ -78,6 +78,7 @@ public static class Talismans
     public static string FamilyName(TalismanFamily family) => family switch
     {
         TalismanFamily.Scholar => "Scholar's",
+        TalismanFamily.Merchant => "Merchant's",
         _ => family.ToString(),
     };
 
@@ -91,7 +92,7 @@ public static class Talismans
         {
             TalismanFamily.Clover => new StatBonus(Fortune: amount),
             TalismanFamily.Swiftstep => new StatBonus(Speed: amount),
-            TalismanFamily.Sprout => new StatBonus(Regrow: amount),
+            TalismanFamily.Merchant => new StatBonus(Sell: amount),
             TalismanFamily.Scholar => new StatBonus(Xp: amount),
             _ => new StatBonus(),
         };
@@ -102,19 +103,22 @@ public static class Talismans
     {
         TalismanFamily.Clover => "Harvest Fortune",
         TalismanFamily.Swiftstep => "Farming Speed",
-        TalismanFamily.Sprout => "Regrow Speed",
+        TalismanFamily.Merchant => "Market Sell Price",
         TalismanFamily.Scholar => "Farming XP",
         _ => "",
     };
 }
 
-/// <summary>Bonuses to the four farming stats. Speed, Regrow and Xp are percentages.</summary>
-public readonly record struct StatBonus(int Fortune = 0, int Speed = 0, int Regrow = 0, int Xp = 0)
+/// <summary>
+/// Bonuses to the four farming stats. Speed, Xp and Sell are percentages; Sell raises the
+/// price the Market pays (not the Bazaar, or you could buy there and sell here for profit).
+/// </summary>
+public readonly record struct StatBonus(int Fortune = 0, int Speed = 0, int Sell = 0, int Xp = 0)
 {
-    public bool IsEmpty => Fortune == 0 && Speed == 0 && Regrow == 0 && Xp == 0;
+    public bool IsEmpty => Fortune == 0 && Speed == 0 && Sell == 0 && Xp == 0;
 
     public static StatBonus operator +(StatBonus a, StatBonus b) =>
-        new(a.Fortune + b.Fortune, a.Speed + b.Speed, a.Regrow + b.Regrow, a.Xp + b.Xp);
+        new(a.Fortune + b.Fortune, a.Speed + b.Speed, a.Sell + b.Sell, a.Xp + b.Xp);
 
     /// <summary>"+25 Harvest Fortune, +10% Farming XP".</summary>
     public string Describe()
@@ -122,7 +126,7 @@ public readonly record struct StatBonus(int Fortune = 0, int Speed = 0, int Regr
         var parts = new List<string>();
         if (Fortune != 0) parts.Add($"+{Fortune} Harvest Fortune");
         if (Speed != 0) parts.Add($"+{Speed}% Farming Speed");
-        if (Regrow != 0) parts.Add($"+{Regrow}% Regrow Speed");
+        if (Sell != 0) parts.Add($"+{Sell}% Market sell price");
         if (Xp != 0) parts.Add($"+{Xp}% Farming XP");
         return parts.Count == 0 ? "No bonus" : string.Join(", ", parts);
     }
@@ -219,9 +223,9 @@ public static class Recipes
         Talisman(TalismanFamily.Swiftstep, 2, Packed(Crops.SugarCane, 24), 25_000, 8);
         Talisman(TalismanFamily.Swiftstep, 3, Dense(Crops.SugarCane, 2), 200_000, 13);
 
-        Talisman(TalismanFamily.Sprout, 1, Packed(Crops.Potato, 4), 2_000, 3);
-        Talisman(TalismanFamily.Sprout, 2, Packed(Crops.Melon, 24), 25_000, 8);
-        Talisman(TalismanFamily.Sprout, 3, Dense(Crops.Melon, 2), 200_000, 13);
+        Talisman(TalismanFamily.Merchant, 1, Packed(Crops.Potato, 4), 2_000, 3);
+        Talisman(TalismanFamily.Merchant, 2, Packed(Crops.Melon, 24), 25_000, 8);
+        Talisman(TalismanFamily.Merchant, 3, Dense(Crops.Melon, 2), 200_000, 13);
 
         Talisman(TalismanFamily.Scholar, 1, Packed(Crops.Wheat, 4), 2_000, 2);
         Talisman(TalismanFamily.Scholar, 2, Packed(Crops.Pumpkin, 24), 25_000, 7);

@@ -38,9 +38,16 @@ internal sealed class ScreenshotTour
     public static GameState CreateDemoState()
     {
         var state = GameState.CreateNew();
-        state.GardenXp = 32_000;                               // Garden 8
+        state.GardenXp = 60_000;                               // Garden 8
         state.FarmingXp = FarmingSkill.TotalXpFor(18) - 2;     // the first crop broken levels up
         state.Coins = 48_250;
+
+        // About an hour and a half of Bazaar prices, and a couple of orders waiting.
+        var market = new GameEngine(state, new Random(4));
+        state.Inventory["packed_carrot"] = 20;
+        market.Tick(90 * 60);
+        market.CreateSellOffer("packed_carrot", 6, market.BazaarBuyPrice(Items.Packed(Crops.Carrot)) + 20, out _);
+        market.CreateBuyOrder("packed_melon", 8, market.BazaarSellPrice(Items.Packed(Crops.Melon)) - 30, out _);
 
         state.Field.CropId = "wheat";
         state.Field.Length = 16;
@@ -68,7 +75,6 @@ internal sealed class ScreenshotTour
         state.Inventory["packed_wheat"] = 6;
         state.Inventory["dense_wheat"] = 1;
         state.Inventory["carrot"] = 120;
-        state.Inventory["packed_carrot"] = 14;
         state.Inventory["potato"] = 95;
         state.Inventory["packed_melon"] = 9;
         state.Stats.TotalBreaks = 18_730;
@@ -91,10 +97,15 @@ internal sealed class ScreenshotTour
         await Wait(0.1);
         SaveStrip("strip.png");
 
+        // ...and the moment they teleport from the end of the row back to the start.
+        await NextTeleport(TimeSpan.FromSeconds(10));
+        await Wait(FarmerAgent.TeleportDuration * 0.75);
+        SaveStrip("strip-teleport.png");
+
         _strip.TogglePanel();
         await Wait(0.8);
         var panel = _strip.Panel ?? throw new InvalidOperationException("The garden panel didn't open.");
-        string[] tabs = { "field", "farming", "upgrades", "collections", "market", "settings" };
+        string[] tabs = { "field", "farming", "upgrades", "collections", "bazaar", "inventory", "settings" };
         for (int i = 0; i < tabs.Length; i++)
         {
             panel.Tabs.SelectedIndex = i;
@@ -119,6 +130,15 @@ internal sealed class ScreenshotTour
         _host.Engine.Broke += OnHarvest;
         return Task.WhenAny(done.Task, Task.Delay(timeout))
             .ContinueWith(_ => _host.Engine.Broke -= OnHarvest, TaskScheduler.FromCurrentSynchronizationContext());
+    }
+
+    private Task NextTeleport(TimeSpan timeout)
+    {
+        var done = new TaskCompletionSource();
+        void OnTeleport() => done.TrySetResult();
+        _host.Farmer.Teleported += OnTeleport;
+        return Task.WhenAny(done.Task, Task.Delay(timeout))
+            .ContinueWith(_ => _host.Farmer.Teleported -= OnTeleport, TaskScheduler.FromCurrentSynchronizationContext());
     }
 
     /// <summary>Draws the strip (and anything floating above it) trimmed to the parts you can see.</summary>

@@ -30,6 +30,8 @@ public sealed class GameState
     /// <summary>Best tier owned of each talisman (0 = none).</summary>
     public Dictionary<TalismanFamily, int> Talismans { get; set; } = new();
 
+    public BazaarState Bazaar { get; set; } = new();
+
     public GameSettings Settings { get; set; } = new();
     public GameStats Stats { get; set; } = new();
 
@@ -54,6 +56,7 @@ public sealed class GameState
         Tools ??= new();
         Armour ??= new();
         Talismans ??= new();
+        Bazaar ??= new();
         Settings ??= new();
         Stats ??= new();
 
@@ -82,6 +85,7 @@ public sealed class GameState
             Talismans[family] = Math.Clamp(Talismans[family], 0, Core.Talismans.MaxTier);
 
         Field.Normalize();
+        Bazaar.Normalize();
 
         if (LastSavedUtc > DateTime.UtcNow || LastSavedUtc == default)
             LastSavedUtc = DateTime.UtcNow;

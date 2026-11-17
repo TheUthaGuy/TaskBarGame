@@ -45,6 +45,10 @@ public partial class StripWindow : Window
     private static readonly Brush DangerBrush = Format.Brush("#E5675A");
     private static readonly Brush ToastBrush = Format.Brush("#F21B231C");
     private static readonly Effect TextShadow = CreateTextShadow();
+    private static readonly IReadOnlyList<Brush> TeleportBrushes = new[]
+    {
+        Format.Brush("#A97FDC"), Format.Brush("#6E4597"), Format.Brush("#59C7EE"), Format.Brush("#D2F6FF"),
+    };
 
     private readonly GameHost _host;
     private readonly List<TileView> _tiles = new();
@@ -84,6 +88,7 @@ public partial class StripWindow : Window
     private bool _hiddenForFullscreen;
     private bool _lockReady;
     private bool _layoutRequested;
+    private bool _teleportArrivalShown;
     private double _layoutDpi;
     private double _time;
     private double _slowTimer;
@@ -145,6 +150,8 @@ public partial class StripWindow : Window
         Engine.LeveledUp += OnLeveledUp;
         Engine.CollectionTierReached += OnCollectionTier;
         Engine.Crafted += OnCrafted;
+        Engine.OrderFilled += OnOrderFilled;
+        _host.Farmer.Teleported += () => SpawnTeleportSparkles(Engine.FieldLength);
         Engine.Changed += () =>
         {
             if (Engine.FieldLength != _builtLength) RequestLayout();
@@ -195,7 +202,7 @@ public partial class StripWindow : Window
 
         int length = Engine.FieldLength;
         bool canGrow = FieldProgression.Next(length) is not null;
-        double rowWidth = length * _tile;
+        double rowWidth = (length + 2) * _tile; // the row plus a teleport pad at each end
         double lockWidth = canGrow ? _tile + _pad : 0;
         double hudWidth = _fontSize * 10.5;
 
@@ -265,9 +272,17 @@ public partial class StripWindow : Window
         for (int i = 0; i < length; i++)
             _tiles.Add(BuildTile(i));
 
+        // Teleport pads: the farmer steps on the end pad and comes out of the start pad.
+        foreach (int slot in new[] { -1, length })
+        {
+            var pad = SpriteImage(_host.Sprites["pad"], _tile);
+            pad.ToolTip = slot < 0 ? "Teleport pad: the farmer arrives here" : "Teleport pad: back to the start of the row";
+            Place(_stripLayer, pad, TileLeft(slot), _tileTop);
+        }
+
         if (canGrow)
         {
-            BuildLockSlot(TileLeft(length) + _pad);
+            BuildLockSlot(TileLeft(length + 1) + _pad);
         }
         else
         {
@@ -405,7 +420,8 @@ public partial class StripWindow : Window
         Canvas.SetTop(_farmerHit, _tileTop + 2 * _unit);
     }
 
-    private double TileLeft(int index) => _stripLeft + _pad + index * _tile;
+    /// <summary>Left edge of a crop in the row (-1 is the start pad, FieldLength the end pad).</summary>
+    private double TileLeft(int index) => _stripLeft + _pad + (index + 1) * _tile;
 
     private Image SpriteImage(ImageSource? source, double size)
     {
@@ -539,7 +555,8 @@ public partial class StripWindow : Window
         else
         {
             bool step = (int)(farmer.ActionTime / 0.14) % 2 == 0;
-            frame = farmer.IsSwinging ? "farmer_swing"
+            frame = farmer.IsTeleporting ? "farmer_idle"
+                : farmer.IsSwinging ? "farmer_swing"
                 : farmer.Action != FarmerAction.Walking ? (blink ? "farmer_blink" : "farmer_idle")
                 : farmer.IsFarming ? (step ? "farmer_farm1" : "farmer_farm2")
                 : (step ? "farmer_walk1" : "farmer_walk2");
@@ -555,6 +572,24 @@ public partial class StripWindow : Window
         _farmerFlip.ScaleX = facing;
         Canvas.SetLeft(_farmer, x);
         Canvas.SetLeft(_farmerHit, x + 3 * _unit);
+
+        // Teleporting: fade out on the end pad, then fade in on the start pad.
+        double opacity = 1;
+        if (_expanded && farmer.IsTeleporting)
+        {
+            double t = farmer.TeleportProgress;
+            opacity = t < 0.5 ? 1 - t * 2 : t * 2 - 1;
+            if (t >= 0.5 && !_teleportArrivalShown)
+            {
+                _teleportArrivalShown = true;
+                SpawnTeleportSparkles(-1);
+            }
+        }
+        else
+        {
+            _teleportArrivalShown = false;
+        }
+        _farmer.Opacity = opacity;
     }
 
     /// <summary>Things that don't need updating 30 times a second.</summary>
@@ -604,7 +639,7 @@ public partial class StripWindow : Window
             return $"{crop.Name}: grown!\nClick to break it yourself (+{GameEngine.HandBreakFortuneBonus} Harvest Fortune)\n"
                    + $"Right-click to plant something else · Farmer's tool: {tool}";
 
-        double left = (crop.RegrowSeconds - Engine.Tiles[index]) / (1 + Engine.RegrowPercent / 100.0);
+        double left = crop.RegrowSeconds - Engine.Tiles[index];
         return $"{crop.Name}: grows back in {Format.Duration(left)}\nClick to tend it · Right-click to plant something else";
     }
 
@@ -867,7 +902,37 @@ public partial class StripWindow : Window
                 Y = _tileTop + _tile * (0.25 + 0.5 * _rng.NextDouble()),
                 Vx = (_rng.NextDouble() * 2 - 1) * 14 * pixel,
                 Vy = -(10 + _rng.NextDouble() * 18) * pixel,
+                Gravity = 120 * pixel,
                 Life = 0.45 + _rng.NextDouble() * 0.3,
+            };
+            Place(_fxLayer, shape, particle.X, particle.Y);
+            _particles.Add(particle);
+        }
+    }
+
+    /// <summary>Purple sparkles that float up from a teleport pad.</summary>
+    private void SpawnTeleportSparkles(int slot)
+    {
+        if (_unit <= 0 || !_expanded || _hiddenForFullscreen) return;
+        double left = TileLeft(slot);
+        double pixel = Math.Max(2, _unit);
+        for (int i = 0; i < 10; i++)
+        {
+            var shape = new Rectangle
+            {
+                Width = pixel,
+                Height = pixel,
+                Fill = TeleportBrushes[_rng.Next(TeleportBrushes.Count)],
+                IsHitTestVisible = false,
+            };
+            var particle = new Particle(shape)
+            {
+                X = left + _tile * (0.15 + 0.7 * _rng.NextDouble()),
+                Y = _tileTop + _tile * (0.3 + 0.6 * _rng.NextDouble()),
+                Vx = (_rng.NextDouble() * 2 - 1) * 4 * pixel,
+                Vy = -(8 + _rng.NextDouble() * 12) * pixel,
+                Gravity = -6 * pixel,
+                Life = 0.5 + _rng.NextDouble() * 0.4,
             };
             Place(_fxLayer, shape, particle.X, particle.Y);
             _particles.Add(particle);
@@ -876,7 +941,6 @@ public partial class StripWindow : Window
 
     private void UpdateParticles(double dt)
     {
-        double gravity = 120 * Math.Max(2, _unit);
         for (int i = _particles.Count - 1; i >= 0; i--)
         {
             var p = _particles[i];
@@ -887,7 +951,7 @@ public partial class StripWindow : Window
                 _particles.RemoveAt(i);
                 continue;
             }
-            p.Vy += gravity * dt;
+            p.Vy += p.Gravity * dt;
             p.X += p.Vx * dt;
             p.Y += p.Vy * dt;
             Canvas.SetLeft(p.Shape, p.X);
@@ -920,6 +984,17 @@ public partial class StripWindow : Window
     private void OnCrafted(Recipe recipe)
     {
         QueueToast($"CRAFTED {recipe.ResultName.ToUpperInvariant()}", Describe.Effect(Engine, recipe), CraftBrush, 4);
+    }
+
+    private void OnOrderFilled(BazaarFill fill)
+    {
+        if (!fill.Order.IsDone) return; // only tell you once it's all done
+        var item = Items.Get(fill.Order.ItemId);
+        string body = fill.Order.Kind == BazaarOrderKind.SellOffer
+            ? $"Sold {Format.Number(fill.Order.Amount)} {item.Name} for {Format.Coins((long)Math.Floor(fill.Order.Amount * fill.Order.Price))}."
+            : $"Bought {Format.Number(fill.Order.Amount)} {item.Name}. They're in your inventory.";
+        string title = fill.Order.Kind == BazaarOrderKind.SellOffer ? "BAZAAR: SELL OFFER FILLED" : "BAZAAR: BUY ORDER FILLED";
+        QueueToast(title, body, GoldBrush, 5);
     }
 
     public void ShowOfflineReport(OfflineReport report)
@@ -1032,6 +1107,7 @@ public partial class StripWindow : Window
         public double Y { get; set; }
         public double Vx { get; set; }
         public double Vy { get; set; }
+        public double Gravity { get; set; }
         public double Age { get; set; }
         public double Life { get; set; }
     }

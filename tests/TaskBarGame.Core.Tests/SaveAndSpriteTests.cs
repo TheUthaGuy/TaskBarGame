@@ -35,7 +35,7 @@ public sealed class SaveManagerTests : IDisposable
         state.FarmingXp = 999.5;
         state.Inventory["packed_carrot"] = 7;
         state.Field.CropId = "pumpkin";
-        state.Field.Tiles[2] = 4.5;
+        state.Field.Tiles[2] = 2.5;
         state.Tools["wheat"] = new ToolState { Tier = 2, Breaks = 4321 };
         state.Armour[ArmourSlot.Chestplate] = 3;
         state.Talismans[TalismanFamily.Swiftstep] = 1;
@@ -48,7 +48,7 @@ public sealed class SaveManagerTests : IDisposable
         Assert.Equal(999.5, loaded.FarmingXp);
         Assert.Equal(7, loaded.Inventory["packed_carrot"]);
         Assert.Equal("pumpkin", loaded.Field.CropId);
-        Assert.Equal(4.5, loaded.Field.Tiles[2]);
+        Assert.Equal(2.5, loaded.Field.Tiles[2]);
         Assert.Equal(2, loaded.Tools["wheat"].Tier);
         Assert.Equal(4321, loaded.Tools["wheat"].Breaks);
         Assert.Equal(3, loaded.Armour[ArmourSlot.Chestplate]);

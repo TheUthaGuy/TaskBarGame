@@ -24,6 +24,14 @@ internal static class Format
 {
     public static string Number(long value) => value.ToString("N0", CultureInfo.CurrentCulture);
 
+    /// <summary>A Bazaar price: "2.4", "1,280", "51,200.5".</summary>
+    public static string Price(double value) =>
+        value.ToString(value % 1 == 0 ? "N0" : "N1", CultureInfo.CurrentCulture);
+
+    /// <summary>"▲ 4%", "▼ 2%", "–".</summary>
+    public static string Trend(double change) =>
+        Math.Abs(change) < 0.005 ? "–" : $"{(change > 0 ? "▲" : "▼")} {Math.Abs(change) * 100:0}%";
+
     /// <summary>"1 coin", "5 coins".</summary>
     public static string Coins(long value) => value == 1 ? "1 coin" : $"{Number(value)} coins";
 

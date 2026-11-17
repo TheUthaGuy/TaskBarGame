@@ -143,10 +143,11 @@ public sealed class CropGuideRow : ObservableObject
     public void Update(GameEngine engine)
     {
         double drops = engine.ExpectedDrops(Crop, handBreak: false);
-        Details = $"Regrows in {Format.Duration(Crop.RegrowSeconds)} · {Format.Number(drops, 1)} per crop broken · {Crop.FarmingXp} Farming XP";
+        Details = $"{Format.Number(drops, 1)} per crop broken (worth {Format.Number(drops * engine.MarketPrice(Items.Raw(Crop)), 1)} coins) · "
+                  + $"{Crop.FarmingXp} Farming XP";
 
         bool unlocked = engine.IsCropUnlocked(Crop);
-        Badge = unlocked ? $"{Format.Coins(Crop.SellPrice)} each" : $"Garden Level {Crop.UnlockGardenLevel}";
+        Badge = unlocked ? $"{Format.Coins(Crop.CoinsPerBreak)} per crop broken" : $"Garden Level {Crop.UnlockGardenLevel}";
         BadgeBrush = unlocked ? Gold : Muted;
         RowOpacity = unlocked ? 1 : 0.5;
     }
@@ -235,8 +236,9 @@ public sealed class InventoryRow : ObservableObject
     public void Update(GameEngine engine)
     {
         long count = engine.GetItem(Item);
-        CountText = $"x{Format.Number(count)} · {Format.Coins(Item.SellPrice)} each";
-        SellText = $"Sell for {Format.Number(count * Item.SellPrice)}";
+        double price = engine.MarketPrice(Item);
+        CountText = $"x{Format.Number(count)} · {Format.Price(Math.Round(price, 1))} coins each at the Market";
+        SellText = $"Sell for {Format.Number((long)Math.Floor(count * price))}";
         long packs = Item.PacksInto is null ? 0 : count / ItemDef.PackSize;
         CanPack = packs > 0;
         PackText = Item.PacksInto is null ? "" : $"Pack into {Format.Number(packs)} {Item.PacksInto.Name}";
@@ -253,5 +255,81 @@ internal static class CropBrushes
         if (!ByCrop.TryGetValue(crop.Id, out var brush))
             ByCrop[crop.Id] = brush = Format.Brush(crop.ColorHex);
         return brush;
+    }
+}
+
+/// <summary>One item in the Bazaar list: its live prices and how they've moved.</summary>
+public sealed class BazaarRow : ObservableObject
+{
+    private static readonly Brush Up = Format.Brush("#7BC950");
+    private static readonly Brush Down = Format.Brush("#E5675A");
+    private static readonly Brush Flat = Format.Brush("#A3B19F");
+
+    private string _priceText = "";
+    private string _trendText = "";
+    private Brush _trendBrush = Flat;
+    private bool _isSelected;
+
+    public BazaarRow(ItemDef item, ImageSource icon, ImageSource? container, ICommand select)
+    {
+        Item = item;
+        Icon = icon;
+        Container = container;
+        SelectCommand = select;
+    }
+
+    public ItemDef Item { get; }
+    public ImageSource Icon { get; }
+    public ImageSource? Container { get; }
+    public bool HasContainer => Container is not null;
+    public string Name => Item.Name;
+    public ICommand SelectCommand { get; }
+    public string PriceText { get => _priceText; private set => Set(ref _priceText, value); }
+    public string TrendText { get => _trendText; private set => Set(ref _trendText, value); }
+    public Brush TrendBrush { get => _trendBrush; private set => Set(ref _trendBrush, value); }
+    public bool IsSelected { get => _isSelected; set => Set(ref _isSelected, value); }
+
+    public void Update(GameEngine engine)
+    {
+        PriceText = $"Sell {Format.Price(engine.BazaarSellPrice(Item))} · Buy {Format.Price(engine.BazaarBuyPrice(Item))}";
+        double trend = engine.BazaarTrend(Item);
+        TrendText = Format.Trend(trend);
+        TrendBrush = trend > 0.005 ? Up : trend < -0.005 ? Down : Flat;
+    }
+}
+
+/// <summary>One of your buy orders or sell offers on the Bazaar.</summary>
+public sealed class OrderRow : ObservableObject
+{
+    private string _progressText = "";
+    private double _progress;
+
+    public OrderRow(BazaarOrder order, ImageSource icon, ImageSource? container, ICommand cancel)
+    {
+        Order = order;
+        Icon = icon;
+        Container = container;
+        CancelCommand = cancel;
+        var item = Items.Get(order.ItemId);
+        Title = order.Kind == BazaarOrderKind.BuyOrder
+            ? $"Buy order: {Format.Number(order.Amount)} {item.Name} at {Format.Price(order.Price)} each"
+            : $"Sell offer: {Format.Number(order.Amount)} {item.Name} at {Format.Price(order.Price)} each";
+    }
+
+    public BazaarOrder Order { get; }
+    public ImageSource Icon { get; }
+    public ImageSource? Container { get; }
+    public bool HasContainer => Container is not null;
+    public string Title { get; }
+    public ICommand CancelCommand { get; }
+    public string ProgressText { get => _progressText; private set => Set(ref _progressText, value); }
+    public double Progress { get => _progress; private set => Set(ref _progress, value); }
+
+    public void Update()
+    {
+        Progress = (double)Order.Filled / Order.Amount;
+        ProgressText = Order.Filled == 0
+            ? "Waiting for the price to come to you"
+            : $"{Format.Number(Order.Filled)} of {Format.Number(Order.Amount)} filled";
     }
 }

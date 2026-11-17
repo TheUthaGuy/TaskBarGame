@@ -188,7 +188,7 @@ public class GameEngineTests
         engine.State.Armour[ArmourSlot.Boots] = 2;
 
         Assert.Equal(2, engine.FullSetTier); // a full set of Harvester or better
-        Assert.Equal(Armour.SetBonus(2).Regrow, engine.RegrowPercent);
+        Assert.Equal(Armour.SetBonus(2).Speed, engine.SpeedPercent);
 
         engine.State.Armour[ArmourSlot.Boots] = 3;
         Assert.Equal(3, engine.FullSetTier);
@@ -197,27 +197,30 @@ public class GameEngineTests
     }
 
     [Fact]
-    public void Talismans_change_speed_regrow_and_xp()
+    public void Talismans_change_speed_sell_price_and_xp()
     {
         var engine = RichEngine();
         engine.State.Talismans[TalismanFamily.Swiftstep] = 3;
-        engine.State.Talismans[TalismanFamily.Sprout] = 2;
+        engine.State.Talismans[TalismanFamily.Merchant] = 2;
         engine.State.Talismans[TalismanFamily.Scholar] = 1;
 
         Assert.Equal(20, engine.SpeedPercent);
-        Assert.Equal(10, engine.RegrowPercent);
+        Assert.Equal(10, engine.SellPercent);
         Assert.Equal(5, engine.XpPercent);
         Assert.Equal(GameEngine.BaseFarmerSpeed * 1.2, engine.FarmerSpeed, precision: 6);
-        Assert.Equal(Crops.Wheat.RegrowSeconds / 1.1, engine.EffectiveRegrowSeconds, precision: 6);
+        Assert.Equal("Merchant's Ring", Talismans.Name(TalismanFamily.Merchant, 2));
     }
 
     [Fact]
-    public void Regrow_speed_makes_crops_grow_faster()
+    public void Merchants_talisman_raises_market_prices()
     {
         var engine = NewEngine();
-        engine.State.Talismans[TalismanFamily.Sprout] = 3; // +20%
-        engine.Tick(1);
-        Assert.Equal(1.2, engine.Tiles[0], precision: 6);
+        engine.State.Talismans[TalismanFamily.Merchant] = 3; // +20%
+        Give(engine, Items.Raw(Crops.Wheat), 100);
+
+        Assert.Equal(Crops.Wheat.SellPrice * 1.2, engine.MarketPrice(Items.Raw(Crops.Wheat)), precision: 6);
+        Assert.Equal(240, engine.CropsValue());
+        Assert.Equal(240, engine.Sell("wheat", 100));
     }
 
     [Fact]
@@ -502,8 +505,10 @@ public class GameEngineTests
     {
         var engine = NewEngine(roll: 0.99);
         double rate = engine.OfflineBreaksPerSecond();
-        // 10 wheat regrowing in 5s = 2 per second, slower than walking 2.5 per second.
-        Assert.Equal(Math.Min(GameEngine.BaseFarmerSpeed, 10 / 5.0) * GameEngine.OfflineEfficiency, rate, precision: 6);
+        // The whole row once per lap: 11 crops of walking at 2.5 a second, plus the teleport.
+        double lap = 11 / GameEngine.BaseFarmerSpeed + FarmerAgent.TeleportDuration;
+        Assert.Equal(lap, engine.LapSeconds, precision: 6);
+        Assert.Equal(10 / lap * GameEngine.OfflineEfficiency, rate, precision: 6);
 
         var report = engine.ApplyOfflineProgress(TimeSpan.FromMinutes(10));
 
@@ -567,9 +572,8 @@ public class GameEngineTests
         {
             var (a, b) = (Crops.All[i - 1], Crops.All[i]);
             Assert.True(b.CoinsPerBreak > a.CoinsPerBreak, $"{b.Name} should be worth more per break than {a.Name}");
-            Assert.True(b.CoinsPerBreak / b.RegrowSeconds > a.CoinsPerBreak / a.RegrowSeconds,
-                $"{b.Name} should earn more per second of regrowing than {a.Name}");
             Assert.True(b.UnlockGardenLevel > a.UnlockGardenLevel);
+            Assert.True(b.RegrowSeconds >= a.RegrowSeconds);
         }
         Assert.Equal(Crops.All.Count, Crops.All.Select(c => c.Id).Distinct().Count());
     }

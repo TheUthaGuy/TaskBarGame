@@ -30,7 +30,7 @@ public sealed class SpriteCache
     {
         [TalismanFamily.Clover] = (0xFF7FE08A, 0xFF2F9A4A),
         [TalismanFamily.Swiftstep] = (0xFF8EE8FF, 0xFF2A8AB8),
-        [TalismanFamily.Sprout] = (0xFFD4F06A, 0xFF6A9A1A),
+        [TalismanFamily.Merchant] = (0xFFFFE066, 0xFFB8860B),
         [TalismanFamily.Scholar] = (0xFFC9A0FF, 0xFF6A3FB0),
     };
 

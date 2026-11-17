@@ -41,7 +41,7 @@ public sealed record StatSource(string Source, int Amount);
 /// crafting upgrades and selling. The WPF app only draws things and calls into here,
 /// so these rules can be unit tested.
 /// </summary>
-public sealed class GameEngine
+public sealed partial class GameEngine
 {
     /// <summary>Extra Harvest Fortune when you click a grown crop yourself.</summary>
     public const int HandBreakFortuneBonus = 25;
@@ -66,6 +66,7 @@ public sealed class GameEngine
         State = state;
         State.Normalize();
         _rng = rng ?? new Random();
+        EnsureBazaarPrices();
     }
 
     public GameState State { get; }
@@ -112,11 +113,14 @@ public sealed class GameEngine
 
     public int GrownCount => Enumerable.Range(0, Tiles.Count).Count(IsGrown);
 
-    /// <summary>Seconds a broken crop takes to grow back, after Regrow Speed.</summary>
-    public double EffectiveRegrowSeconds => FieldCrop.RegrowSeconds / (1 + RegrowPercent / 100.0);
-
     /// <summary>How fast the farmer walks the row, in crops per second.</summary>
     public double FarmerSpeed => BaseFarmerSpeed * (1 + SpeedPercent / 100.0);
+
+    /// <summary>
+    /// Seconds for one lap: walking from the start pad, past every crop, onto the end pad, and
+    /// teleporting back to the start.
+    /// </summary>
+    public double LapSeconds => (FieldLength + 1) / FarmerSpeed + FarmerAgent.TeleportDuration;
 
     // ================================================================= equipment & stats
 
@@ -150,8 +154,11 @@ public sealed class GameEngine
     }
 
     public int SpeedPercent => EquipmentBonus.Speed;
-    public int RegrowPercent => EquipmentBonus.Regrow;
+    public int SellPercent => EquipmentBonus.Sell;
     public int XpPercent => EquipmentBonus.Xp;
+
+    /// <summary>What the Market pays for one of an item, with your Market sell price bonus.</summary>
+    public double MarketPrice(ItemDef item) => item.SellPrice * (1 + SellPercent / 100.0);
 
     /// <summary>
     /// Harvest Fortune for a crop: every 100 adds one extra set of drops per break
@@ -184,15 +191,20 @@ public sealed class GameEngine
 
     // ================================================================= growing & breaking
 
-    /// <summary>Grows every crop in the row by <paramref name="seconds"/> (faster with Regrow Speed).</summary>
+    /// <summary>Grows every crop in the row and moves Bazaar prices on by <paramref name="seconds"/>.</summary>
     public void Tick(double seconds)
     {
         if (seconds <= 0 || !double.IsFinite(seconds)) return;
-        double grow = seconds * (1 + RegrowPercent / 100.0);
+        GrowCrops(seconds);
+        BazaarTick(seconds);
+    }
+
+    private void GrowCrops(double seconds)
+    {
         double full = FieldCrop.RegrowSeconds;
         var tiles = State.Field.Tiles;
         for (int i = 0; i < tiles.Count; i++)
-            if (tiles[i] < full) tiles[i] = Math.Min(full, tiles[i] + grow);
+            if (tiles[i] < full) tiles[i] = Math.Min(full, tiles[i] + seconds);
     }
 
     /// <summary>Breaks a grown crop in the row. It starts growing back straight away.</summary>
@@ -283,14 +295,14 @@ public sealed class GameEngine
         return made;
     }
 
-    /// <summary>Sells up to <paramref name="amount"/> of an item. Returns coins earned.</summary>
+    /// <summary>Sells up to <paramref name="amount"/> of an item to the Market. Returns coins earned.</summary>
     public long Sell(string itemId, long amount)
     {
         if (!Items.TryGet(itemId, out var item) || amount <= 0) return 0;
         long sold = Math.Min(GetItem(item), amount);
         if (sold <= 0) return 0;
 
-        long coins = sold * item.SellPrice;
+        long coins = (long)Math.Floor(sold * MarketPrice(item));
         AddItem(item, -sold);
         State.Coins += coins;
         State.Stats.CoinsEarned += coins;
@@ -317,7 +329,8 @@ public sealed class GameEngine
         return total;
     }
 
-    public long CropsValue() => Crops.All.Sum(c => GetItem(Items.Raw(c)) * c.SellPrice);
+    /// <summary>What the Market would pay for all your plain crops.</summary>
+    public long CropsValue() => (long)Math.Floor(Crops.All.Sum(c => GetItem(Items.Raw(c)) * MarketPrice(Items.Raw(c))));
 
     // ================================================================= crafting
 
@@ -418,9 +431,13 @@ public sealed class GameEngine
         if (seconds > 0)
         {
             report.Counted = TimeSpan.FromSeconds(seconds);
+            _quiet = true;
+            try { BazaarTick(seconds); }
+            finally { _quiet = false; }
+
             if (!State.Settings.FarmerAutoHarvest)
             {
-                Tick(seconds);
+                GrowCrops(seconds);
             }
             else
             {
@@ -442,7 +459,7 @@ public sealed class GameEngine
                 report.Breaks = breaks;
                 report.Coins = State.Coins - coinsBefore;
                 report.FarmingXp = State.FarmingXp - xpBefore;
-                Tick(seconds); // the row is grown again when you come back
+                GrowCrops(seconds); // the row is grown again when you come back
             }
         }
 
@@ -453,11 +470,11 @@ public sealed class GameEngine
     }
 
     /// <summary>
-    /// While away the farmer breaks crops as fast as they can walk, or as fast as the row
-    /// grows back, whichever is slower, at <see cref="OfflineEfficiency"/>.
+    /// While away the farmer breaks the whole row once per lap (or once per regrow, if crops were
+    /// ever slower than a lap), at <see cref="OfflineEfficiency"/>.
     /// </summary>
     public double OfflineBreaksPerSecond() =>
-        Math.Min(FarmerSpeed, FieldLength / EffectiveRegrowSeconds) * OfflineEfficiency;
+        FieldLength / Math.Max(LapSeconds, FieldCrop.RegrowSeconds) * OfflineEfficiency;
 
     /// <summary>Starts over: wipes coins, XP, items and equipment but keeps your settings.</summary>
     public void ResetProgress()
@@ -473,6 +490,8 @@ public sealed class GameEngine
         State.Tools.Clear();
         State.Armour.Clear();
         State.Talismans.Clear();
+        State.Bazaar = new BazaarState();
+        EnsureBazaarPrices();
         State.Stats = new GameStats();
         State.Settings = settings;
         RaiseChanged();
@@ -493,7 +512,7 @@ public sealed class GameEngine
         long autoSellCoins = 0;
         if (State.Settings.AutoSell)
         {
-            autoSellCoins = drops * crop.SellPrice;
+            autoSellCoins = (long)Math.Floor(drops * MarketPrice(Items.Raw(crop)));
             State.Coins += autoSellCoins;
             State.Stats.CoinsEarned += autoSellCoins;
         }

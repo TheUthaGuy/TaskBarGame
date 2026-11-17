@@ -5,7 +5,10 @@ namespace TaskBarGame.Core;
 /// </summary>
 /// <param name="Id">Save-file id. Never rename an id once players have saves.</param>
 /// <param name="Name">Name shown to the player.</param>
-/// <param name="RegrowSeconds">Seconds for a broken crop to grow back.</param>
+/// <param name="RegrowSeconds">
+/// Seconds for a broken crop to grow back. Always shorter than the farmer's lap of the row,
+/// so the row is grown again by the time they come back round.
+/// </param>
 /// <param name="DropsPerBreak">Items from breaking one crop, before Harvest Fortune.</param>
 /// <param name="SellPrice">Coins the Market pays for one item.</param>
 /// <param name="FarmingXp">Farming skill XP for breaking one crop.</param>
@@ -29,22 +32,22 @@ public sealed record CropDef(
 }
 
 /// <summary>
-/// The list of all crops. Each new crop is worth more per break and more per second of
-/// regrowing, so unlocking one is always an upgrade.
+/// The list of all crops. Each new crop is worth more coins per crop broken, so unlocking one
+/// is always an upgrade. (Price per item isn't the whole story: a carrot drops 3 items, wheat 1.)
 /// </summary>
 public static class Crops
 {
     //                         id            name          regrow drops sell  XP  lvl  colour
-    public static readonly CropDef Wheat     = new("wheat",     "Wheat",          5,  1,   2,  1,  1, "#E8C34A");
-    public static readonly CropDef Carrot    = new("carrot",    "Carrot",         6,  3,   1,  1,  2, "#F39A3C");
-    public static readonly CropDef Potato    = new("potato",    "Potato",         6,  4,   1,  1,  3, "#C9A26B");
-    public static readonly CropDef SugarCane = new("sugarcane", "Sugar Cane",     7,  2,   3,  2,  4, "#8BD45A");
-    public static readonly CropDef Pumpkin   = new("pumpkin",   "Pumpkin",        9,  1,   9,  3,  5, "#F07F1E");
-    public static readonly CropDef Melon     = new("melon",     "Melon",          9,  5,   2,  3,  6, "#6CC24A");
-    public static readonly CropDef Cocoa     = new("cocoa",     "Cocoa Beans",   11,  3,   5,  4,  8, "#A0683C");
-    public static readonly CropDef Cactus    = new("cactus",    "Cactus",        12,  2,   9,  4, 10, "#49B07C");
-    public static readonly CropDef Mushroom  = new("mushroom",  "Mushroom",      14,  1,  24,  5, 12, "#E04A3C");
-    public static readonly CropDef Moonbloom = new("moonbloom", "Moonbloom",     20,  1,  40,  8, 15, "#A97FDC");
+    public static readonly CropDef Wheat     = new("wheat",     "Wheat",        2.0,  1,   2,  1,  1, "#E8C34A");
+    public static readonly CropDef Carrot    = new("carrot",    "Carrot",       2.5,  3,   1,  1,  2, "#F39A3C");
+    public static readonly CropDef Potato    = new("potato",    "Potato",       2.5,  4,   1,  1,  3, "#C9A26B");
+    public static readonly CropDef SugarCane = new("sugarcane", "Sugar Cane",   3.0,  2,   3,  2,  4, "#8BD45A");
+    public static readonly CropDef Pumpkin   = new("pumpkin",   "Pumpkin",      3.0,  1,   9,  3,  5, "#F07F1E");
+    public static readonly CropDef Melon     = new("melon",     "Melon",        3.5,  5,   2,  3,  6, "#6CC24A");
+    public static readonly CropDef Cocoa     = new("cocoa",     "Cocoa Beans",  3.5,  3,   5,  4,  8, "#A0683C");
+    public static readonly CropDef Cactus    = new("cactus",    "Cactus",       4.0,  2,   9,  4, 10, "#49B07C");
+    public static readonly CropDef Mushroom  = new("mushroom",  "Mushroom",     4.5,  1,  24,  5, 12, "#E04A3C");
+    public static readonly CropDef Moonbloom = new("moonbloom", "Moonbloom",    5.0,  1,  40,  8, 15, "#A97FDC");
 
     public static readonly IReadOnlyList<CropDef> All = new[]
     {

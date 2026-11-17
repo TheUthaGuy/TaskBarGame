@@ -12,7 +12,7 @@ using TaskBarGame.Core;
 namespace TaskBarGame.App.ViewModels;
 
 /// <summary>Everything the panel shows. <see cref="Refresh"/> pulls fresh numbers from the game.</summary>
-public sealed class PanelViewModel : ObservableObject
+public sealed partial class PanelViewModel : ObservableObject
 {
     private static readonly string[] SettingProperties =
     {
@@ -46,7 +46,7 @@ public sealed class PanelViewModel : ObservableObject
     private string _fortuneTitle = "";
     private IReadOnlyList<string> _fortuneLines = Array.Empty<string>();
     private string _speedText = "";
-    private string _regrowText = "";
+    private string _sellBonusText = "";
     private string _xpBonusText = "";
     private string _statsText = "";
     private string _cropsValueText = "";
@@ -88,6 +88,7 @@ public sealed class PanelViewModel : ObservableObject
             foreach (var item in Items.All) Engine.Pack(item.Id);
             Refresh();
         });
+        InitBazaar();
         Refresh();
     }
 
@@ -126,7 +127,7 @@ public sealed class PanelViewModel : ObservableObject
     public string FortuneTitle { get => _fortuneTitle; private set => Set(ref _fortuneTitle, value); }
     public IReadOnlyList<string> FortuneLines { get => _fortuneLines; private set => Set(ref _fortuneLines, value); }
     public string SpeedText { get => _speedText; private set => Set(ref _speedText, value); }
-    public string RegrowText { get => _regrowText; private set => Set(ref _regrowText, value); }
+    public string SellBonusText { get => _sellBonusText; private set => Set(ref _sellBonusText, value); }
     public string XpBonusText { get => _xpBonusText; private set => Set(ref _xpBonusText, value); }
     public string StatsText { get => _statsText; private set => Set(ref _statsText, value); }
     public IReadOnlyList<CropGuideRow> CropGuide { get; }
@@ -272,6 +273,7 @@ public sealed class PanelViewModel : ObservableObject
         RefreshUpgrades();
         foreach (var row in CollectionRows) row.Update(Engine);
         RefreshMarket();
+        RefreshBazaar();
     }
 
     private void RefreshField()
@@ -306,9 +308,8 @@ public sealed class PanelViewModel : ObservableObject
         var crop = Engine.FieldCrop;
         FieldCropIcon = _host.Sprites.CropIcon(crop);
         FieldTitle = $"{Engine.FieldLength} {crop.Name} in a row";
-        FieldText = $"Regrows in {Format.Duration(Engine.EffectiveRegrowSeconds)} · "
-                    + $"the farmer walks {Format.Number(Engine.FarmerSpeed, 1)} crops a second · "
-                    + $"{Format.Number(Engine.GetFortune(crop, false))} Harvest Fortune";
+        FieldText = $"The farmer laps the row every {Format.Number(Engine.LapSeconds, 1)}s (it regrows in "
+                    + $"{Format.Number(crop.RegrowSeconds, 1)}s) · {Format.Number(Engine.GetFortune(crop, false))} Harvest Fortune";
         int toolTier = Engine.ActiveTool.Tier;
         ActiveToolIcon = toolTier > 0 ? _host.Sprites.ToolIcon(toolTier) : _host.Sprites.ToolIcon(0);
         ActiveToolText = toolTier > 0
@@ -350,7 +351,7 @@ public sealed class PanelViewModel : ObservableObject
         FortuneTitle = $"Harvest Fortune for {crop.Name}: {Engine.GetFortune(crop, false)}";
         FortuneLines = Engine.FortuneSources(crop).Select(s => $"+{s.Amount}  {s.Source}").ToList();
         SpeedText = $"Farming Speed: +{Engine.SpeedPercent}% (walks {Format.Number(Engine.FarmerSpeed, 1)} crops a second)";
-        RegrowText = $"Regrow Speed: +{Engine.RegrowPercent}% ({crop.Name} regrows in {Format.Duration(Engine.EffectiveRegrowSeconds)})";
+        SellBonusText = $"Market sell price: +{Engine.SellPercent}%";
         XpBonusText = $"Farming XP: +{Engine.XpPercent}%";
 
         var stats = Engine.State.Stats;

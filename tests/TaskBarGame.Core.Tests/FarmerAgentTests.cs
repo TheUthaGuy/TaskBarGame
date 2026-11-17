@@ -4,7 +4,7 @@ namespace TaskBarGame.Core.Tests;
 
 public class FarmerAgentTests
 {
-    private static GameEngine NewEngine() => new(GameState.CreateNew(), new FixedRandom(0.99));
+    private static GameEngine NewEngine() => new(GameState.CreateNew(), new FixedRandom(0.5));
 
     private static void Grow(GameEngine engine, params int[] tiles)
     {
@@ -27,7 +27,7 @@ public class FarmerAgentTests
     }
 
     [Fact]
-    public void Farmer_breaks_every_grown_crop_in_one_sweep()
+    public void Farmer_walks_the_row_one_way_breaking_every_grown_crop()
     {
         var engine = NewEngine();
         var farmer = new FarmerAgent(new FixedRandom(0.5));
@@ -39,22 +39,48 @@ public class FarmerAgentTests
 
         Assert.Equal(new[] { 1, 4, 5, 9 }, broken);
         Assert.Equal(0, engine.GrownCount);
+        Assert.Equal(1, farmer.Facing);
     }
 
     [Fact]
-    public void Farmer_turns_around_at_the_end_of_the_row()
+    public void Farmer_teleports_from_the_end_pad_back_to_the_start()
     {
         var engine = NewEngine();
         var farmer = new FarmerAgent(new FixedRandom(0.5));
         Grow(engine, 9);
-        RunFarmer(farmer, engine, 9 / engine.FarmerSpeed + 0.1);
-        Assert.Equal(-1, farmer.Facing);
-        Assert.Equal(1, engine.State.Stats.TotalBreaks);
+        int teleports = 0;
+        farmer.Teleported += () => teleports++;
 
+        // Walk onto the end pad (one step past the last crop).
+        RunFarmer(farmer, engine, engine.FieldLength / engine.FarmerSpeed + 0.1);
+        Assert.Equal(1, teleports);
+        Assert.True(farmer.IsTeleporting);
+
+        // A crop behind them is picked up on the next lap, never by walking backwards.
         Grow(engine, 0);
-        RunFarmer(farmer, engine, 9 / engine.FarmerSpeed + 0.2);
+        RunFarmer(farmer, engine, FarmerAgent.TeleportDuration);
+        Assert.False(farmer.IsTeleporting);
+        Assert.InRange(farmer.Position, FarmerAgent.StartPad, 0.5);
+
+        RunFarmer(farmer, engine, 1.5 / engine.FarmerSpeed);
         Assert.Equal(2, engine.State.Stats.TotalBreaks);
-        Assert.Equal(0, farmer.Position, precision: 6);
+        Assert.Equal(1, farmer.Facing);
+    }
+
+    [Fact]
+    public void Teleport_fades_out_then_appears_at_the_start()
+    {
+        var engine = NewEngine();
+        var farmer = new FarmerAgent(new FixedRandom(0.5));
+        Grow(engine, 9);
+        RunFarmer(farmer, engine, engine.FieldLength / engine.FarmerSpeed + 0.06);
+        Assert.True(farmer.IsTeleporting);
+        Assert.Equal(engine.FieldLength, farmer.Position, precision: 6);
+
+        Grow(engine, 3); // keep them busy so they don't wander off afterwards
+        farmer.Tick(FarmerAgent.TeleportDuration * 0.6, engine);
+        Assert.True(farmer.TeleportProgress > 0.5);
+        Assert.Equal(FarmerAgent.StartPad, farmer.Position, precision: 6);
     }
 
     [Fact]
@@ -90,12 +116,16 @@ public class FarmerAgentTests
     }
 
     [Fact]
-    public void Farmer_rests_when_nothing_is_grown()
+    public void Farmer_finishes_the_lap_then_rests_when_nothing_has_grown()
     {
         var engine = NewEngine();
         var farmer = new FarmerAgent(new FixedRandom(0.5));
         Grow(engine, 3);
-        RunFarmer(farmer, engine, 3);
+
+        RunFarmer(farmer, engine, 2);
+        Assert.True(farmer.IsFarming); // the row is broken but the lap isn't over
+
+        RunFarmer(farmer, engine, engine.LapSeconds);
         Assert.False(farmer.IsFarming);
         Assert.Equal(1, engine.State.Stats.TotalBreaks);
     }
@@ -115,14 +145,39 @@ public class FarmerAgentTests
     }
 
     [Fact]
-    public void Farmer_keeps_up_with_the_regrowing_row()
+    public void Every_crop_is_grown_again_by_the_time_the_farmer_comes_round()
+    {
+        foreach (var crop in Crops.All)
+        {
+            var engine = new GameEngine(GameState.CreateNew(), new FixedRandom(0.5));
+            engine.State.GardenXp = GardenProgression.TotalXpFor(crop.UnlockGardenLevel);
+            engine.State.Coins = long.MaxValue / 2;
+            while (engine.TryExpandField(out _)) { } // as long as the row can be by now
+            engine.State.Talismans[TalismanFamily.Swiftstep] = 3;
+            foreach (var slot in Armour.Slots) engine.State.Armour[slot] = 2; // fastest farmer
+            engine.PlantField(crop.Id);
+            var farmer = new FarmerAgent(new FixedRandom(0.5));
+            RunGame(farmer, engine, 30);
+
+            long before = engine.State.Stats.TotalBreaks;
+            RunGame(farmer, engine, engine.LapSeconds * 4);
+            long laps = engine.State.Stats.TotalBreaks - before;
+
+            // Four laps should break every crop four times: no gaps in the row.
+            Assert.True(laps >= 4 * engine.FieldLength - 2, $"{crop.Name}: only {laps} crops in 4 laps of {engine.FieldLength}");
+        }
+    }
+
+    [Fact]
+    public void Farmer_keeps_farming_for_a_long_time()
     {
         var engine = new GameEngine(GameState.CreateNew());
         var farmer = new FarmerAgent();
 
         RunGame(farmer, engine, 5 * 60);
 
-        // 10 wheat regrowing every 5 s is at most 2 breaks a second; walking makes it a bit less.
-        Assert.InRange(engine.State.Stats.TotalBreaks, 400, 600);
+        // A 10-crop row, one lap every LapSeconds.
+        double expected = 300 / engine.LapSeconds * engine.FieldLength;
+        Assert.InRange(engine.State.Stats.TotalBreaks, expected * 0.9, expected * 1.05);
     }
 }

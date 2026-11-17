@@ -25,7 +25,7 @@ public static class FarmingSkill
     }
 
     /// <summary>XP needed to go from <paramref name="level"/> to level + 1.</summary>
-    public static long XpToNextLevel(int level) => 50 + 25L * level * level;
+    public static long XpToNextLevel(int level) => 100 + 50L * level * level;
 
     public static long TotalXpFor(int level) => TotalXpForLevel[Math.Clamp(level, 0, MaxLevel)];
 
@@ -63,20 +63,20 @@ public static class GardenProgression
     {
         0,        // (unused, level 0)
         0,        // level 1
-        200,      // level 2
-        900,
-        2_500,
-        5_500,    // level 5
-        10_000,
-        17_000,
-        27_000,
-        41_000,
-        60_000,   // level 10
-        85_000,
-        117_000,
-        157_000,
-        207_000,
-        270_000,  // level 15
+        400,      // level 2
+        1_800,
+        5_000,
+        11_000,    // level 5
+        20_000,
+        34_000,
+        54_000,
+        82_000,
+        120_000,   // level 10
+        170_000,
+        234_000,
+        314_000,
+        414_000,
+        540_000,  // level 15
     };
 
     public static long TotalXpFor(int level) => TotalXpForLevel[Math.Clamp(level, 1, MaxLevel)];
@@ -135,19 +135,18 @@ public static class CollectionTiers
     /// <summary>Garden XP for reaching a tier = tier * this.</summary>
     public const int GardenXpPerTier = 50;
 
-    /// <summary>Thresholds for Wheat. Other crops are scaled by how fast they drop items.</summary>
+    /// <summary>Thresholds for Wheat. Other crops are scaled by how many items they drop.</summary>
     private static readonly long[] BaseThresholds =
-        { 100, 500, 2_000, 6_000, 15_000, 40_000, 100_000, 250_000, 500_000, 1_000_000 };
+        { 200, 1_000, 4_000, 12_000, 30_000, 80_000, 200_000, 500_000, 1_000_000, 2_000_000 };
 
     private static readonly Dictionary<string, long[]> ThresholdsByCrop =
         Crops.All.ToDictionary(c => c.Id, BuildThresholds);
 
     private static long[] BuildThresholds(CropDef crop)
     {
-        // Items per second of regrowing, compared with Wheat, so every collection takes
-        // about the same time to fill.
-        double scale = (crop.DropsPerBreak / crop.RegrowSeconds)
-                       / (Crops.Wheat.DropsPerBreak / Crops.Wheat.RegrowSeconds);
+        // The farmer breaks crops at the same rate whatever is planted, so a crop that drops
+        // 3 items needs 3 times as many for each tier; every collection takes about as long.
+        double scale = (double)crop.DropsPerBreak / Crops.Wheat.DropsPerBreak;
         return BaseThresholds.Select(t => Math.Max(10, RoundNice(t * scale))).ToArray();
     }
 

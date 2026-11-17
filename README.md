@@ -5,18 +5,21 @@
 > saves, so you can play both.
 
 A farming game that lives just above your Windows taskbar while you work. Your field is **one long row
-of crops**. Your farmer walks it end to end with their hoe, breaking every grown crop as they pass, then
-turns around and comes back. Crops regrow in seconds. You level up, unlock crops, craft better
-**hoes**, **armour** and **talismans** from your crops, and make the row longer.
+of crops**. Your farmer walks it with their hoe, breaking every grown crop as they pass, then steps on a
+**teleport pad** at the end that sends them back to the start. Crops regrow in a couple of seconds, so
+the row is always grown again by the next lap. You level up, unlock crops, craft better **hoes**,
+**armour** and **talismans** from your crops, trade on the **Bazaar**, and make the row longer.
 
-![The field: the farmer sweeps a row of wheat, crop bits fly out, and a level-up popup appears above](docs/screenshots/strip.png)
+![The field: the farmer breaks wheat on their way along the row, crop bits fly out, and a level-up popup appears above](docs/screenshots/strip.png)
+
+![At the end of the row the farmer teleports back to the pad at the start](docs/screenshots/strip-teleport.png)
 
 Click the farmer (or your coins) to open the panel:
 
 <p>
   <img src="docs/screenshots/panel-field.png" width="32%" alt="Field tab: Garden level, your row, the hoe in use, and which crop to plant">
   <img src="docs/screenshots/panel-upgrades.png" width="32%" alt="Upgrades tab: hoes, armour and talismans with what each needs">
-  <img src="docs/screenshots/panel-farming.png" width="32%" alt="Farming tab: Farming level and where your Harvest Fortune comes from">
+  <img src="docs/screenshots/panel-bazaar.png" width="32%" alt="Bazaar tab: live prices, a trading box and your orders">
 </p>
 
 ## Running it
@@ -52,18 +55,21 @@ dotnet publish src/TaskBarGame.App -c Release -r win-x64 --self-contained true -
 | Right-click the farmer or the strip | Quick menu: plant, sell crops, strip size, position, show-on-hover, quit |
 | Click the **lock** at the end of the row | Make the row longer (when you have the coins and Garden level) |
 
-The farmer farms the row the way you would by hand: walking it end to end, breaking every grown crop,
-and turning around at the ends. They keep working while the game is closed, at half speed, for up to 12
-hours. When you come back, a popup tells you what they did.
+The farmer farms the row the way you would by hand: walking it from left to right breaking every grown
+crop, then stepping on the teleport pad at the end, which sends them back to the pad at the start for the
+next lap. They keep working while the game is closed, at half speed, for up to 12 hours. When you come
+back, a popup tells you what they did.
 
 ### Stats
 
 - **Harvest Fortune:** every 100 Fortune is one extra set of drops per crop broken (150 = 2.5x drops).
   It comes from your Farming level, that crop's collection, its hoe (and the hoe's counter), armour and
   the Clover talisman.
-- **Farming Speed:** how fast the farmer walks the row (Swiftstep talisman, Straw set bonus).
-- **Regrow Speed:** how fast broken crops grow back (Sprout talisman, Harvester set bonus).
+- **Farming Speed:** how fast the farmer walks the row, so how many crops they break a minute
+  (Swiftstep talisman, Straw and Harvester set bonuses).
 - **Farming XP:** bonus Farming XP from every crop (Scholar's talisman, Verdant set bonus).
+- **Market sell price:** more coins when selling to the Market (Merchant's talisman). It doesn't apply
+  to the Bazaar, or you could buy there and sell to the Market for free coins.
 
 ### Progression
 
@@ -75,18 +81,22 @@ hours. When you come back, a popup tells you what they did.
 - **Packing:** 160 crops pack into 1 **Packed** crop, and 160 Packed into 1 **Dense** crop. Packed crops
   sell for the same as the crops inside, but you need them for crafting.
 
-| Crop | Garden level | Regrows in | Drops | Sells for |
-|---|---|---|---|---|
-| Wheat | 1 | 5s | 1 | 2 |
-| Carrot | 2 | 6s | 3 | 1 |
-| Potato | 3 | 6s | 4 | 1 |
-| Sugar Cane | 4 | 7s | 2 | 3 |
-| Pumpkin | 5 | 9s | 1 | 9 |
-| Melon | 6 | 9s | 5 | 2 |
-| Cocoa Beans | 8 | 11s | 3 | 5 |
-| Cactus | 10 | 12s | 2 | 9 |
-| Mushroom | 12 | 14s | 1 | 24 |
-| Moonbloom | 15 | 20s | 1 | 40 |
+Each crop is worth more per crop broken than the one before. The price of one item isn't the whole
+story: a wheat drops 1 item, a carrot 3, a potato 4, so carrots and potatoes sell for less each but are
+worth more per crop broken.
+
+| Crop | Garden level | Regrows in | Drops | Sells for (each) | Worth per crop broken |
+|---|---|---|---|---|---|
+| Wheat | 1 | 2s | 1 | 2 | 2 |
+| Carrot | 2 | 2.5s | 3 | 1 | 3 |
+| Potato | 3 | 2.5s | 4 | 1 | 4 |
+| Sugar Cane | 4 | 3s | 2 | 3 | 6 |
+| Pumpkin | 5 | 3s | 1 | 9 | 9 |
+| Melon | 6 | 3.5s | 5 | 2 | 10 |
+| Cocoa Beans | 8 | 3.5s | 3 | 5 | 15 |
+| Cactus | 10 | 4s | 2 | 9 | 18 |
+| Mushroom | 12 | 4.5s | 1 | 24 | 24 |
+| Moonbloom | 15 | 5s | 1 | 40 | 40 |
 
 ### Upgrades (crafted in the Upgrades tab)
 
@@ -106,7 +116,7 @@ Every 1,000 crops a hoe breaks adds +1 Fortune for that crop (up to +30).
 | Set | Fortune per piece | Full set bonus | Made from |
 |---|---|---|---|
 | Straw | +4 | +5% Farming Speed | Packed Wheat (Garden 2) |
-| Harvester | +10 | +10% Regrow Speed | Packed Pumpkin, Melon, Sugar Cane, Potato (Garden 6) |
+| Harvester | +10 | +15 Fortune, +5% Farming Speed | Packed Pumpkin, Melon, Sugar Cane, Potato (Garden 6) |
 | Verdant | +20 | +25 Fortune, +10% Farming XP | Dense Cocoa, Cactus, Mushroom, Moonbloom (Garden 12-15) |
 
 **Talismans:** four kinds, each upgraded Charm → Ring → Relic (+5 / +10 / +20). Owning one is enough.
@@ -115,13 +125,30 @@ Every 1,000 crops a hoe breaks adds +1 Fortune for that crop (up to +30).
 |---|---|---|
 | Clover | Harvest Fortune | Carrot |
 | Swiftstep | Farming Speed % | Sugar Cane |
-| Sprout | Regrow Speed % | Potato, then Melon |
+| Merchant's | Market sell price % | Potato, then Melon |
 | Scholar's | Farming XP % | Wheat, then Pumpkin, then Cocoa |
 
+### Bazaar
+
+Buy and sell crops, packed crops and dense crops with other (pretend) farmers in the **Bazaar** tab.
+
+- Every item has a **sell price** (what you get now) and a slightly higher **buy price** (what it costs
+  now). Prices drift a little every minute and slowly return to normal. Selling a lot at once pushes the
+  price down; buying a lot pushes it up. The arrows show how much it moved in the last hour.
+- **Sell now / Buy now** trade straight away.
+- **Sell offer** asks for a bit more than the sell price: your items are set aside and the coins arrive
+  bit by bit while buyers are paying that much. **Buy order** bids a bit under the buy price: your coins
+  are set aside and the items arrive while sellers are that cheap. Orders keep filling while the game is
+  closed, and you can cancel them to get back whatever hasn't filled.
+- On average the Bazaar pays about 20% more than the Market. Buying packed and dense crops here is a
+  quick way to get materials for upgrades.
+
+The **Inventory** tab is for packing crops and selling quickly to the Market.
+
 <p>
-  <img src="docs/screenshots/panel-market.png" width="32%" alt="Market tab: crops, packed crops in sacks and dense crops in crates">
+  <img src="docs/screenshots/panel-farming.png" width="32%" alt="Farming tab: Farming level and where your Harvest Fortune comes from">
+  <img src="docs/screenshots/panel-inventory.png" width="32%" alt="Inventory tab: crops, packed crops in sacks and dense crops in crates">
   <img src="docs/screenshots/panel-collections.png" width="32%" alt="Collections tab: tier progress for every crop">
-  <img src="docs/screenshots/panel-settings.png" width="32%" alt="Settings tab">
 </p>
 
 ### Settings
@@ -149,7 +176,8 @@ breaks, details are written to `%APPDATA%\TaskBarGame Harvest Edition\error.log`
 | Packed and Dense crops | `src/TaskBarGame.Core/Items.cs` |
 | Level XP tables, field expansions, collection tiers | `src/TaskBarGame.Core/Progression.cs` |
 | Breaking, fortune, crafting and offline rules | `src/TaskBarGame.Core/GameEngine.cs` |
-| How the farmer sweeps the row | `src/TaskBarGame.Core/FarmerAgent.cs` |
+| Bazaar prices, trades and orders | `src/TaskBarGame.Core/Bazaar.cs` |
+| How the farmer walks the row and teleports | `src/TaskBarGame.Core/FarmerAgent.cs` |
 | **Pixel art** (crops, farmer, icons) | `src/TaskBarGame.Core/Assets/sprites.txt`, a plain text file with one letter per pixel |
 | Tier colours of hoes, armour and talismans | `src/TaskBarGame.App/SpriteCache.cs` |
 | The strip above the taskbar | `src/TaskBarGame.App/StripWindow.xaml.cs` |
@@ -205,9 +233,9 @@ docs/screenshots/         The pictures in this README.
 
 ## Coming next
 
-- **Bazaar:** buy and sell crops and packed crops at prices that move with supply and demand.
 - **Auction house:** buy and sell hoes, armour and talismans.
-- **Talismans that raise sell prices.**
+- **Visitors** who ask for crops in exchange for rewards, and a **composter**.
+- **More skills:** combat, fishing, mining, foraging and more.
 
 ## Download
 
