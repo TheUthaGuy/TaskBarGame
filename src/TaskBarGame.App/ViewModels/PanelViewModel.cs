@@ -484,7 +484,7 @@ public sealed partial class PanelViewModel : ObservableObject
         double keptValue = Items.All.Sum(i => Engine.KeptForUpgrades(i) * Engine.MarketPrice(i));
         int locked = Items.All.Count(i => Engine.IsLocked(i) && Engine.GetItem(i) > 0);
         var parts = new List<string>();
-        if (keptValue >= 1) parts.Add($"crops worth {Format.Number((long)keptValue)} coins are kept for your next upgrades");
+        if (keptValue >= 1) parts.Add($"items worth {Format.Number((long)keptValue)} coins are kept for your next upgrades");
         if (locked > 0) parts.Add($"{locked} locked item{(locked == 1 ? " is" : "s are")} never sold");
         KeptSummary = parts.Count == 0 ? "" : char.ToUpperInvariant(parts[0][0]) + string.Join(", and ", parts)[1..] + ".";
     }
