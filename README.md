@@ -9,7 +9,7 @@ of crops**. Your farmer walks it swinging the crop's tool, breaking every grown 
 steps on a **teleport pad** at the end that sends them back to the start. Crops regrow in a couple of
 seconds, so the row is always grown again by the next lap. You level up, unlock crops, craft better
 **tools**, **armour** and **talismans** from your crops, trade on the **Bazaar**, serve **visitors**,
-feed the **Composter**, and make the row longer.
+feed the **Composter**, make the row longer, and send the farmer **fishing** from a pontoon on a lake.
 
 ![The field: the farmer breaks wheat on their way along the row, crop bits fly out, and a level-up popup appears above](docs/screenshots/strip.png)
 
@@ -221,6 +221,69 @@ or **fertiliser**: 3 Compost for +30 Harvest Fortune for 20 minutes.
   <img src="docs/screenshots/panel-garden-bottom.png" width="48%" alt="The Composter: compost made from spare crops, fertiliser and upgrades">
 </p>
 
+### Fishing
+
+Click the rod button next to your coins on the strip (or use the **Fishing** tab) to send the farmer
+fishing. The row turns into a lake and the farmer stands on a wooden pontoon. They cast, the bobber
+floats until a "!" shows something biting, and they reel it in, all by themselves, even while the game
+is closed (at half speed, like farming). Your crops keep growing while they're away, so the field is full
+when they come back. Click the button again (it shows your crop) to go back to the field.
+
+![Fishing at Willow Lake: the farmer on the pontoon, the line out, and a "!" over the bobber as a fish bites](docs/screenshots/strip-lake.png)
+
+![The catch flying back to the pontoon](docs/screenshots/strip-lake-catch.png)
+
+| Lake | How to get there | What bites |
+|---|---|---|
+| **Willow Lake** | On your island: always open | Perch, Carp, Trout (Fishing 3), Pike (6), Eel (10), Catfish (15), Golden Carp (20, rare), and Lily Pads, Clay, Ink Sacs (5) and Sponges (12) |
+| **Driftwood Cove** | A boat trip for 50,000 coins (once) | Mackerel, Sea Bass (8), Snapper (14), Swordfish (22, rare), Ink Sacs, Sponges, and **junk**: Tin Cans, Soggy Boots, Tangled Nets, Broken Bottles and the odd Rusty Anchor |
+
+Every catch gives **Fishing XP**. Each Fishing level (up to 50) gives +1 Fishing Speed and coins, and
+some unlock new fish. Your stats:
+
+- **Fishing Speed**: fish bite every 20 seconds ÷ (1 + Fishing Speed ÷ 100), on average.
+- **Treasure Chance** (3% to start): the chance a catch is **treasure** instead: Waxed Canvas, Brass
+  Hooks and Spools of Line, or a rarer "Great catch!" River Pearl or Tide Gem. Treasure is what rods and
+  fishing armour are made from.
+- **Double Catch**: the chance a catch comes up two at a time.
+
+**Rods** (crafted in the Fishing tab from fish and treasure; everyone starts with a Fishing Rod):
+
+| Rod | Rarity | Fishing level | Fishing Speed | Treasure Chance |
+|---|---|---|---|---|
+| Fishing Rod | Common | – | +5 | – |
+| Angler's Rod | Uncommon | 10 | +35 | +0.5% |
+| Lakewarden Rod | Rare | 15 | +50 | +1% |
+| Stormcatcher Rod | Epic | 20 | +65 | +1.5% |
+| Tidecaller Rod | Legendary | 24 | +80 | +2.5% |
+
+**Fishing armour** is worn while fishing (your farming armour is worn at the field): **Oilskin** (Fishing
+5), **Mariner** (12) and **Deepwater** (22), with Fishing Speed and Treasure Chance on every piece and a
+set bonus for all four.
+
+**Bait** is used up one per catch while it's chosen (when it runs out, the farmer fishes without it):
+
+| Bait | Does | Bait table recipe |
+|---|---|---|
+| Wriggler Bait | +30 Fishing Speed | 1 Perch + 1 Lily Pad → 25 |
+| Glimmer Bait | +3% Treasure Chance | 2 Carp + 1 Ink Sac → 25 (Fishing 5) |
+| Twin Bait | +20% Double Catch | 2 Pike + 2 Clay → 25 (Fishing 8) |
+
+**Rusty Rowan** runs a junk shop at Driftwood Cove (he stands on the jetty at the end of the cove). Once
+you've bought the boat trip, he trades the junk you fish up there for bait, treasure (canvas, hooks, line,
+pearls and Tide Gems), a Bucket Hat and the Beachcomber Blue outfit. Reaching Fishing 10 also unlocks the
+Sou'wester hat.
+
+The Fishing tab also shows **what's biting** (each catch's chance at your level and its price), your
+catches per hour, and the **catch log** of everything you've reeled in.
+
+![Driftwood Cove, with Rusty Rowan on his jetty](docs/screenshots/strip-cove.png)
+
+<p>
+  <img src="docs/screenshots/panel-fishing.png" width="48%" alt="Fishing tab: Fishing level, where the farmer is, boat trips and fishing stats">
+  <img src="docs/screenshots/panel-fishing-middle.png" width="48%" alt="Fishing tab: bait, the bait table and Rusty Rowan's junk shop">
+</p>
+
 ### Bazaar
 
 Buy and sell crops, packed crops and dense crops with other (pretend) farmers in the **Bazaar** tab.
@@ -340,9 +403,11 @@ breaks, details are written to `%APPDATA%\TaskBarGame Harvest Edition\error.log`
 | Breaking, fortune, crafting and offline rules | `src/TaskBarGame.Core/GameEngine.cs` |
 | Bazaar prices, trades and orders | `src/TaskBarGame.Core/Bazaar.cs` |
 | How the farmer walks the row and teleports | `src/TaskBarGame.Core/FarmerAgent.cs` |
-| **Pixel art** (crops, farmer, hats, visitors, rare finds, icons) | `src/TaskBarGame.Core/Assets/sprites.txt`, a plain text file with one letter per pixel |
+| **Fishing**: fish, lakes, what bites, treasure, rods, fishing armour, bait, Rusty Rowan's trades | `src/TaskBarGame.Core/Fishing.cs` |
+| Fishing rules (catching, stats, boat trips, trades) and how the farmer casts and reels in | `src/TaskBarGame.Core/FishingEngine.cs`, `AnglerAgent.cs` |
+| **Pixel art** (crops, farmer, hats, visitors, rare finds, fish, the lake, rods, fishing armour, icons) | `src/TaskBarGame.Core/Assets/sprites.txt`, a plain text file with one letter per pixel |
 | **Tool, armour and talisman pictures** (16x16 PNGs) | `src/TaskBarGame.App/Assets/Tools`, `Assets/Armour` and `Assets/Talismans` (which file each one uses: `Equipment.cs`) |
-| Tools' blade colours per tier, outfit colours | `src/TaskBarGame.App/SpriteCache.cs` |
+| Tools' blade colours per tier, outfit colours, fish, rod and fishing armour colours | `src/TaskBarGame.App/SpriteCache.cs` |
 | The strip above the taskbar | `src/TaskBarGame.App/StripWindow.xaml.cs` |
 | The panel | `src/TaskBarGame.App/PanelWindow.xaml` + `ViewModels/` |
 | Colours and button styles | `src/TaskBarGame.App/Theme.xaml` |
@@ -363,10 +428,13 @@ of the strip and every panel tab (and the bottom of the longer ones), then quits
 TaskBarGame.exe --screenshots docs\screenshots
 ```
 
-The screenshots in `docs/screenshots` were taken on Linux by running the real Windows build under
-Wine with `tools/linux-screenshots.sh`. The game draws everything itself, so they match Windows
-except for the font: Wine has no Segoe UI, so the script uses Selawik, Microsoft's open-source
-stand-in for it.
+To take them on a real Windows machine without installing anything, open **Actions → Build → Run
+workflow** on GitHub: when it's done, the run has a **screenshots** download. The screenshots in
+`docs/screenshots` were taken that way.
+
+You can also take them on Linux by running the real Windows build under Wine with
+`tools/linux-screenshots.sh`. The game draws everything itself, so they match Windows except for the
+font: Wine has no Segoe UI, so the script uses Selawik, Microsoft's open-source stand-in for it.
 
 ### Making a release
 
@@ -401,9 +469,11 @@ docs/screenshots/         The pictures in this README.
 
 ## Coming next
 
+- **Sea creatures** to fish up and fight, and the Leviathan Rod.
+- **More islands**, fishing pets and fishing accessories.
 - **Auction house:** buy and sell tools, armour and talismans.
 - **Pests**, **farming contests** and more for the garden.
-- **More skills:** combat, fishing, mining, foraging and more.
+- **More skills:** combat, mining, foraging and more.
 
 ## Download
 

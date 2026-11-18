@@ -4,6 +4,11 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      screenshots-in-log:
+        description: Also write the screenshots into the log (for tools that can't download artifacts)
+        type: boolean
+        default: false
 
 jobs:
   build:
@@ -54,3 +59,11 @@ jobs:
         with:
           name: screenshots
           path: screenshots
+
+      - name: Write the screenshots into the log
+        if: inputs.screenshots-in-log
+        shell: pwsh
+        run: |
+          Compress-Archive -Path screenshots\* -DestinationPath screenshots.zip
+          $text = [Convert]::ToBase64String([IO.File]::ReadAllBytes("$PWD\screenshots.zip"))
+          for ($i = 0; $i -lt $text.Length; $i += 4000) { "SCREENSHOTS:" + $text.Substring($i, [Math]::Min(4000, $text.Length - $i)) }
