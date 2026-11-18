@@ -366,6 +366,13 @@ public partial class StripWindow
 
     // ================================================================== catches
 
+    private void OnFishCollectionTier(FishCollectionTierUp tierUp)
+    {
+        QueueToast($"{tierUp.Fish.Name.ToUpperInvariant()} COLLECTION {Format.Roman(tierUp.NewTier)}",
+            $"+{FishCollections.TreasurePerTier:0.##}% Treasure Chance · +{FishCollections.FishingXpPerTier * tierUp.NewTier} Fishing XP",
+            ViewModels.CropBrushes.Get(Items.Of(tierUp.Fish)), 4, PopupKind.Collection);
+    }
+
     private void OnCaught(CatchResult result)
     {
         var item = result.Item;
@@ -375,7 +382,14 @@ public partial class StripWindow
             if (result.Treasure) AddTextFloater(result.Great ? "GREAT CATCH!" : "TREASURE!", x, _tileTop - 6 * _unit - _fontSize, GoldBrush, life: 2);
             AddTextFloater($"+{result.Count} {item.Name}", x, _tileTop - _unit, ViewModels.CropBrushes.Get(item));
             AddTextFloater($"+{Format.Number(result.FishingXp, 1)} Fishing XP", x, _tileTop + _fontSize, FishingBrush, delay: 0.15);
+            if (result.AutoSoldCoins > 0)
+                AddTextFloater($"+{Format.Number(result.AutoSoldCoins)} coins", x, _tileTop + 2 * _fontSize, GoldBrush, delay: 0.3);
         }
+
+        if (result.BaitRanOut && result.Bait is { } bait)
+            QueueToast($"OUT OF {bait.Name.ToUpperInvariant()}",
+                "The farmer is fishing without bait now. Make more at the bait table or trade junk for it (Fishing tab).",
+                DangerBrush, 7, PopupKind.BaitRanOut, ("Get more", () => OpenPanelOn("FishingTab")));
 
         if (result.Treasure)
         {

@@ -22,7 +22,7 @@ public sealed partial class PanelViewModel : ObservableObject
         nameof(AutoHarvest), nameof(KeepForUpgrades), nameof(FloatingText), nameof(HideInFullscreen),
         nameof(StartWithWindows), nameof(ShortNumbers), nameof(BatterySaver),
         nameof(PausePopups), nameof(PopupLevelUps), nameof(PopupCollections), nameof(PopupCrafted),
-        nameof(PopupBazaar), nameof(PopupUpgradeReady), nameof(PopupWelcomeBack), nameof(PopupUpdates), nameof(PopupCosmetics), nameof(PopupVisitors), nameof(PopupRareDrops), nameof(PopupTreasure),
+        nameof(PopupBazaar), nameof(PopupUpgradeReady), nameof(PopupWelcomeBack), nameof(PopupUpdates), nameof(PopupCosmetics), nameof(PopupVisitors), nameof(PopupRareDrops), nameof(PopupTreasure), nameof(PopupBaitRanOut),
         nameof(CheckForUpdates), nameof(InstallUpdatesAutomatically),
     };
 
@@ -283,6 +283,7 @@ public sealed partial class PanelViewModel : ObservableObject
     public bool PopupVisitors { get => ShowsPopup(PopupKind.Visitor); set => ShowPopup(PopupKind.Visitor, value); }
     public bool PopupRareDrops { get => ShowsPopup(PopupKind.RareDrop); set => ShowPopup(PopupKind.RareDrop, value); }
     public bool PopupTreasure { get => ShowsPopup(PopupKind.Treasure); set => ShowPopup(PopupKind.Treasure, value); }
+    public bool PopupBaitRanOut { get => ShowsPopup(PopupKind.BaitRanOut); set => ShowPopup(PopupKind.BaitRanOut, value); }
 
     private bool ShowsPopup(PopupKind kind) => !Settings.HiddenPopups.Contains(kind);
 

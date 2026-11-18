@@ -419,6 +419,129 @@ public class FishingTests
         Assert.True(engine.BazaarSellPrice(pike) < before);
     }
 
+    // ================================================================= fish collections
+
+    [Fact]
+    public void Every_fish_has_a_collection_and_rarer_fish_need_fewer()
+    {
+        Assert.Equal(FishingItems.All.Count(i => i.Kind == ItemKind.Fish), FishCollections.Fish.Count);
+        Assert.DoesNotContain(FishCollections.Fish, f => f.Kind != ItemKind.Fish);
+        foreach (var fish in FishCollections.Fish)
+        {
+            var thresholds = FishCollections.Thresholds(fish);
+            Assert.Equal(FishCollections.MaxTier, thresholds.Count);
+            for (int i = 1; i < thresholds.Count; i++) Assert.True(thresholds[i] > thresholds[i - 1], fish.Name);
+        }
+        Assert.Equal(10, FishCollections.Thresholds(FishingItems.Perch)[0]);
+        Assert.True(FishCollections.MaxThreshold(FishingItems.GoldenCarp) < FishCollections.MaxThreshold(FishingItems.Carp));
+        Assert.True(FishCollections.MaxThreshold(FishingItems.Swordfish) < FishCollections.MaxThreshold(FishingItems.Mackerel));
+    }
+
+    [Fact]
+    public void Reaching_a_fish_collection_tier_gives_Fishing_XP_and_Treasure_Chance()
+    {
+        // No treasure (0.5), then Perch, the first thing on the list (0.0).
+        var engine = AtWillowLake(new SequenceRandom(0.5, 0.0, 0.99));
+        engine.State.Fishing.Caught[FishingItems.Perch.Id] = 9;
+        double treasureBefore = engine.TreasureChance;
+        FishCollectionTierUp? tierUp = null;
+        engine.FishCollectionTierReached += t => tierUp = t;
+
+        var result = engine.Catch()!;
+
+        Assert.Equal(FishingItems.Perch.Id, result.Item.Id);
+        Assert.NotNull(tierUp);
+        Assert.Equal(1, tierUp!.NewTier);
+        Assert.Equal(1, engine.FishCollectionTier(FishingItems.Perch));
+        Assert.Equal(12 + FishCollections.FishingXpPerTier, engine.State.Fishing.Xp);
+        Assert.Equal(treasureBefore + FishCollections.TreasurePerTier, engine.TreasureChance, 6);
+    }
+
+    [Fact]
+    public void Lake_drops_and_treasure_have_no_collection()
+    {
+        var engine = AtWillowLake(new FixedRandom(0.99)); // Clay
+        engine.State.Fishing.Caught[FishingItems.Clay.Id] = 1_000_000;
+        int fired = 0;
+        engine.FishCollectionTierReached += _ => fired++;
+        engine.Catch();
+        Assert.Equal(0, fired);
+        Assert.Equal(0, engine.FishCollectionTiers);
+    }
+
+    // ================================================================= small fixes
+
+    [Fact]
+    public void Fishing_items_can_be_auto_sold_as_theyre_caught_but_not_bait()
+    {
+        var engine = AtWillowLake(new FixedRandom(0.99)); // Clay
+        engine.SetAutoSell(Items.Of(FishingItems.Clay), true);
+        engine.SetAutoSell(Items.Of(FishingItems.WrigglerBait), true);
+        Assert.False(engine.IsAutoSelling(Items.Of(FishingItems.WrigglerBait)));
+
+        var result = engine.Catch()!;
+
+        Assert.Equal(40, result.AutoSoldCoins);
+        Assert.Equal(0, engine.GetItem(FishingItems.Clay.Id));
+        Assert.Equal(40, engine.State.Coins);
+        Assert.Equal(1, engine.TimesCaught(Items.Of(FishingItems.Clay))); // still in the catch log
+    }
+
+    [Fact]
+    public void Auto_sell_keeps_what_your_next_upgrades_need()
+    {
+        var engine = AtWillowLake(new SequenceRandom(0.5, 0.3, 0.99), fishingLevel: 10); // Carp
+        Give(engine, FishingItems.Carp, 50);
+        engine.SetAutoSell(Items.Of(FishingItems.Carp), true);
+        engine.Catch();
+        Assert.Equal(51, engine.GetItem(FishingItems.Carp.Id)); // the Angler's Rod and Oilskin Coat need 110
+    }
+
+    [Fact]
+    public void The_catch_that_uses_the_last_bait_says_so()
+    {
+        var engine = AtWillowLake(new FixedRandom(0.99));
+        Give(engine, FishingItems.WrigglerBait, 2);
+        engine.SetBait(FishingItems.WrigglerBait.Id);
+        Assert.False(engine.Catch()!.BaitRanOut);
+        Assert.True(engine.Catch()!.BaitRanOut);
+        Assert.False(engine.Catch()!.BaitRanOut); // no bait left to run out
+    }
+
+    [Fact]
+    public void The_welcome_back_report_lists_what_was_caught_and_any_bait_that_ran_out()
+    {
+        var engine = AtWillowLake(new FixedRandom(0.99));
+        Give(engine, FishingItems.WrigglerBait, 3);
+        engine.SetBait(FishingItems.WrigglerBait.Id);
+
+        var report = engine.ApplyOfflineProgress(TimeSpan.FromHours(1));
+
+        Assert.Equal(report.FishCaught, report.Caught.Values.Sum());
+        Assert.True(report.Caught[FishingItems.Clay.Id] > 0);
+        Assert.Equal("Wriggler Bait", report.BaitRanOut);
+    }
+
+    [Fact]
+    public void Ready_junk_trades_leave_out_bait()
+    {
+        var engine = AtWillowLake(new FixedRandom(0.5));
+        engine.State.Fishing.BoatTrips.Add(Places.DriftwoodCove.Id);
+        Give(engine, FishingItems.TinCan, 100);
+        Assert.Empty(engine.ReadyJunkTrades()); // only bait so far
+        Give(engine, FishingItems.BrokenBottle, 4);
+        Assert.Equal("junk_hook", Assert.Single(engine.ReadyJunkTrades()).Id);
+    }
+
+    [Fact]
+    public void A_save_forgets_auto_sell_for_bait_crops_and_unknown_items()
+    {
+        var state = GameState.CreateNew();
+        state.Settings.AutoSellItems.UnionWith(new[] { "perch", "wrigglerbait", "wheat", "nonsense" });
+        state.Normalize();
+        Assert.Equal(new[] { "perch" }, state.Settings.AutoSellItems);
+    }
+
     [Fact]
     public void A_save_with_a_strange_place_or_a_cove_without_a_boat_trip_goes_back_to_the_field()
     {

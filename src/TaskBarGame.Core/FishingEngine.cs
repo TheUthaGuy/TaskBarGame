@@ -6,6 +6,8 @@ namespace TaskBarGame.Core;
 /// <param name="Great">A rare "Great catch!" treasure.</param>
 /// <param name="First">The first one ever caught: new in the catch log.</param>
 /// <param name="Bait">The bait used up on this catch, or null.</param>
+/// <param name="BaitRanOut">That was the last of the chosen bait.</param>
+/// <param name="AutoSoldCoins">Coins from selling it straight away (auto-sell is on for it).</param>
 public sealed record CatchResult(
     ItemDef Item,
     long Count,
@@ -13,7 +15,12 @@ public sealed record CatchResult(
     bool Treasure,
     bool Great,
     bool First,
-    ItemDef? Bait);
+    ItemDef? Bait,
+    bool BaitRanOut = false,
+    long AutoSoldCoins = 0);
+
+/// <summary>A fish collection reached a new tier.</summary>
+public sealed record FishCollectionTierUp(FishingItemDef Fish, int NewTier);
 
 /// <summary>One line of "What's biting": an item, its chance per catch and the level it needs.</summary>
 public sealed record BiteChance(CatchEntry Entry, double Percent, bool Unlocked);
@@ -36,6 +43,9 @@ public sealed partial class GameEngine
 
     /// <summary>The farmer went somewhere else (the field or a lake).</summary>
     public event Action? Travelled;
+
+    /// <summary>A fish collection reached a new tier (not raised while the game was closed).</summary>
+    public event Action<FishCollectionTierUp>? FishCollectionTierReached;
 
     public int FishingLevel => FishingSkill.LevelForXp(State.Fishing.Xp);
 
@@ -140,6 +150,8 @@ public sealed partial class GameEngine
         foreach (var slot in Armour.Slots)
             sources.Add((FishingArmour.Name(slot, GetFishingArmourTier(slot)), FishingArmour.Bonus(GetFishingArmourTier(slot))));
         sources.Add(($"{FishingArmour.SetName(FullFishingSetTier)} set bonus", FishingArmour.SetBonus(FullFishingSetTier)));
+        int tiers = FishCollectionTiers;
+        sources.Add(($"Fish collections ({tiers} tier{(tiers == 1 ? "" : "s")})", new FishingBonus(Treasure: tiers * FishCollections.TreasurePerTier)));
         if (ActiveBait is { } bait) sources.Add((bait.Name, Baits.Bonus[bait.Id]));
         return sources.Where(s => !s.Item2.IsEmpty).ToList();
     }
@@ -207,6 +219,40 @@ public sealed partial class GameEngine
     /// <summary>How many of an item you've ever caught.</summary>
     public long TimesCaught(ItemDef item) => State.Fishing.Caught.GetValueOrDefault(item.Id);
 
+    /// <summary>A fish's collection tier: how many of it you've ever caught, against its thresholds.</summary>
+    public int FishCollectionTier(FishingItemDef fish) => FishCollections.TierFor(fish, TimesCaught(Items.Of(fish)));
+
+    /// <summary>Every fish collection's tiers added up (each gives <see cref="FishCollections.TreasurePerTier"/>% Treasure Chance).</summary>
+    public int FishCollectionTiers => FishCollections.Fish.Sum(FishCollectionTier);
+
+    // ================================================================= auto-sell
+
+    /// <summary>Sell this fishing item to the Market as soon as it's caught (bait never is).</summary>
+    public bool IsAutoSelling(ItemDef item) =>
+        item.Crop is { } crop ? item.Kind == ItemKind.Crop && IsAutoSelling(crop)
+            : item.Kind != ItemKind.Bait && State.Settings.AutoSellItems.Contains(item.Id);
+
+    public void SetAutoSell(ItemDef item, bool autoSell)
+    {
+        if (item.Crop is { } crop)
+        {
+            SetAutoSell(crop, autoSell);
+            return;
+        }
+        if (autoSell && item.Kind != ItemKind.Bait) State.Settings.AutoSellItems.Add(item.Id);
+        else State.Settings.AutoSellItems.Remove(item.Id);
+        RaiseChanged();
+    }
+
+    // ================================================================= Rusty Rowan's trades you can make
+
+    /// <summary>
+    /// Junk shop trades you could make right now, apart from bait (which is nearly always ready):
+    /// the treasure and clothes.
+    /// </summary>
+    public IEnumerable<TradeDef> ReadyJunkTrades() =>
+        Trades.From(TradeSource.JunkShop).Where(t => t.Result?.Kind != ItemKind.Bait && MaxTrades(t) > 0);
+
     // ================================================================= catching
 
     /// <summary>
@@ -245,16 +291,34 @@ public sealed partial class GameEngine
         }
 
         bool first = TimesCaught(item) == 0;
+        var fish = FishCollections.Has(item.Id) ? item.Fishing : null;
+        int tierBefore = fish is null ? 0 : FishCollectionTier(fish);
         AddItem(item, count);
         State.Fishing.Caught[item.Id] = TimesCaught(item) + count;
         State.Fishing.Xp += xp;
         State.Fishing.Catches++;
         if (treasure) State.Fishing.Treasures++;
 
-        var result = new CatchResult(item, count, xp, treasure, great, first, bait);
+        // Auto-sell (what isn't locked or kept for upgrades).
+        long soldCoins = 0;
+        if (IsAutoSelling(item))
+        {
+            long sell = Math.Min(count, SellableAmount(item));
+            if (sell > 0) soldCoins = SellToMarket(item, sell);
+        }
+
+        // Fish collection tiers: Fishing XP now, and Treasure Chance for good.
+        int tierAfter = fish is null ? 0 : FishCollectionTier(fish);
+        for (int tier = tierBefore + 1; tier <= tierAfter; tier++)
+            State.Fishing.Xp += (double)tier * FishCollections.FishingXpPerTier;
+
+        bool ranOut = bait is not null && GetItem(bait) == 0;
+        var result = new CatchResult(item, count, xp, treasure, great, first, bait, ranOut, soldCoins);
         if (!_quiet)
         {
             Caught?.Invoke(result);
+            for (int tier = tierBefore + 1; tier <= tierAfter; tier++)
+                FishCollectionTierReached?.Invoke(new FishCollectionTierUp(fish!, tier));
             RaiseChanged();
         }
         if (FishingLevel > levelBefore) OnFishingLevelUp(levelBefore, FishingLevel);
@@ -304,12 +368,19 @@ public sealed partial class GameEngine
     {
         double xpBefore = State.Fishing.Xp;
         long treasuresBefore = State.Fishing.Treasures;
+        long coinsBefore = State.Coins;
         long catches = (long)Math.Floor(seconds / CatchCycleSeconds * OfflineEfficiency);
         for (long i = 0; i < catches; i++)
-            report.FishCaught += CatchInternal(lake).Count;
+        {
+            var result = CatchInternal(lake);
+            report.FishCaught += result.Count;
+            report.Caught[result.Item.Id] = report.Caught.GetValueOrDefault(result.Item.Id) + result.Count;
+            if (result.BaitRanOut) report.BaitRanOut = result.Bait!.Name;
+        }
         report.Catches = catches;
         report.FishingXp = State.Fishing.Xp - xpBefore;
         report.Treasures = State.Fishing.Treasures - treasuresBefore;
+        report.Coins = State.Coins - coinsBefore;
     }
 
     // ================================================================= trades: bait and Rusty Rowan

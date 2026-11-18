@@ -274,8 +274,15 @@ you've bought the boat trip, he trades the junk you fish up there for bait, trea
 pearls and Tide Gems), a Bucket Hat and the Beachcomber Blue outfit. Reaching Fishing 10 also unlocks the
 Sou'wester hat.
 
+Every fish has a **collection** (Collections tab), like the crops: each tier gives +0.05% Treasure
+Chance for good, plus Fishing XP. Rarer fish need fewer for each tier (10 Perch for Tier I, 1 Golden Carp).
+
 The Fishing tab also shows **what's biting** (each catch's chance at your level and its price), your
-catches per hour, and the **catch log** of everything you've reeled in.
+catches per hour, and the **catch log** of everything you've reeled in. Its number counts the rods and
+fishing armour you can craft, and the treasure and clothes Rusty Rowan can trade you, right now. A pop-up
+tells you when your bait runs out. In the **Inventory** tab you can auto-sell catches as they're reeled
+in (the **All junk** button turns it on for every kind of junk); locked items and what your next upgrades
+need are kept.
 
 ![Driftwood Cove, with Rusty Rowan on his jetty](docs/screenshots/strip-cove.png)
 

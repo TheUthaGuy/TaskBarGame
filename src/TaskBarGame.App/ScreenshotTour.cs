@@ -114,6 +114,7 @@ internal sealed class ScreenshotTour
         fishing.BoatTrips.Add(Places.DriftwoodCove.Id);
         fishing.Bait = FishingItems.WrigglerBait.Id;
         fishing.Catches = 1_150;
+        state.Settings.AutoSellItems.Add("tincan");
         fishing.Treasures = 21;
         foreach (var (id, held, caught) in new (string, long, long)[]
         {
@@ -166,7 +167,7 @@ internal sealed class ScreenshotTour
         await Wait(0.8);
         var panel = _strip.Panel ?? throw new InvalidOperationException("The garden panel didn't open.");
         string[] tabs = { "garden", "farming", "fishing", "upgrades", "collections", "visitors", "bazaar", "inventory", "wardrobe", "settings" };
-        string[] alsoScrolledDown = { "garden", "farming", "fishing", "upgrades", "visitors", "inventory", "settings" };
+        string[] alsoScrolledDown = { "garden", "farming", "fishing", "upgrades", "collections", "visitors", "inventory", "settings" };
         for (int i = 0; i < tabs.Length; i++)
         {
             panel.Tabs.SelectedIndex = i;

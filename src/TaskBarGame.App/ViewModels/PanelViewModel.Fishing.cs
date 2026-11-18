@@ -35,6 +35,18 @@ public sealed partial class PanelViewModel
     public IReadOnlyList<TradeRow> JunkShopRows { get; private set; } = Array.Empty<TradeRow>();
     public IReadOnlyList<BiteRow> BitingRows { get; private set; } = Array.Empty<BiteRow>();
     public IReadOnlyList<CatchLogRow> CatchLogRows { get; private set; } = Array.Empty<CatchLogRow>();
+    public IReadOnlyList<FishCollectionRow> FishCollectionRows { get; private set; } = Array.Empty<FishCollectionRow>();
+    public IReadOnlyList<FishingSettingRow> FishingSettings { get; private set; } = Array.Empty<FishingSettingRow>();
+    public ICommand AutoSellJunkCommand { get; private set; } = null!;
+    public ICommand AutoSellNoFishingCommand { get; private set; } = null!;
+
+    private string _fishCollectionsTitle = "";
+    private bool _hasCaughtAnything;
+
+    public string FishCollectionsTitle { get => _fishCollectionsTitle; private set => Set(ref _fishCollectionsTitle, value); }
+
+    /// <summary>Shows the fishing auto-sell list once anything's been caught.</summary>
+    public bool HasCaughtAnything { get => _hasCaughtAnything; private set => Set(ref _hasCaughtAnything, value); }
 
     public string FishingLevelText { get => _fishingLevelText; private set => Set(ref _fishingLevelText, value); }
     public string FishingXpText { get => _fishingXpText; private set => Set(ref _fishingXpText, value); }
@@ -56,7 +68,7 @@ public sealed partial class PanelViewModel
     public bool JunkShopOpen { get => _junkShopOpen; private set => Set(ref _junkShopOpen, value); }
     public ImageSource? RowanIcon { get; private set; }
 
-    /// <summary>Rods and fishing armour you can craft right now (shown on the Fishing tab).</summary>
+    /// <summary>Rods and fishing armour you can craft, and junk shop trades you can make, right now (shown on the Fishing tab).</summary>
     public int ReadyFishingUpgrades { get => _readyFishingUpgrades; private set => Set(ref _readyFishingUpgrades, value); }
 
     private void InitFishing()
@@ -79,6 +91,21 @@ public sealed partial class PanelViewModel
             .ToList();
         BaitTableRows = Trades.From(TradeSource.BaitTable).Select(t => new TradeRow(_host, t, Done)).ToList();
         JunkShopRows = Trades.From(TradeSource.JunkShop).Select(t => new TradeRow(_host, t, Done)).ToList();
+        FishCollectionRows = FishCollections.Fish.Select(f => new FishCollectionRow(_host, f)).ToList();
+        FishingSettings = Items.FishingItemDefs.Where(i => i.Kind != ItemKind.Bait)
+            .Select(i => new FishingSettingRow(_host, i)).ToList();
+        AutoSellJunkCommand = new RelayCommand(() =>
+        {
+            foreach (var row in FishingSettings.Where(r => r.Item.Kind == ItemKind.Junk)) Engine.SetAutoSell(row.Item, true);
+            _host.Save();
+            Refresh();
+        });
+        AutoSellNoFishingCommand = new RelayCommand(() =>
+        {
+            foreach (var row in FishingSettings) Engine.SetAutoSell(row.Item, false);
+            _host.Save();
+            Refresh();
+        });
         CatchLogRows = Places.Lakes.SelectMany(l => l.Catches.Select(c => c.Item))
             .Concat(Places.Treasure.Select(t => t.Item))
             .Distinct()
@@ -147,7 +174,7 @@ public sealed partial class PanelViewModel
 
         // ---- equipment, bait and trades
         foreach (var row in RodRows.Concat(FishingArmourRows)) row.Update();
-        ReadyFishingUpgrades = Engine.ReadyRecipes().Count(r => r.IsFishing);
+        ReadyFishingUpgrades = Engine.ReadyRecipes().Count(r => r.IsFishing) + Engine.ReadyJunkTrades().Count();
         foreach (var row in BaitRows) row.Update();
         foreach (var row in BaitTableRows.Concat(JunkShopRows)) row.Update();
         JunkShopOpen = Engine.IsJunkShopOpen;
@@ -167,6 +194,13 @@ public sealed partial class PanelViewModel
             Raise(nameof(BitingRows));
         }
         foreach (var row in BitingRows) row.Update();
+
+        foreach (var row in FishCollectionRows) row.Update();
+        int tiers = Engine.FishCollectionTiers;
+        FishCollectionsTitle = $"Fish collections: {tiers} of {FishCollections.Fish.Count * FishCollections.MaxTier} tiers "
+                               + $"(+{tiers * FishCollections.TreasurePerTier:0.##}% Treasure Chance)";
+        foreach (var row in FishingSettings) row.Update();
+        HasCaughtAnything = Engine.State.Fishing.Catches > 0;
 
         int caught = CatchLogRows.Count(r => Engine.TimesCaught(r.Item) > 0);
         CatchLogTitle = $"Catch log: {caught} of {CatchLogRows.Count} found";
@@ -419,5 +453,115 @@ public sealed class CatchLogRow : ObservableObject
         Icon = caught > 0 ? _host.Sprites.ItemIcon(Item) : _host.Sprites.UnknownIcon(Item.Fishing!);
         Name = caught > 0 ? Item.Name : "???";
         CountText = caught > 0 ? $"x{Format.Number(caught)}" : "";
+    }
+}
+
+/// <summary>One fish in the Collections tab (the same layout as a crop's collection).</summary>
+public sealed class FishCollectionRow : ObservableObject
+{
+    private readonly GameHost _host;
+    private ImageSource? _icon;
+    private string _name = "";
+    private string _tierText = "";
+    private string _countText = "";
+    private string _rewardText = "";
+    private string _maxText = "";
+    private string _tiersTip = "";
+    private double _progress;
+    private double _rowOpacity = 1;
+
+    public FishCollectionRow(GameHost host, FishingItemDef fish)
+    {
+        _host = host;
+        Fish = fish;
+        ProgressBrush = CropBrushes.Get(Items.Of(fish));
+    }
+
+    public FishingItemDef Fish { get; }
+    public Brush ProgressBrush { get; }
+    public ImageSource? Icon { get => _icon; private set => Set(ref _icon, value); }
+    public string Name { get => _name; private set => Set(ref _name, value); }
+    public string TierText { get => _tierText; private set => Set(ref _tierText, value); }
+    public string CountText { get => _countText; private set => Set(ref _countText, value); }
+    public string RewardText { get => _rewardText; private set => Set(ref _rewardText, value); }
+    public string MaxText { get => _maxText; private set => Set(ref _maxText, value); }
+    public string TiersTip { get => _tiersTip; private set => Set(ref _tiersTip, value); }
+    public double Progress { get => _progress; private set => Set(ref _progress, value); }
+    public double RowOpacity { get => _rowOpacity; private set => Set(ref _rowOpacity, value); }
+
+    public void Update()
+    {
+        var engine = _host.Engine;
+        long caught = engine.TimesCaught(Items.Of(Fish));
+        int tier = FishCollections.TierFor(Fish, caught);
+        var thresholds = FishCollections.Thresholds(Fish);
+        long? next = FishCollections.NextThreshold(Fish, caught);
+        long previous = tier == 0 ? 0 : thresholds[tier - 1];
+        long max = FishCollections.MaxThreshold(Fish);
+        string maxTier = Format.Roman(FishCollections.MaxTier);
+
+        // Fish you haven't caught yet stay a mystery, like in the catch log.
+        Icon = caught > 0 ? _host.Sprites.FishingIcon(Fish) : _host.Sprites.UnknownIcon(Fish);
+        Name = caught > 0 ? Fish.Name : "???";
+        TierText = tier == 0 ? $"Not started · {FishCollections.MaxTier} tiers"
+            : next is null ? $"Tier {Format.Roman(tier)} · MAXED"
+            : $"Tier {Format.Roman(tier)} of {maxTier}";
+        CountText = next is null ? $"{Format.Number(caught)} caught" : $"{Format.Number(caught)} / {Format.Number(next.Value)}";
+        Progress = next is null ? 1 : (double)(caught - previous) / (next.Value - previous);
+        RewardText = tier == 0
+            ? $"Tier I: +{FishCollections.TreasurePerTier:0.##}% Treasure Chance"
+            : $"+{tier * FishCollections.TreasurePerTier:0.##}% Treasure Chance";
+        MaxText = caught == 0 ? "Catch one to start this collection"
+            : next is null ? $"Maxed out: Tier {maxTier} needed {Format.Number(max)} {Fish.Name}"
+            : $"Max (Tier {maxTier}): {Format.Number(max)} {Fish.Name}";
+        TiersTip = string.Join("\n", thresholds.Select((t, i) =>
+            $"{(i < tier ? "✓" : "   ")} Tier {Format.Roman(i + 1)}: {Format.Number(t)}  "
+            + $"(+{FishCollections.TreasurePerTier:0.##}% Treasure Chance, +{(i + 1) * FishCollections.FishingXpPerTier} Fishing XP)"));
+        RowOpacity = caught > 0 ? 1 : 0.45;
+    }
+}
+
+/// <summary>One fishing item in the Inventory tab's auto-sell list.</summary>
+public sealed class FishingSettingRow : ObservableObject
+{
+    private readonly GameHost _host;
+    private bool _autoSell;
+    private bool _isVisible;
+    private string _keptText = "";
+
+    public FishingSettingRow(GameHost host, ItemDef item)
+    {
+        _host = host;
+        Item = item;
+        Icon = host.Sprites.ItemIcon(item);
+    }
+
+    public ItemDef Item { get; }
+    public ImageSource Icon { get; }
+    public string Name => Item.Name;
+
+    /// <summary>Only things you've caught at least once are listed.</summary>
+    public bool IsVisible { get => _isVisible; private set => Set(ref _isVisible, value); }
+    public string KeptText { get => _keptText; private set => Set(ref _keptText, value); }
+
+    public bool AutoSell
+    {
+        get => _autoSell;
+        set
+        {
+            if (!Set(ref _autoSell, value)) return;
+            _host.Engine.SetAutoSell(Item, value);
+            _host.Save();
+        }
+    }
+
+    public void Update()
+    {
+        var engine = _host.Engine;
+        IsVisible = engine.TimesCaught(Item) > 0;
+        Set(ref _autoSell, engine.IsAutoSelling(Item), nameof(AutoSell));
+        long kept = engine.KeptForUpgrades(Item);
+        KeptText = engine.IsLocked(Item) ? "Locked: never sold"
+            : kept > 0 ? $"Keeps {Format.Number(kept)} for your next upgrades" : "";
     }
 }

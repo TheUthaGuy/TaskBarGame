@@ -43,6 +43,12 @@ public sealed class OfflineReport
     public int FishingLevelBefore { get; set; }
     public int FishingLevelAfter { get; set; }
 
+    /// <summary>What those catches were, by item id.</summary>
+    public Dictionary<string, long> Caught { get; } = new();
+
+    /// <summary>The bait that ran out while away, or null.</summary>
+    public string? BaitRanOut { get; set; }
+
     public bool IsEmpty => Breaks == 0 && Catches == 0;
 }
 

@@ -192,6 +192,9 @@ public sealed class GameSettings
     /// <summary>Crops (by crop id) that are sold straight away when they're harvested.</summary>
     public HashSet<string> AutoSellCrops { get; set; } = new();
 
+    /// <summary>Fishing items (by item id) that are sold straight away when they're caught.</summary>
+    public HashSet<string> AutoSellItems { get; set; } = new();
+
     /// <summary>Items (by item id) that are never sold, by any button.</summary>
     public HashSet<string> LockedItems { get; set; } = new();
 
@@ -244,7 +247,13 @@ public sealed class GameSettings
     public double? PanelLeft { get; set; }
     public double? PanelTop { get; set; }
 
-    /// <summary>The panel tab that was open last.</summary>
+    /// <summary>The panel tab that was open last, by name ("FishingTab").</summary>
+    public string? PanelTabName { get; set; }
+
+    /// <summary>
+    /// Old saves remembered the tab by its number (before the Fishing tab moved them along). Only read
+    /// when <see cref="PanelTabName"/> isn't set.
+    /// </summary>
     public int PanelTab { get; set; }
 
     /// <summary>
@@ -259,6 +268,7 @@ public sealed class GameSettings
     public void Normalize()
     {
         AutoSellCrops ??= new();
+        AutoSellItems ??= new();
         LockedItems ??= new();
         CompactorSkips ??= new();
         HiddenPopups ??= new();
@@ -273,6 +283,7 @@ public sealed class GameSettings
 
         AutoSellCrops.RemoveWhere(id => !Crops.TryGet(id, out _));
         CompactorSkips.RemoveWhere(id => !Crops.TryGet(id, out _));
+        AutoSellItems.RemoveWhere(id => !Items.TryGet(id, out var item) || item.IsCrop || item.Kind == ItemKind.Bait);
         LockedItems.RemoveWhere(id => !Items.TryGet(id, out _));
         if (PanelLeft is { } left && !double.IsFinite(left)) PanelLeft = null;
         if (PanelTop is { } top && !double.IsFinite(top)) PanelTop = null;
@@ -294,6 +305,7 @@ public enum PopupKind
     Visitor,
     RareDrop,
     Treasure,
+    BaitRanOut,
 }
 
 /// <summary>Everything about fishing that's saved.</summary>

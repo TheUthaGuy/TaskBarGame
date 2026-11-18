@@ -199,6 +199,7 @@ public partial class StripWindow : Window
         };
         Engine.Travelled += RequestLayout;
         _host.Angler.Caught += OnCaught;
+        Engine.FishCollectionTierReached += OnFishCollectionTier;
         Engine.VisitorArrived += OnVisitorArrived;
         Engine.RareFound += OnRareFound;
     }
@@ -1449,6 +1450,17 @@ public partial class StripWindow : Window
             : $"Your farmer broke {Format.Number(report.Breaks)} crops while you were away "
               + $"({Format.Duration(report.Away.TotalSeconds)}): +{Format.Number(report.Drops)} items, "
               + $"+{Format.Number((long)report.FarmingXp)} Farming XP.";
+        if (report.Caught.Count > 0)
+        {
+            // The three best catches by what they're worth.
+            var best = report.Caught
+                .Select(c => (Item: Items.Get(c.Key), Count: c.Value))
+                .OrderByDescending(c => c.Count * Engine.MarketPrice(c.Item))
+                .Take(3)
+                .Select(c => $"{Format.Number(c.Count)} {c.Item.Name}");
+            body += $" Best: {string.Join(", ", best)}.";
+        }
+        if (report.BaitRanOut is { } bait) body += $" The {bait} ran out.";
         if (report.FishingLevelAfter > report.FishingLevelBefore)
             body += $" Fishing {report.FishingLevelBefore} → {report.FishingLevelAfter}!";
         if (report.FarmingLevelAfter > report.FarmingLevelBefore)
@@ -1516,20 +1528,31 @@ public partial class StripWindow : Window
     /// </summary>
     private void CheckReadyUpgrades(bool quietly = false)
     {
-        var ready = Engine.ReadyRecipes().ToList();
+        // Upgrades you could craft, and the treasure and clothes Rusty Rowan could trade you.
+        var ready = Engine.ReadyRecipes().Select(r => (Id: r.Id, Name: r.ResultName, Fishing: r.IsFishing))
+            .Concat(Engine.ReadyJunkTrades().Select(t => (Id: "trade:" + t.Id, Name: TradeName(t), Fishing: true)))
+            .ToList();
         var ids = ready.Select(r => r.Id).ToHashSet();
         bool first = _readyUpgrades is null;
-        var fresh = first ? new List<Recipe>() : ready.Where(r => !_readyUpgrades!.Contains(r.Id)).ToList();
+        var fresh = first ? new List<(string Id, string Name, bool Fishing)>() : ready.Where(r => !_readyUpgrades!.Contains(r.Id)).ToList();
         _readyUpgrades = ids;
         if (quietly || fresh.Count == 0) return;
 
-        string tab = fresh.All(r => r.IsFishing) ? "Fishing" : fresh.Any(r => r.IsFishing) ? "Upgrades and Fishing" : "Upgrades";
+        bool allFishing = fresh.All(r => r.Fishing);
+        string tab = allFishing ? "Fishing" : fresh.Any(r => r.Fishing) ? "Upgrades and Fishing" : "Upgrades";
         string body = fresh.Count == 1
-            ? $"You can craft the {fresh[0].ResultName}. Open the panel's {tab} tab."
-            : $"You can craft {fresh.Count} upgrades: {string.Join(", ", fresh.Select(r => r.ResultName))}.";
+            ? (fresh[0].Id.StartsWith("trade:", StringComparison.Ordinal)
+                ? $"{Trades.ShopkeeperName} can trade you {fresh[0].Name} for your junk. Open the panel's Fishing tab."
+                : $"You can craft the {fresh[0].Name}. Open the panel's {tab} tab.")
+            : $"You can get {fresh.Count} upgrades: {string.Join(", ", fresh.Select(r => r.Name))}.";
         QueueToast("UPGRADE READY!", body, CraftBrush, 5, PopupKind.UpgradeReady,
-            ("Show me", () => OpenPanelOn(fresh.All(r => r.IsFishing) ? "FishingTab" : "UpgradesTab")));
+            ("Show me", () => OpenPanelOn(allFishing ? "FishingTab" : "UpgradesTab")));
     }
+
+    /// <summary>"a Brass Hook", "the Bucket Hat".</summary>
+    private static string TradeName(TradeDef trade) =>
+        Cosmetics.Find(trade.Cosmetic) is { } cosmetic ? $"the {cosmetic.Name}"
+        : trade.ResultCount == 1 ? $"a {trade.Result!.Name}" : $"{trade.ResultCount} {trade.Result!.Name}";
 
     /// <param name="kind">Which pop-up setting this follows; null for replies to something you just did (always shown).</param>
     /// <param name="action">A button on the pop-up, e.g. ("Update now", ...).</param>

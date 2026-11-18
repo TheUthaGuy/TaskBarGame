@@ -191,6 +191,70 @@ public static class Places
 }
 
 /// <summary>
+/// Fish collections: every fish you catch counts toward that fish's collection. Each tier gives a
+/// little Treasure Chance (for good) and Fishing XP. Rarer fish need fewer for each tier.
+/// </summary>
+public static class FishCollections
+{
+    public const int MaxTier = 10;
+
+    /// <summary>Treasure Chance (in percent) for each tier of every fish collection.</summary>
+    public const double TreasurePerTier = 0.05;
+
+    /// <summary>Fishing XP for reaching a tier = tier * this.</summary>
+    public const int FishingXpPerTier = 50;
+
+    /// <summary>Thresholds for the most common fish (Perch, Mackerel). Rarer fish are scaled down.</summary>
+    private static readonly long[] BaseThresholds = { 10, 25, 50, 100, 250, 500, 1_000, 2_500, 5_000, 10_000 };
+
+    /// <summary>Every fish that has a collection, in the order the game lists them.</summary>
+    public static readonly IReadOnlyList<FishingItemDef> Fish =
+        FishingItems.All.Where(i => i.Kind == ItemKind.Fish).ToList();
+
+    private static readonly Dictionary<string, long[]> ByFish = Fish.ToDictionary(f => f.Id, BuildThresholds);
+
+    private static long[] BuildThresholds(FishingItemDef fish)
+    {
+        // How often it bites on its best lake, compared with the most common fish.
+        int weight = Places.Lakes.SelectMany(l => l.Catches).Where(c => c.ItemId == fish.Id).Select(c => c.Weight).DefaultIfEmpty(1).Max();
+        double scale = Math.Min(1, weight / 40.0);
+        var thresholds = new long[BaseThresholds.Length];
+        for (int i = 0; i < thresholds.Length; i++)
+            thresholds[i] = Math.Max(i == 0 ? 1 : thresholds[i - 1] + 1, RoundNice(BaseThresholds[i] * scale));
+        return thresholds;
+    }
+
+    /// <summary>Rounds to 2 significant figures so numbers look tidy (e.g. 1,234 → 1,200).</summary>
+    private static long RoundNice(double value)
+    {
+        if (value < 100) return (long)Math.Round(value);
+        double magnitude = Math.Pow(10, Math.Floor(Math.Log10(value)) - 1);
+        return (long)(Math.Round(value / magnitude) * magnitude);
+    }
+
+    public static bool Has(string? itemId) => itemId is not null && ByFish.ContainsKey(itemId);
+
+    public static IReadOnlyList<long> Thresholds(FishingItemDef fish) => ByFish[fish.Id];
+
+    public static long MaxThreshold(FishingItemDef fish) => ByFish[fish.Id][MaxTier - 1];
+
+    public static int TierFor(FishingItemDef fish, long caught)
+    {
+        var thresholds = ByFish[fish.Id];
+        int tier = 0;
+        while (tier < thresholds.Length && caught >= thresholds[tier]) tier++;
+        return tier;
+    }
+
+    /// <summary>Fish needed for the next tier, or null at the max tier.</summary>
+    public static long? NextThreshold(FishingItemDef fish, long caught)
+    {
+        int tier = TierFor(fish, caught);
+        return tier < MaxTier ? ByFish[fish.Id][tier] : null;
+    }
+}
+
+/// <summary>
 /// Fishing skill: earn Fishing XP from every catch. Uses the same XP curve as Farming.
 /// Each level adds Fishing Speed.
 /// </summary>
