@@ -514,6 +514,11 @@ public sealed partial class GameEngine
             reason = $"Needs Garden Level {Garden.ComposterGardenLevel}";
             return 0;
         }
+        if (!item.IsCrop)
+        {
+            reason = "Only crops go in the Composter";
+            return 0;
+        }
         if (IsLocked(item))
         {
             reason = $"{item.Name} is locked";

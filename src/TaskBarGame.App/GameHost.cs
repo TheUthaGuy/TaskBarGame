@@ -41,12 +41,21 @@ public sealed class GameHost : IDisposable
         Saves = saves;
         Engine = new GameEngine(state ?? Saves.LoadOrCreate());
         Farmer = new FarmerAgent();
+        Angler = new AnglerAgent();
         Sprites = new SpriteCache(SpriteSheet.LoadDefault());
         Updater = new Updater(Engine.State.Settings);
 
         // Coins, crops and XP an hour: what each harvest is worth at the Market.
         Engine.Broke += result => Rates.Add(Clock, result.Drops * Engine.MarketPrice(Items.Raw(result.Crop)),
             result.Drops, result.FarmingXp);
+        Engine.Caught += result => FishingRates.Add(Clock, result.Count * Engine.MarketPrice(result.Item),
+            result.Count, result.FishingXp);
+        Engine.Travelled += () =>
+        {
+            Angler.Reset();
+            Rates.Restart(Clock);
+            FishingRates.Restart(Clock);
+        };
 
         _timer = new DispatcherTimer(DispatcherPriority.Normal) { Interval = TimeSpan.FromMilliseconds(NormalFrameMs) };
         _timer.Tick += OnTick;
@@ -55,6 +64,9 @@ public sealed class GameHost : IDisposable
 
     public GameEngine Engine { get; }
     public FarmerAgent Farmer { get; }
+
+    /// <summary>The farmer while they're fishing on a lake.</summary>
+    public AnglerAgent Angler { get; }
     public SaveManager Saves { get; }
     public SpriteCache Sprites { get; }
 
@@ -63,6 +75,9 @@ public sealed class GameHost : IDisposable
 
     /// <summary>How fast the farm is going (the Farming tab's "Right now" card).</summary>
     public RateTracker Rates { get; } = new();
+
+    /// <summary>How fast the fishing is going (the Fishing tab's "Right now" card).</summary>
+    public RateTracker FishingRates { get; } = new();
 
     /// <summary>Seconds since the game started (the clock <see cref="Rates"/> uses).</summary>
     public double Clock => _clock.Elapsed.TotalSeconds;
@@ -135,6 +150,7 @@ public sealed class GameHost : IDisposable
         _lastWallClock = DateTime.UtcNow;
         _clock.Start();
         Rates.Start(0);
+        FishingRates.Start(0);
         _timer.Start();
     }
 
@@ -202,7 +218,9 @@ public sealed class GameHost : IDisposable
 
         dt = Math.Clamp(dt, 0, Math.Max(0.25, 2 * _timer.Interval.TotalSeconds));
         Engine.Tick(dt);
-        Farmer.Tick(dt, Engine);
+        // The farmer is in one place at a time: working the field, or fishing on a lake.
+        if (Engine.IsFishing) Angler.Tick(dt, Engine);
+        else Farmer.Tick(dt, Engine);
 
         _sinceSave += dt;
         if (_sinceSave >= AutosaveSeconds) Save();

@@ -258,7 +258,7 @@ public sealed partial class GameEngine
     /// <summary>Trading pushes the price: positive = bought (price up), negative = sold (price down).</summary>
     private void MovePrice(ItemDef item, long amount)
     {
-        double percent = Math.Clamp(amount * item.CropsInside / BazaarCropsPerPercent, -15, 15);
+        double percent = Math.Clamp(amount * item.BazaarWeight / BazaarCropsPerPercent, -15, 15);
         State.Bazaar.Prices[item.Id] = ClampBazaarPrice(item, BazaarMidPrice(item) * (1 + percent / 100));
     }
 

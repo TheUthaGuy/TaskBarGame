@@ -20,6 +20,9 @@ internal static class Describe
             UpgradeKind.Armour =>
                 $"+{Armour.Fortune(tier)} Harvest Fortune. Full {Armour.SetName(tier)} set: {Armour.SetBonus(tier).Describe()}.",
             UpgradeKind.Compactor => Compactors.Effect(tier) + ". Turn it off for any crop in the Inventory tab.",
+            UpgradeKind.Rod => $"{Rarities.Name(Rods.Rarity(tier))} rod: {Rods.Bonus(tier).Describe()}.",
+            UpgradeKind.FishingArmour =>
+                $"{FishingArmour.Bonus(tier).Describe()} while fishing. Full {FishingArmour.SetName(tier)} set: {FishingArmour.SetBonus(tier).Describe()}.",
             _ => Talismans.Bonus(Enum.Parse<TalismanFamily>(target), tier).Describe() + ".",
         };
     }
@@ -36,6 +39,7 @@ internal static class Describe
             .ToList();
         parts.Add($"{Format.Number(recipe.Coins)} coins");
         if (recipe.GardenLevel > 1) parts.Add($"Garden Level {recipe.GardenLevel}");
+        if (recipe.FishingLevel > 0) parts.Add($"Fishing Level {recipe.FishingLevel}");
         return string.Join(" · ", parts);
     }
 }

@@ -29,6 +29,100 @@ public sealed class SpriteCache
 
     public BitmapSource CropIcon(CropDef crop) => this[crop.RipeSprite];
 
+    /// <summary>Any item's picture: the grown crop for crops (see <see cref="ItemContainer"/> for the sack or crate), or the fishing item.</summary>
+    public BitmapSource ItemIcon(ItemDef item) => item.Crop is { } crop ? CropIcon(crop) : FishingIcon(item.Fishing!);
+
+    // ------------------------------------------------------------------ fishing
+
+    /// <summary>Each fish's colours: body, body dark, belly, fins (the A, a, E and Z letters in sprites.txt).</summary>
+    private static readonly Dictionary<string, (uint A, uint a, uint E, uint Z)> FishColours = new()
+    {
+        ["perch"] = (0xFF8DB255, 0xFF4E7A2E, 0xFFF2E6A0, 0xFFE07A2E),
+        ["carp"] = (0xFFC9A24A, 0xFF8A6A2A, 0xFFF2DCA0, 0xFFB5652E),
+        ["trout"] = (0xFFB9C8C0, 0xFF7A9088, 0xFFF0B0B8, 0xFF8A9A92),
+        ["pike"] = (0xFF6F9A52, 0xFF3E6A2E, 0xFFE8E8B0, 0xFF8A6A2A),
+        ["eel"] = (0xFF7A8A5A, 0xFF3A4A2A, 0xFFC8C890, 0xFF4A5A3A),
+        ["catfish"] = (0xFFA08A70, 0xFF6A5A48, 0xFFD8CCB0, 0xFF7A6A58),
+        ["goldencarp"] = (0xFFF2C230, 0xFFC08A10, 0xFFFFF0A0, 0xFFFF8A2A),
+        ["mackerel"] = (0xFF6A9AD0, 0xFF22406A, 0xFFE8F0F0, 0xFF4A6A9A),
+        ["seabass"] = (0xFFA8B8C8, 0xFF5E6E7E, 0xFFE8EEF2, 0xFF6A7A8A),
+        ["snapper"] = (0xFFE8604E, 0xFFA83A2E, 0xFFFFC8B8, 0xFFF08A6A),
+        ["swordfish"] = (0xFF5A7AC0, 0xFF22305E, 0xFFD8E4F0, 0xFF2A3A6A),
+    };
+
+    /// <summary>Each bait tin's label colours.</summary>
+    private static readonly Dictionary<string, (uint A, uint a)> BaitColours = new()
+    {
+        ["wrigglerbait"] = (0xFFE07A8A, 0xFFA04A5A),
+        ["glimmerbait"] = (0xFFF2D36B, 0xFFC99A2E),
+        ["twinbait"] = (0xFF59C7EE, 0xFF2C7AA0),
+    };
+
+    /// <summary>Each rod's colours (handle, handle dark, rod, reel), by tier.</summary>
+    private static readonly (uint A, uint a, uint E, uint Z)[] RodColours =
+    {
+        (0xFF9C7048, 0xFF6E4A30, 0xFFD9B87A, 0xFF8A8A8A),
+        (0xFF9C7048, 0xFF6E4A30, 0xFFD9B87A, 0xFF8A8A8A), // Fishing Rod
+        (0xFF2E6B2E, 0xFF1E4A1E, 0xFF7FCF5A, 0xFFC8D0D8), // Angler's
+        (0xFF2C4F8F, 0xFF1A3260, 0xFF7AB8E8, 0xFFE8B923), // Lakewarden
+        (0xFF4B2E70, 0xFF2E1A48, 0xFFB58AE8, 0xFFFFF0A0), // Stormcatcher
+        (0xFFA87B16, 0xFF6E4E0A, 0xFFF2D36B, 0xFF4AD9C8), // Tidecaller
+    };
+
+    /// <summary>Each fishing armour set's colours (main, dark, light), by tier. Tier 0 is shown faded.</summary>
+    private static readonly (uint A, uint a, uint E)[] FishingArmourColours =
+    {
+        (0xFFF2C230, 0xFFC08A10, 0xFFFFF0A0),
+        (0xFFF2C230, 0xFFC08A10, 0xFFFFF0A0), // Oilskin: yellow
+        (0xFF2C4F8F, 0xFF1A3260, 0xFF7AB8E8), // Mariner: navy
+        (0xFF2A8A8A, 0xFF1A5A5A, 0xFF7FE6DA), // Deepwater: teal
+    };
+
+    /// <summary>A fishing item's picture: fish and bait in their own colours.</summary>
+    public BitmapSource FishingIcon(FishingItemDef item)
+    {
+        if (FishColours.TryGetValue(item.Id, out var fish))
+            return Recolored(item.Sprite, item.Id, new Dictionary<char, uint> { ['A'] = fish.A, ['a'] = fish.a, ['E'] = fish.E, ['Z'] = fish.Z });
+        if (BaitColours.TryGetValue(item.Id, out var bait))
+            return Recolored(item.Sprite, item.Id, new Dictionary<char, uint> { ['A'] = bait.A, ['a'] = bait.a });
+        return this[item.Sprite];
+    }
+
+    /// <summary>The dark outline of something you haven't caught yet (for the catch log).</summary>
+    public BitmapSource UnknownIcon(FishingItemDef item)
+    {
+        string key = "unknown:" + item.Id;
+        if (_images.TryGetValue(key, out var image)) return image;
+        var known = FishingIcon(item);
+        var pixels = new uint[known.PixelWidth * known.PixelHeight];
+        known.CopyPixels(pixels, known.PixelWidth * 4, 0);
+        for (int i = 0; i < pixels.Length; i++)
+            if (pixels[i] >> 24 != 0) pixels[i] = 0xAA3A4A3D;
+        image = BitmapSource.Create(known.PixelWidth, known.PixelHeight, 96, 96, PixelFormats.Bgra32, null, pixels, known.PixelWidth * 4);
+        image.Freeze();
+        _images[key] = image;
+        return image;
+    }
+
+    public BitmapSource RodIcon(int tier)
+    {
+        var c = RodColours[Math.Clamp(tier, 0, Rods.MaxTier)];
+        return Recolored("rod", $"t{tier}", new Dictionary<char, uint> { ['A'] = c.A, ['a'] = c.a, ['E'] = c.E, ['Z'] = c.Z });
+    }
+
+    /// <summary>A fishing armour piece in its set's colours; tier 0 (not crafted yet) is faded and grey.</summary>
+    public BitmapSource FishingArmourIcon(ArmourSlot slot, int tier)
+    {
+        tier = Math.Clamp(tier, 0, FishingArmour.MaxTier);
+        var c = FishingArmourColours[tier];
+        return Recolored(FishingArmour.Sprite(slot), $"t{tier}",
+            new Dictionary<char, uint> { ['A'] = c.A, ['a'] = c.a, ['E'] = c.E }, faded: tier == 0);
+    }
+
+    /// <summary>Rusty Rowan, who runs the junk shop at Driftwood Cove.</summary>
+    public BitmapSource Rowan => Recolored("visitor", "rowan",
+        new Dictionary<char, uint> { ['T'] = 0xFFA0582A, ['j'] = 0xFF6E3A1A, ['Q'] = 0xFF9A9A9A });
+
     /// <summary>A sack for packed crops, a crate for dense ones, nothing for plain crops.</summary>
     public BitmapSource? ItemContainer(ItemDef item) => item.Kind switch
     {
@@ -46,6 +140,7 @@ public sealed class SpriteCache
         ["twilight"] = (0xFFC9A0FF, 0xFF4B3F8C, 0xFF2E2660),
         ["golden"] = (0xFFFFF0A0, 0xFFE8B923, 0xFFA87B16),
         ["wanderer"] = (0xFF59C7EE, 0xFF6E6E6E, 0xFF444444),
+        ["beachcomber"] = (0xFFF5F1E6, 0xFF2A8A9A, 0xFF1A5A66),
     };
 
     /// <summary>
@@ -263,9 +358,9 @@ public sealed class SpriteCache
     }
 
     /// <summary>A copy of a sprite with some palette colours swapped (0 = transparent).</summary>
-    private BitmapSource Recolored(string name, string variant, IReadOnlyDictionary<char, uint> map)
+    private BitmapSource Recolored(string name, string variant, IReadOnlyDictionary<char, uint> map, bool faded = false)
     {
-        string key = name + "#" + variant;
+        string key = name + "#" + variant + (faded ? "#faded" : "");
         if (_images.TryGetValue(key, out var image)) return image;
 
         var swaps = new Dictionary<uint, uint>();
@@ -275,7 +370,10 @@ public sealed class SpriteCache
         var sprite = _sheet[name];
         var pixels = (uint[])sprite.Pixels.Clone();
         for (int i = 0; i < pixels.Length; i++)
+        {
             if (swaps.TryGetValue(pixels[i], out var swapped)) pixels[i] = swapped;
+            if (faded && pixels[i] >> 24 != 0) pixels[i] = (Grey(pixels[i]) & 0x00FFFFFF) | 0x99000000;
+        }
 
         image = ToBitmap(sprite, pixels);
         _images[key] = image;

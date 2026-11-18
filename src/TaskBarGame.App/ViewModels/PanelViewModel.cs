@@ -22,7 +22,7 @@ public sealed partial class PanelViewModel : ObservableObject
         nameof(AutoHarvest), nameof(KeepForUpgrades), nameof(FloatingText), nameof(HideInFullscreen),
         nameof(StartWithWindows), nameof(ShortNumbers), nameof(BatterySaver),
         nameof(PausePopups), nameof(PopupLevelUps), nameof(PopupCollections), nameof(PopupCrafted),
-        nameof(PopupBazaar), nameof(PopupUpgradeReady), nameof(PopupWelcomeBack), nameof(PopupUpdates), nameof(PopupCosmetics), nameof(PopupVisitors), nameof(PopupRareDrops),
+        nameof(PopupBazaar), nameof(PopupUpgradeReady), nameof(PopupWelcomeBack), nameof(PopupUpdates), nameof(PopupCosmetics), nameof(PopupVisitors), nameof(PopupRareDrops), nameof(PopupTreasure),
         nameof(CheckForUpdates), nameof(InstallUpdatesAutomatically),
     };
 
@@ -100,6 +100,7 @@ public sealed partial class PanelViewModel : ObservableObject
         InitUpdates();
         InitBuddy();
         InitGarden();
+        InitFishing();
         Refresh();
     }
 
@@ -281,6 +282,7 @@ public sealed partial class PanelViewModel : ObservableObject
     public bool PopupCosmetics { get => ShowsPopup(PopupKind.Cosmetic); set => ShowPopup(PopupKind.Cosmetic, value); }
     public bool PopupVisitors { get => ShowsPopup(PopupKind.Visitor); set => ShowPopup(PopupKind.Visitor, value); }
     public bool PopupRareDrops { get => ShowsPopup(PopupKind.RareDrop); set => ShowPopup(PopupKind.RareDrop, value); }
+    public bool PopupTreasure { get => ShowsPopup(PopupKind.Treasure); set => ShowPopup(PopupKind.Treasure, value); }
 
     private bool ShowsPopup(PopupKind kind) => !Settings.HiddenPopups.Contains(kind);
 
@@ -353,6 +355,7 @@ public sealed partial class PanelViewModel : ObservableObject
         RefreshUpdates();
         RefreshBuddy();
         RefreshGarden();
+        RefreshFishing();
     }
 
     private void RefreshField()
@@ -450,7 +453,7 @@ public sealed partial class PanelViewModel : ObservableObject
             foreach (var row in unlocked) UnlockedToolRows.Add(row);
         }
         foreach (var row in UnlockedToolRows.Concat(ArmourRows).Concat(TalismanRows).Concat(CompactorRows)) row.Update();
-        ReadyUpgrades = Engine.ReadyRecipes().Count();
+        ReadyUpgrades = Engine.ReadyRecipes().Count(r => !r.IsFishing);
     }
 
     private void RefreshMarket()
@@ -462,7 +465,7 @@ public sealed partial class PanelViewModel : ObservableObject
             foreach (var item in held)
             {
                 var id = item.Id;
-                Inventory.Add(new InventoryRow(_host, item, _host.Sprites.CropIcon(item.Crop), _host.Sprites.ItemContainer(item),
+                Inventory.Add(new InventoryRow(_host, item, _host.Sprites.ItemIcon(item), _host.Sprites.ItemContainer(item),
                     new RelayCommand(() =>
                     {
                         Engine.Sell(id, long.MaxValue);

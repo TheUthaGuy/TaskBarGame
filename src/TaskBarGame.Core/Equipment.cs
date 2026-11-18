@@ -217,7 +217,7 @@ public readonly record struct StatBonus(int Fortune = 0, int Speed = 0, int Sell
     }
 }
 
-public enum UpgradeKind { Tool, Armour, Talisman, Compactor }
+public enum UpgradeKind { Tool, Armour, Talisman, Compactor, Rod, FishingArmour }
 
 public sealed record Ingredient(string ItemId, long Count)
 {
@@ -228,14 +228,16 @@ public sealed record Ingredient(string ItemId, long Count)
 /// A crafting recipe that upgrades one piece of equipment to <see cref="Tier"/>.
 /// You need the tier below it already (except for tier 1).
 /// </summary>
-/// <param name="Target">The crop id (tools), armour slot or talisman family this upgrades.</param>
+/// <param name="Target">The crop id (tools), armour slot (farming or fishing armour), talisman family or "Rod".</param>
+/// <param name="FishingLevel">Fishing level needed (rods and fishing armour).</param>
 public sealed record Recipe(
     UpgradeKind Kind,
     string Target,
     int Tier,
     IReadOnlyList<Ingredient> Ingredients,
     long Coins,
-    int GardenLevel)
+    int GardenLevel,
+    int FishingLevel = 0)
 {
     public string Id => $"{Kind}:{Target}:{Tier}".ToLowerInvariant();
 
@@ -245,8 +247,13 @@ public sealed record Recipe(
         UpgradeKind.Tool => Tools.Name(Crops.Get(Target), Tier),
         UpgradeKind.Armour => Armour.Name(Enum.Parse<ArmourSlot>(Target), Tier),
         UpgradeKind.Compactor => Compactors.Name(Tier),
+        UpgradeKind.Rod => Rods.Name(Tier),
+        UpgradeKind.FishingArmour => FishingArmour.Name(Enum.Parse<ArmourSlot>(Target), Tier),
         _ => Talismans.Name(Enum.Parse<TalismanFamily>(Target), Tier),
     };
+
+    /// <summary>True for rods and fishing armour.</summary>
+    public bool IsFishing => Kind is UpgradeKind.Rod or UpgradeKind.FishingArmour;
 }
 
 /// <summary>Every crafting recipe in the game.</summary>
@@ -262,6 +269,7 @@ public static class Recipes
     private static Ingredient Raw(CropDef crop, long count) => new(Items.Raw(crop).Id, count);
     private static Ingredient Packed(CropDef crop, long count) => new(Items.Packed(crop).Id, count);
     private static Ingredient Dense(CropDef crop, long count) => new(Items.Dense(crop).Id, count);
+    private static Ingredient Of(FishingItemDef item, long count) => new(item.Id, count);
 
     private static List<Recipe> Build()
     {
@@ -322,6 +330,37 @@ public static class Recipes
             new[] { Packed(Crops.Wheat, 8), Packed(Crops.Carrot, 8) }, 5_000, 3));
         list.Add(new Recipe(UpgradeKind.Compactor, Compactors.Target, 2,
             new[] { Dense(Crops.Wheat, 1), Packed(Crops.Melon, 16) }, 100_000, 9));
+
+        // ------------------------------------------------ rods (everyone starts with a Fishing Rod)
+        void Rod(int tier, long coins, params Ingredient[] ingredients) =>
+            list.Add(new Recipe(UpgradeKind.Rod, Rods.Target, tier, ingredients, coins, 0, Rods.FishingLevel(tier)));
+
+        Rod(2, 10_000, Of(FishingItems.Carp, 80), Of(FishingItems.BrassHook, 3), Of(FishingItems.SpoolOfLine, 2));
+        Rod(3, 50_000, Of(FishingItems.Trout, 100), Of(FishingItems.Pike, 60), Of(FishingItems.BrassHook, 6),
+            Of(FishingItems.SpoolOfLine, 4));
+        Rod(4, 200_000, Of(FishingItems.Eel, 60), Of(FishingItems.SeaBass, 40), Of(FishingItems.InkSac, 64),
+            Of(FishingItems.SpoolOfLine, 8), Of(FishingItems.RiverPearl, 2));
+        Rod(5, 750_000, Of(FishingItems.Catfish, 40), Of(FishingItems.Snapper, 20), Of(FishingItems.GoldenCarp, 1),
+            Of(FishingItems.RiverPearl, 4), Of(FishingItems.TideGem, 2));
+
+        // ------------------------------------------------ fishing armour: Oilskin → Mariner → Deepwater
+        void Fishing(ArmourSlot slot, int tier, long coins, int fishingLevel, params Ingredient[] ingredients) =>
+            list.Add(new Recipe(UpgradeKind.FishingArmour, slot.ToString(), tier, ingredients, coins, 0, fishingLevel));
+
+        Fishing(ArmourSlot.Helmet, 1, 1_000, 5, Of(FishingItems.WaxedCanvas, 1), Of(FishingItems.LilyPad, 20));
+        Fishing(ArmourSlot.Chestplate, 1, 1_000, 5, Of(FishingItems.WaxedCanvas, 3), Of(FishingItems.Carp, 30));
+        Fishing(ArmourSlot.Leggings, 1, 1_000, 5, Of(FishingItems.WaxedCanvas, 2), Of(FishingItems.Clay, 20));
+        Fishing(ArmourSlot.Boots, 1, 1_000, 5, Of(FishingItems.WaxedCanvas, 1), Of(FishingItems.Perch, 30));
+
+        Fishing(ArmourSlot.Helmet, 2, 20_000, 12, Of(FishingItems.WaxedCanvas, 4), Of(FishingItems.InkSac, 32), Of(FishingItems.BrassHook, 1));
+        Fishing(ArmourSlot.Chestplate, 2, 20_000, 12, Of(FishingItems.WaxedCanvas, 6), Of(FishingItems.Pike, 40), Of(FishingItems.SpoolOfLine, 2));
+        Fishing(ArmourSlot.Leggings, 2, 20_000, 12, Of(FishingItems.WaxedCanvas, 5), Of(FishingItems.Trout, 60), Of(FishingItems.SpoolOfLine, 1));
+        Fishing(ArmourSlot.Boots, 2, 20_000, 12, Of(FishingItems.WaxedCanvas, 4), Of(FishingItems.Mackerel, 40), Of(FishingItems.BrassHook, 1));
+
+        Fishing(ArmourSlot.Helmet, 3, 200_000, 22, Of(FishingItems.Sponge, 32), Of(FishingItems.Snapper, 20), Of(FishingItems.RiverPearl, 2));
+        Fishing(ArmourSlot.Chestplate, 3, 200_000, 22, Of(FishingItems.Sponge, 48), Of(FishingItems.Catfish, 30), Of(FishingItems.TideGem, 1));
+        Fishing(ArmourSlot.Leggings, 3, 200_000, 22, Of(FishingItems.Sponge, 40), Of(FishingItems.Eel, 50), Of(FishingItems.RiverPearl, 2));
+        Fishing(ArmourSlot.Boots, 3, 200_000, 22, Of(FishingItems.Sponge, 32), Of(FishingItems.SeaBass, 50), Of(FishingItems.TideGem, 1));
 
         return list;
     }

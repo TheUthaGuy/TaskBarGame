@@ -9,7 +9,7 @@ public sealed record BreakResult(
     bool HandBreak,
     long CoinsFromAutoSell);
 
-public enum SkillKind { Farming, Garden }
+public enum SkillKind { Farming, Garden, Fishing }
 
 /// <param name="Rewards">Lines describing what the new level gave, for popups and the panel.</param>
 public sealed record LevelUp(SkillKind Skill, int OldLevel, int NewLevel, IReadOnlyList<string> Rewards);
@@ -33,7 +33,17 @@ public sealed class OfflineReport
     public long CompostMade { get; set; }
     public long RareFinds { get; set; }
 
-    public bool IsEmpty => Breaks == 0;
+    /// <summary>Catches reeled in while away (if the farmer was left fishing).</summary>
+    public long Catches { get; set; }
+
+    /// <summary>Items those catches gave (double catches count twice).</summary>
+    public long FishCaught { get; set; }
+    public double FishingXp { get; set; }
+    public long Treasures { get; set; }
+    public int FishingLevelBefore { get; set; }
+    public int FishingLevelAfter { get; set; }
+
+    public bool IsEmpty => Breaks == 0 && Catches == 0;
 }
 
 /// <summary>One line of a stat breakdown, e.g. ("Farming Level 12", 48).</summary>
@@ -364,6 +374,8 @@ public sealed partial class GameEngine
         UpgradeKind.Tool => Crops.TryGet(target, out var crop) ? GetTool(crop).Tier : 0,
         UpgradeKind.Armour => GetArmourTier(Enum.Parse<ArmourSlot>(target)),
         UpgradeKind.Compactor => State.Compactor,
+        UpgradeKind.Rod => State.Fishing.Rod,
+        UpgradeKind.FishingArmour => GetFishingArmourTier(Enum.Parse<ArmourSlot>(target)),
         _ => GetTalismanTier(Enum.Parse<TalismanFamily>(target)),
     };
 
@@ -382,6 +394,7 @@ public sealed partial class GameEngine
         if (recipe.Kind == UpgradeKind.Tool && !IsCropUnlocked(Crops.Get(recipe.Target)))
             return $"Needs Garden Level {Crops.Get(recipe.Target).UnlockGardenLevel}";
         if (GardenLevel < recipe.GardenLevel) return $"Needs Garden Level {recipe.GardenLevel}";
+        if (FishingLevel < recipe.FishingLevel) return $"Needs Fishing Level {recipe.FishingLevel}";
         return null;
     }
 
@@ -432,6 +445,12 @@ public sealed partial class GameEngine
             case UpgradeKind.Compactor:
                 State.Compactor = recipe.Tier;
                 break;
+            case UpgradeKind.Rod:
+                State.Fishing.Rod = recipe.Tier;
+                break;
+            case UpgradeKind.FishingArmour:
+                State.Fishing.Armour[Enum.Parse<ArmourSlot>(recipe.Target)] = recipe.Tier;
+                break;
         }
         State.Stats.ItemsCrafted++;
         if (recipe.Kind == UpgradeKind.Compactor) CompactEverything();
@@ -454,6 +473,7 @@ public sealed partial class GameEngine
             Away = away,
             FarmingLevelBefore = FarmingLevel,
             GardenLevelBefore = GardenLevel,
+            FishingLevelBefore = FishingLevel,
         };
 
         double seconds = Math.Min(away.TotalSeconds, MaxOfflineTime.TotalSeconds);
@@ -472,7 +492,16 @@ public sealed partial class GameEngine
             finally { _quiet = false; }
             report.CompostMade = State.Garden.Compost - compostBefore;
 
-            if (!State.Settings.FarmerAutoHarvest)
+            if (CurrentLake is { } lake)
+            {
+                // Away fishing: the field just grows.
+                _quiet = true;
+                try { FishOffline(lake, seconds, report); }
+                finally { _quiet = false; }
+                BoostTick(seconds);
+                GrowCrops(seconds);
+            }
+            else if (!State.Settings.FarmerAutoHarvest)
             {
                 BoostTick(seconds);
                 GrowCrops(seconds);
@@ -515,6 +544,7 @@ public sealed partial class GameEngine
 
         report.FarmingLevelAfter = FarmingLevel;
         report.GardenLevelAfter = GardenLevel;
+        report.FishingLevelAfter = FishingLevel;
         if (!report.IsEmpty || report.VisitorsArrived > 0 || report.CompostMade > 0) RaiseChanged();
         return report;
     }
@@ -544,6 +574,7 @@ public sealed partial class GameEngine
         State.UnlockedCosmetics.Clear();
         State.Garden = new GardenState();
         State.RareFinds.Clear();
+        State.Fishing = new FishingState();
         State.Bazaar = new BazaarState();
         EnsureBazaarPrices();
         State.Stats = new GameStats();
@@ -623,7 +654,7 @@ public sealed partial class GameEngine
         var rewards = Crops.All.Where(c => NewAt(c.UnlockGardenLevel)).Select(c => $"Unlocked {c.Name}").ToList();
         if (FieldProgression.Next(FieldLength) is { } next && NewAt(next.GardenLevel))
             rewards.Add($"Field expansion available ({next.Coins:N0} coins)");
-        int newRecipes = Recipes.All.Count(r => r.Kind != UpgradeKind.Tool && NewAt(r.GardenLevel));
+        int newRecipes = Recipes.All.Count(r => r.Kind != UpgradeKind.Tool && !r.IsFishing && NewAt(r.GardenLevel));
         if (newRecipes > 0) rewards.Add($"{newRecipes} new upgrade{(newRecipes == 1 ? "" : "s")} to craft");
 
         if (!_quiet)

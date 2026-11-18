@@ -28,6 +28,15 @@ public sealed class RateTracker
     /// <summary>Starts timing (otherwise timing starts at the first harvest).</summary>
     public void Start(double now) => _start ??= now;
 
+    /// <summary>Forgets everything and starts timing again (after the farmer goes somewhere else).</summary>
+    public void Restart(double now)
+    {
+        _buckets.Clear();
+        _coins = _xp = 0;
+        _crops = 0;
+        _start = now;
+    }
+
     /// <summary>Records one harvest: what it's worth at the Market, how many crops, and the Farming XP.</summary>
     public void Add(double now, double coins, long crops, double xp)
     {

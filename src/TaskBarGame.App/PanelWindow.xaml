@@ -6,7 +6,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="TaskBarGame: Harvest Edition"
-        Width="700"
+        Width="780"
         Height="680"
         WindowStyle="None"
         AllowsTransparency="True"
@@ -65,6 +65,32 @@
                                 Visibility="{Binding HasMissing, Converter={StaticResource BoolToVisibility}}" />
                     </StackPanel>
                 </Grid>
+            </Border>
+        </DataTemplate>
+
+        <!-- One trade: at the bait table or in Rusty Rowan's junk shop. -->
+        <DataTemplate x:Key="TradeRowTemplate">
+            <Border Style="{StaticResource Row}" Width="236" Margin="0,0,8,8" Padding="8,6">
+                <StackPanel>
+                    <DockPanel>
+                        <Image Source="{Binding Icon}" Style="{StaticResource PixelIcon}" Width="32" Height="32" />
+                        <StackPanel Margin="8,0,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding CostText, Mode=OneWay}" Foreground="{StaticResource GoldBrush}" FontSize="11" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </DockPanel>
+                    <TextBlock Text="{Binding Description, Mode=OneWay}" Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap"
+                               Margin="0,4,0,4" Visibility="{Binding Description, Converter={StaticResource TextToVisibility}}" />
+                    <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                        <Button Content="Make" Command="{Binding MakeCommand}" IsEnabled="{Binding CanMake}" FontSize="12" Padding="10,3"
+                                Style="{StaticResource AccentButton}" />
+                        <Button Content="{Binding MakeAllText}" Command="{Binding MakeAllCommand}" IsEnabled="{Binding CanMakeMore}"
+                                FontSize="12" Padding="8,3" Margin="6,0,0,0"
+                                Visibility="{Binding Trade.IsOneOff, Converter={StaticResource InverseBoolToVisibility}}" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding Status}" Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,3,0,0"
+                               Visibility="{Binding Status, Converter={StaticResource TextToVisibility}}" />
+                </StackPanel>
             </Border>
         </DataTemplate>
     </Window.Resources>
@@ -321,8 +347,208 @@
                     </ScrollViewer>
                 </TabItem>
 
+                <!-- ============================================================ FISHING -->
+                <TabItem x:Name="FishingTab">
+                    <TabItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Fishing" />
+                            <!-- Rods and fishing armour you can craft right now -->
+                            <Border Background="{StaticResource AccentBrush}" CornerRadius="8" MinWidth="16" Height="16"
+                                    Padding="4,0" Margin="5,0,0,0" VerticalAlignment="Center"
+                                    ToolTip="Rods and fishing armour you can craft right now"
+                                    Visibility="{Binding ReadyFishingUpgrades, Converter={StaticResource CountToVisibility}}">
+                                <TextBlock Text="{Binding ReadyFishingUpgrades}" Foreground="{StaticResource AccentTextBrush}"
+                                           FontSize="11" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                        </StackPanel>
+                    </TabItem.Header>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="0,0,6,0">
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding FishingXpText}"
+                                                   Style="{StaticResource Muted}" VerticalAlignment="Bottom" />
+                                        <TextBlock Text="{Binding FishingLevelText}" Style="{StaticResource H2}" />
+                                    </DockPanel>
+                                    <ProgressBar Value="{Binding FishingProgress, Mode=OneWay}" Foreground="#6FC3F0" Margin="0,8,0,6" />
+                                    <TextBlock Text="{Binding FishingNextText}" Style="{StaticResource Muted}" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+
+                            <TextBlock Text="{Binding FishingMessage}" Foreground="{StaticResource GoldBrush}" FontSize="12" TextWrapping="Wrap" Margin="4,0,4,8"
+                                       Visibility="{Binding FishingMessage, Converter={StaticResource TextToVisibility}}" />
+
+                            <!-- Where the farmer is, and where they can go -->
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding FishingWhereTitle}" Style="{StaticResource H3}" />
+                                    <TextBlock Text="{Binding FishingWhereText}" Style="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,8" />
+                                    <ItemsControl ItemsSource="{Binding PlaceRows}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <DockPanel Margin="0,3">
+                                                    <Button DockPanel.Dock="Right" Content="{Binding ButtonText}" Command="{Binding Command}"
+                                                            IsEnabled="{Binding CanUse}" MinWidth="150" FontSize="12" VerticalAlignment="Center"
+                                                            Style="{StaticResource AccentButton}" />
+                                                    <Image Source="{Binding Icon}" Style="{StaticResource PixelIcon}" Width="32" Height="32" />
+                                                    <StackPanel Margin="10,0" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold" />
+                                                        <TextBlock Text="{Binding Description, Mode=OneWay}" Style="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" />
+                                                        <TextBlock Text="{Binding Status}" Style="{StaticResource Muted}" FontSize="11"
+                                                                   Visibility="{Binding Status, Converter={StaticResource TextToVisibility}}" />
+                                                    </StackPanel>
+                                                </DockPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- How fast fishing is going, and the stats behind it -->
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <TextBlock Text="Right now" Style="{StaticResource Muted}" />
+                                    <TextBlock Text="{Binding FishingRatesHeadline}" Style="{StaticResource H2}" Foreground="{StaticResource GoldBrush}" />
+                                    <TextBlock Text="{Binding FishingRatesDetail}" Style="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0" />
+                                    <Border Height="1" Background="{StaticResource LineBrush}" Margin="0,10" />
+                                    <TextBlock Text="{Binding FishingStatsText}" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding FishingSourcesText}" Style="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" Margin="0,6,0,0" />
+                                    <TextBlock Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0"
+                                               Text="Fishing Speed makes fish bite sooner. Treasure Chance is the chance a catch is treasure: hooks, line, canvas, pearls and gems for crafting. Double Catch brings up two at once." />
+                                </StackPanel>
+                            </Border>
+
+                            <TextBlock Text="Rod" Style="{StaticResource H3}" Margin="2,4,0,2" />
+                            <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="2,0,0,8" TextWrapping="Wrap"
+                                       Text="Fishing Rod → Angler's → Lakewarden → Stormcatcher → Tidecaller. Each is made from fish and treasure, and needs a Fishing level." />
+                            <ItemsControl ItemsSource="{Binding RodRows}" ItemTemplate="{StaticResource UpgradeRowTemplate}" />
+
+                            <TextBlock Text="Fishing armour" Style="{StaticResource H3}" Margin="2,12,0,2" />
+                            <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="2,0,0,8" TextWrapping="Wrap"
+                                       Text="Oilskin → Mariner → Deepwater. Worn while fishing (your farming armour is worn at the field). Wear all four pieces of a set for its set bonus." />
+                            <ItemsControl ItemsSource="{Binding FishingArmourRows}" ItemTemplate="{StaticResource UpgradeRowTemplate}" />
+
+                            <TextBlock Text="Bait" Style="{StaticResource H3}" Margin="2,12,0,2" />
+                            <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="2,0,0,8" TextWrapping="Wrap"
+                                       Text="Choose a bait: one is used up on every catch while you have some. Make it at the bait table below, or trade junk for it." />
+                            <ItemsControl ItemsSource="{Binding BaitRows}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource Row}" Width="174" Margin="0,0,8,8" Padding="8,6">
+                                            <StackPanel>
+                                                <DockPanel>
+                                                    <Image Source="{Binding Icon}" Style="{StaticResource PixelIcon}" Width="32" Height="32" />
+                                                    <StackPanel Margin="8,0,0,0" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock Text="{Binding HeldText}" Foreground="{StaticResource GoldBrush}" FontSize="11" />
+                                                    </StackPanel>
+                                                </DockPanel>
+                                                <TextBlock Text="{Binding Effect, Mode=OneWay}" Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,4" />
+                                                <Button Content="Use" Command="{Binding ChooseCommand}" FontSize="12" Padding="8,3"
+                                                        Visibility="{Binding IsChosen, Converter={StaticResource InverseBoolToVisibility}}" />
+                                                <TextBlock Text="In use" Foreground="{StaticResource AccentBrush}" FontWeight="SemiBold" FontSize="12"
+                                                           HorizontalAlignment="Center" Margin="0,3"
+                                                           Visibility="{Binding IsChosen, Converter={StaticResource BoolToVisibility}}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <TextBlock Text="Bait table" Style="{StaticResource H3}" Margin="2,8,0,2" />
+                            <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="2,0,0,8" Text="Turn a few fish and lake drops into lots of bait." />
+                            <ItemsControl ItemsSource="{Binding BaitTableRows}" ItemTemplate="{StaticResource TradeRowTemplate}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                            </ItemsControl>
+
+                            <!-- Rusty Rowan's junk shop (Driftwood Cove) -->
+                            <Border Style="{StaticResource Card}" Margin="0,8,0,8">
+                                <DockPanel>
+                                    <Image Source="{Binding RowanIcon}" Style="{StaticResource PixelIcon}" Width="48" Height="48" VerticalAlignment="Top" />
+                                    <StackPanel Margin="10,0,0,0">
+                                        <TextBlock Text="Rusty Rowan's Junk Shop" Style="{StaticResource H3}" />
+                                        <TextBlock Text="{Binding JunkShopText}" Style="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </DockPanel>
+                            </Border>
+                            <ItemsControl ItemsSource="{Binding JunkShopRows}" ItemTemplate="{StaticResource TradeRowTemplate}"
+                                          Visibility="{Binding JunkShopOpen, Converter={StaticResource BoolToVisibility}}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                            </ItemsControl>
+
+                            <!-- What's biting -->
+                            <Border Style="{StaticResource Card}" Margin="0,8,0,8">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding BitingTitle}" Style="{StaticResource H3}" />
+                                    <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="0,2,0,8" TextWrapping="Wrap"
+                                               Text="The chance of each catch at your Fishing level, and what the Market pays for it. Treasure is the same on every lake." />
+                                    <ItemsControl ItemsSource="{Binding BitingRows}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <UniformGrid Columns="2" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <DockPanel Margin="0,2,12,2" Opacity="{Binding RowOpacity}">
+                                                    <Image Source="{Binding Icon}" Style="{StaticResource PixelIcon}" Width="24" Height="24" />
+                                                    <TextBlock DockPanel.Dock="Right" Text="{Binding ChanceText}" Foreground="{StaticResource GoldBrush}"
+                                                               FontSize="12" VerticalAlignment="Center" />
+                                                    <StackPanel Margin="8,0" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold" FontSize="12" />
+                                                        <TextBlock Text="{Binding Kind, Mode=OneWay}" Style="{StaticResource Muted}" FontSize="10" />
+                                                    </StackPanel>
+                                                </DockPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- The catch log -->
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding CatchLogTitle}" Style="{StaticResource H3}" />
+                                    <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="0,2,0,8"
+                                               Text="Everything you've ever reeled in. Catch something new to fill a ???." />
+                                    <ItemsControl ItemsSource="{Binding CatchLogRows}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Width="78" Margin="0,0,6,8" ToolTip="{Binding Name}">
+                                                    <Image Source="{Binding Icon}" Style="{StaticResource PixelIcon}" Width="32" Height="32" />
+                                                    <TextBlock Text="{Binding Name}" FontSize="11" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Text="{Binding CountText}" Foreground="{StaticResource GoldBrush}" FontSize="10" HorizontalAlignment="Center" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
                 <!-- ============================================================ UPGRADES -->
-                <TabItem>
+                <TabItem x:Name="UpgradesTab">
                     <TabItem.Header>
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="Upgrades" />
@@ -1044,7 +1270,7 @@
                                     <TextBlock Text="Show a pop-up for:" Style="{StaticResource Muted}" Margin="0,6,0,2" />
                                     <WrapPanel IsEnabled="{Binding PausePopups, Converter={StaticResource Not}}">
                                         <CheckBox Content="Level-ups" IsChecked="{Binding PopupLevelUps}" Width="190" />
-                                        <CheckBox Content="Collection tiers" IsChecked="{Binding PopupCollections}" Width="190" />
+                                        <CheckBox Content="Collection tiers and new catches" IsChecked="{Binding PopupCollections}" Width="230" />
                                         <CheckBox Content="Upgrades ready to craft" IsChecked="{Binding PopupUpgradeReady}" Width="190" />
                                         <CheckBox Content="Crafted upgrades" IsChecked="{Binding PopupCrafted}" Width="190" />
                                         <CheckBox Content="Bazaar orders filled" IsChecked="{Binding PopupBazaar}" Width="190" />
@@ -1053,6 +1279,7 @@
                                         <CheckBox Content="New hats and outfits" IsChecked="{Binding PopupCosmetics}" Width="190" />
                                         <CheckBox Content="Visitors arriving" IsChecked="{Binding PopupVisitors}" Width="190" />
                                         <CheckBox Content="Rare drops" IsChecked="{Binding PopupRareDrops}" Width="190" />
+                                        <CheckBox Content="Treasure catches" IsChecked="{Binding PopupTreasure}" Width="190" />
                                     </WrapPanel>
                                 </StackPanel>
                             </Border>
