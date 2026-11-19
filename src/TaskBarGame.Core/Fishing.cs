@@ -21,6 +21,7 @@ public static class FishingItems
     public static readonly FishingItemDef Pike = Fish("pike", "Pike", 250, "fish_long", "#6F9A52");
     public static readonly FishingItemDef Eel = Fish("eel", "Eel", 500, "eel", "#7A8A5A");
     public static readonly FishingItemDef Catfish = Fish("catfish", "Catfish", 1_000, "catfish", "#A08A70");
+    public static readonly FishingItemDef Sturgeon = Fish("sturgeon", "Sturgeon", 2_500, "fish_long", "#9AA08A");
     public static readonly FishingItemDef GoldenCarp = Fish("goldencarp", "Golden Carp", 8_000, "fish", "#F2C230");
 
     // ---------------------------------------------------------------- fish of Driftwood Cove
@@ -66,16 +67,18 @@ public static class FishingItems
         "+3% Treasure Chance. One is used up on every catch.");
     public static readonly FishingItemDef TwinBait = new("twinbait", "Twin Bait", ItemKind.Bait, 20, "bait", "#59C7EE",
         "+20% Double Catch chance. One is used up on every catch.");
+    public static readonly FishingItemDef GlowwormBait = new("glowwormbait", "Glowworm Bait", ItemKind.Bait, 30, "bait", "#7FCF5A",
+        "+50 Fishing Speed. One is used up on every catch.");
 
     /// <summary>Everything, in the order the Inventory and Bazaar show them.</summary>
     public static readonly IReadOnlyList<FishingItemDef> All = new[]
     {
-        Perch, Carp, Trout, Pike, Eel, Catfish, GoldenCarp,
+        Perch, Carp, Trout, Pike, Eel, Catfish, Sturgeon, GoldenCarp,
         Mackerel, SeaBass, Snapper, Swordfish,
         LilyPad, Clay, InkSac, Sponge,
         WaxedCanvas, BrassHook, SpoolOfLine, RiverPearl, TideGem,
         TinCan, SoggyBoot, TangledNet, BrokenBottle, RustyAnchor,
-        WrigglerBait, GlimmerBait, TwinBait,
+        WrigglerBait, GlimmerBait, TwinBait, GlowwormBait,
     };
 
     public static FishingItemDef? Find(string? id) => All.FirstOrDefault(i => i.Id == id);
@@ -139,17 +142,18 @@ public static class Places
         0,
         new CatchEntry[]
         {
-            new(FishingItems.Perch.Id, 40, 0, 12),
-            new(FishingItems.Carp.Id, 35, 0, 14),
-            new(FishingItems.LilyPad.Id, 15, 0, 6),
-            new(FishingItems.Clay.Id, 12, 0, 6),
-            new(FishingItems.Trout.Id, 25, 3, 25),
-            new(FishingItems.InkSac.Id, 12, 5, 10),
-            new(FishingItems.Pike.Id, 18, 6, 40),
-            new(FishingItems.Eel.Id, 12, 10, 65),
-            new(FishingItems.Sponge.Id, 6, 12, 20),
-            new(FishingItems.Catfish.Id, 8, 15, 100),
-            new(FishingItems.GoldenCarp.Id, 1, 20, 500),
+            new(FishingItems.Perch.Id, 40, 0, 24),
+            new(FishingItems.Carp.Id, 35, 0, 28),
+            new(FishingItems.LilyPad.Id, 15, 0, 12),
+            new(FishingItems.Clay.Id, 12, 0, 12),
+            new(FishingItems.Trout.Id, 25, 3, 50),
+            new(FishingItems.InkSac.Id, 12, 5, 20),
+            new(FishingItems.Pike.Id, 18, 6, 80),
+            new(FishingItems.Eel.Id, 12, 10, 130),
+            new(FishingItems.Sponge.Id, 6, 12, 40),
+            new(FishingItems.Catfish.Id, 8, 15, 200),
+            new(FishingItems.Sturgeon.Id, 4, 16, 320),
+            new(FishingItems.GoldenCarp.Id, 1, 19, 1_000),
         });
 
     public static readonly LakeDef DriftwoodCove = new(
@@ -158,17 +162,17 @@ public static class Places
         50_000,
         new CatchEntry[]
         {
-            new(FishingItems.Mackerel.Id, 40, 0, 20),
-            new(FishingItems.TinCan.Id, 25, 0, 5),
-            new(FishingItems.SoggyBoot.Id, 18, 0, 5),
-            new(FishingItems.TangledNet.Id, 15, 0, 5),
-            new(FishingItems.BrokenBottle.Id, 15, 0, 5),
-            new(FishingItems.InkSac.Id, 15, 0, 10),
-            new(FishingItems.SeaBass.Id, 25, 8, 50),
-            new(FishingItems.Sponge.Id, 10, 8, 20),
-            new(FishingItems.Snapper.Id, 15, 14, 90),
-            new(FishingItems.RustyAnchor.Id, 3, 0, 50),
-            new(FishingItems.Swordfish.Id, 2, 22, 600),
+            new(FishingItems.Mackerel.Id, 40, 0, 40),
+            new(FishingItems.TinCan.Id, 25, 0, 10),
+            new(FishingItems.SoggyBoot.Id, 18, 0, 10),
+            new(FishingItems.TangledNet.Id, 15, 0, 10),
+            new(FishingItems.BrokenBottle.Id, 15, 0, 10),
+            new(FishingItems.InkSac.Id, 15, 0, 20),
+            new(FishingItems.SeaBass.Id, 25, 8, 100),
+            new(FishingItems.Sponge.Id, 10, 8, 40),
+            new(FishingItems.Snapper.Id, 15, 14, 180),
+            new(FishingItems.RustyAnchor.Id, 3, 0, 100),
+            new(FishingItems.Swordfish.Id, 2, 18, 1_200),
         });
 
     public static readonly IReadOnlyList<LakeDef> Lakes = new[] { WillowLake, DriftwoodCove };
@@ -176,11 +180,11 @@ public static class Places
     /// <summary>Treasure catches: the same on every lake. Great catches are rarer.</summary>
     public static readonly IReadOnlyList<TreasureEntry> Treasure = new TreasureEntry[]
     {
-        new(FishingItems.WaxedCanvas.Id, 35, 80, false),
-        new(FishingItems.BrassHook.Id, 30, 80, false),
-        new(FishingItems.SpoolOfLine.Id, 25, 80, false),
-        new(FishingItems.RiverPearl.Id, 7, 300, true),
-        new(FishingItems.TideGem.Id, 3, 300, true),
+        new(FishingItems.WaxedCanvas.Id, 35, 160, false),
+        new(FishingItems.BrassHook.Id, 30, 160, false),
+        new(FishingItems.SpoolOfLine.Id, 25, 160, false),
+        new(FishingItems.RiverPearl.Id, 7, 600, true),
+        new(FishingItems.TideGem.Id, 3, 600, true),
     };
 
     public static LakeDef? FindLake(string? id) => Lakes.FirstOrDefault(l => l.Id == id);
@@ -202,10 +206,10 @@ public static class FishCollections
     public const double TreasurePerTier = 0.05;
 
     /// <summary>Fishing XP for reaching a tier = tier * this.</summary>
-    public const int FishingXpPerTier = 50;
+    public const int FishingXpPerTier = 100;
 
     /// <summary>Thresholds for the most common fish (Perch, Mackerel). Rarer fish are scaled down.</summary>
-    private static readonly long[] BaseThresholds = { 10, 25, 50, 100, 250, 500, 1_000, 2_500, 5_000, 10_000 };
+    private static readonly long[] BaseThresholds = { 10, 25, 50, 100, 200, 400, 700, 1_000, 1_500, 2_500 };
 
     /// <summary>Every fish that has a collection, in the order the game lists them.</summary>
     public static readonly IReadOnlyList<FishingItemDef> Fish =
@@ -264,6 +268,16 @@ public static class FishingSkill
 
     /// <summary>Fishing Speed gained per Fishing level.</summary>
     public const int SpeedPerLevel = 1;
+
+    /// <summary>From this level on, each level also adds <see cref="DoubleCatchPerLevel"/>% Double Catch.</summary>
+    public const int DoubleCatchFromLevel = 25;
+
+    public const double DoubleCatchPerLevel = 1;
+
+    /// <summary>Everything the Fishing level gives: Fishing Speed, and Double Catch from level 25.</summary>
+    public static FishingBonus Bonus(int level) => new(
+        Speed: level * SpeedPerLevel,
+        DoubleCatch: Math.Max(0, level - DoubleCatchFromLevel + 1) * DoubleCatchPerLevel);
 
     /// <summary>Coins rewarded when reaching a level = level * this.</summary>
     public const int CoinRewardPerLevel = 75;
@@ -380,6 +394,7 @@ public static class Baits
         [FishingItems.WrigglerBait.Id] = new(Speed: 30),
         [FishingItems.GlimmerBait.Id] = new(Treasure: 3),
         [FishingItems.TwinBait.Id] = new(DoubleCatch: 20),
+        [FishingItems.GlowwormBait.Id] = new(Speed: 50),
     };
 
     public static IEnumerable<ItemDef> All => Bonus.Keys.Select(Items.Get);
@@ -426,6 +441,8 @@ public static class Trades
             new[] { Of(FishingItems.Carp, 2), Of(FishingItems.InkSac, 1) }, 0, FishingItems.GlimmerBait.Id, 25, FishingLevel: 5),
         new("bait_twin", TradeSource.BaitTable,
             new[] { Of(FishingItems.Pike, 2), Of(FishingItems.Clay, 2) }, 0, FishingItems.TwinBait.Id, 25, FishingLevel: 8),
+        new("bait_glowworm", TradeSource.BaitTable,
+            new[] { Of(FishingItems.Perch, 3), Of(FishingItems.LilyPad, 2) }, 0, FishingItems.GlowwormBait.Id, 25, FishingLevel: 16),
 
         // ---------------------------------------------------------------- Rusty Rowan's junk shop
         new("junk_wriggler", TradeSource.JunkShop,
@@ -434,6 +451,8 @@ public static class Trades
             new[] { Of(FishingItems.SoggyBoot, 3), Of(FishingItems.TinCan, 2) }, 0, FishingItems.GlimmerBait.Id, 50),
         new("junk_twin", TradeSource.JunkShop,
             new[] { Of(FishingItems.TangledNet, 3), Of(FishingItems.BrokenBottle, 2) }, 0, FishingItems.TwinBait.Id, 50),
+        new("junk_glowworm", TradeSource.JunkShop,
+            new[] { Of(FishingItems.TangledNet, 4), Of(FishingItems.SoggyBoot, 2) }, 0, FishingItems.GlowwormBait.Id, 50, FishingLevel: 16),
         new("junk_canvas", TradeSource.JunkShop,
             new[] { Of(FishingItems.SoggyBoot, 6), Of(FishingItems.TangledNet, 4) }, 0, FishingItems.WaxedCanvas.Id, 1),
         new("junk_hook", TradeSource.JunkShop,

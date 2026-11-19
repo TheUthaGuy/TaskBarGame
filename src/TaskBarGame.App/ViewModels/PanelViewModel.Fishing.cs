@@ -132,9 +132,11 @@ public sealed partial class PanelViewModel
             FishingProgress = FishingSkill.ProgressToNext(xp);
             var unlocks = Places.Lakes.SelectMany(l => l.Catches).Where(c => c.FishingLevel == level + 1)
                 .Select(c => c.Item.Name).Distinct().ToList();
-            if (Rods.FishingLevel(Engine.RodTier + 1) == level + 1 && Engine.RodTier < Rods.MaxTier)
-                unlocks.Add($"the {Rods.Name(Engine.RodTier + 1)}");
+            unlocks.AddRange(Recipes.All.Where(r => r.IsFishing && r.FishingLevel == level + 1).Select(r => $"the {r.ResultName}"));
+            unlocks.AddRange(Trades.From(TradeSource.BaitTable).Where(t => t.FishingLevel == level + 1).Select(t => t.Result!.Name));
+            double doubleCatch = FishingSkill.Bonus(level + 1).DoubleCatch - FishingSkill.Bonus(level).DoubleCatch;
             FishingNextText = $"Level {level + 1}: +{FishingSkill.SpeedPerLevel} Fishing Speed, "
+                              + (doubleCatch > 0 ? $"+{doubleCatch:0.##}% Double Catch, " : "")
                               + $"{Format.Number((long)(level + 1) * FishingSkill.CoinRewardPerLevel)} coins"
                               + (unlocks.Count > 0 ? $", and {string.Join(", ", unlocks)}." : ".");
         }

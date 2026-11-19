@@ -29,7 +29,7 @@ public sealed record BiteChance(CatchEntry Entry, double Percent, bool Unlocked)
 public sealed partial class GameEngine
 {
     /// <summary>Average seconds for a fish to bite with no Fishing Speed.</summary>
-    public const double BaseWaitSeconds = 20;
+    public const double BaseWaitSeconds = 12;
 
     /// <summary>Seconds of every catch spent casting, on the bite and reeling in (see <see cref="AnglerAgent"/>).</summary>
     public const double CatchOverheadSeconds = AnglerAgent.CastDuration + AnglerAgent.BiteDuration
@@ -144,7 +144,7 @@ public sealed partial class GameEngine
         var sources = new List<(string, FishingBonus)>
         {
             ("Everyone", new FishingBonus(Treasure: BaseTreasureChance)),
-            ($"Fishing Level {FishingLevel}", new FishingBonus(Speed: FishingLevel * FishingSkill.SpeedPerLevel)),
+            ($"Fishing Level {FishingLevel}", FishingSkill.Bonus(FishingLevel)),
             (Rods.Name(RodTier), Rods.Bonus(RodTier)),
         };
         foreach (var slot in Armour.Slots)
@@ -347,14 +347,17 @@ public sealed partial class GameEngine
         var rewards = new List<string>
         {
             $"+{(newLevel - oldLevel) * FishingSkill.SpeedPerLevel} Fishing Speed",
-            $"+{coins:N0} coins",
         };
+        double doubleCatch = FishingSkill.Bonus(newLevel).DoubleCatch - FishingSkill.Bonus(oldLevel).DoubleCatch;
+        if (doubleCatch > 0) rewards.Add($"+{doubleCatch:0.##}% Double Catch");
+        rewards.Add($"+{coins:N0} coins");
         foreach (var lake in Places.Lakes)
         foreach (var entry in lake.Catches.Where(c => NewAt(c.FishingLevel)))
             rewards.Add($"New catch at {lake.Name}: {entry.Item.Name}");
-        int recipes = Recipes.All.Count(r => r.IsFishing && NewAt(r.FishingLevel))
-            + Trades.All.Count(t => NewAt(t.FishingLevel));
-        if (recipes > 0) rewards.Add($"{recipes} new thing{(recipes == 1 ? "" : "s")} to craft");
+        foreach (var recipe in Recipes.All.Where(r => r.IsFishing && NewAt(r.FishingLevel)))
+            rewards.Add($"{recipe.ResultName} to craft");
+        foreach (var trade in Trades.From(TradeSource.BaitTable).Where(t => NewAt(t.FishingLevel)))
+            rewards.Add($"{trade.Result!.Name} at the bait table");
 
         if (!_quiet)
         {

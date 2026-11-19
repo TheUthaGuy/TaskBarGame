@@ -43,6 +43,7 @@ public sealed class SpriteCache
         ["pike"] = (0xFF6F9A52, 0xFF3E6A2E, 0xFFE8E8B0, 0xFF8A6A2A),
         ["eel"] = (0xFF7A8A5A, 0xFF3A4A2A, 0xFFC8C890, 0xFF4A5A3A),
         ["catfish"] = (0xFFA08A70, 0xFF6A5A48, 0xFFD8CCB0, 0xFF7A6A58),
+        ["sturgeon"] = (0xFF9AA08A, 0xFF5E6452, 0xFFE0E2D0, 0xFF6E7460),
         ["goldencarp"] = (0xFFF2C230, 0xFFC08A10, 0xFFFFF0A0, 0xFFFF8A2A),
         ["mackerel"] = (0xFF6A9AD0, 0xFF22406A, 0xFFE8F0F0, 0xFF4A6A9A),
         ["seabass"] = (0xFFA8B8C8, 0xFF5E6E7E, 0xFFE8EEF2, 0xFF6A7A8A),
@@ -56,6 +57,7 @@ public sealed class SpriteCache
         ["wrigglerbait"] = (0xFFE07A8A, 0xFFA04A5A),
         ["glimmerbait"] = (0xFFF2D36B, 0xFFC99A2E),
         ["twinbait"] = (0xFF59C7EE, 0xFF2C7AA0),
+        ["glowwormbait"] = (0xFF7FCF5A, 0xFF2E6B2E),
     };
 
     /// <summary>Each rod's colours (handle, handle dark, rod, reel), by tier.</summary>

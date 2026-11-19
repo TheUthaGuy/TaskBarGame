@@ -336,14 +336,15 @@ public static class Recipes
             list.Add(new Recipe(UpgradeKind.Rod, Rods.Target, tier, ingredients, coins, 0, Rods.FishingLevel(tier)));
 
         Rod(2, 10_000, Of(FishingItems.Carp, 80), Of(FishingItems.BrassHook, 3), Of(FishingItems.SpoolOfLine, 2));
-        Rod(3, 50_000, Of(FishingItems.Trout, 100), Of(FishingItems.Pike, 60), Of(FishingItems.BrassHook, 6),
+        Rod(3, 50_000, Of(FishingItems.Trout, 60), Of(FishingItems.Pike, 40), Of(FishingItems.BrassHook, 6),
             Of(FishingItems.SpoolOfLine, 4));
-        Rod(4, 200_000, Of(FishingItems.Eel, 60), Of(FishingItems.SeaBass, 40), Of(FishingItems.InkSac, 64),
+        Rod(4, 200_000, Of(FishingItems.Eel, 40), Of(FishingItems.SeaBass, 30), Of(FishingItems.InkSac, 64),
             Of(FishingItems.SpoolOfLine, 8), Of(FishingItems.RiverPearl, 2));
-        Rod(5, 750_000, Of(FishingItems.Catfish, 40), Of(FishingItems.Snapper, 20), Of(FishingItems.GoldenCarp, 1),
+        Rod(5, 750_000, Of(FishingItems.Catfish, 30), Of(FishingItems.Snapper, 20), Of(FishingItems.GoldenCarp, 1),
             Of(FishingItems.RiverPearl, 4), Of(FishingItems.TideGem, 2));
 
         // ------------------------------------------------ fishing armour: Oilskin → Mariner → Deepwater
+        // (Deepwater pieces unlock one at a time: hat 18, boots 20, waders 22, coat 24)
         void Fishing(ArmourSlot slot, int tier, long coins, int fishingLevel, params Ingredient[] ingredients) =>
             list.Add(new Recipe(UpgradeKind.FishingArmour, slot.ToString(), tier, ingredients, coins, 0, fishingLevel));
 
@@ -357,10 +358,10 @@ public static class Recipes
         Fishing(ArmourSlot.Leggings, 2, 20_000, 12, Of(FishingItems.WaxedCanvas, 5), Of(FishingItems.Trout, 60), Of(FishingItems.SpoolOfLine, 1));
         Fishing(ArmourSlot.Boots, 2, 20_000, 12, Of(FishingItems.WaxedCanvas, 4), Of(FishingItems.Mackerel, 40), Of(FishingItems.BrassHook, 1));
 
-        Fishing(ArmourSlot.Helmet, 3, 200_000, 22, Of(FishingItems.Sponge, 32), Of(FishingItems.Snapper, 20), Of(FishingItems.RiverPearl, 2));
-        Fishing(ArmourSlot.Chestplate, 3, 200_000, 22, Of(FishingItems.Sponge, 48), Of(FishingItems.Catfish, 30), Of(FishingItems.TideGem, 1));
+        Fishing(ArmourSlot.Helmet, 3, 200_000, 18, Of(FishingItems.Sponge, 32), Of(FishingItems.Snapper, 20), Of(FishingItems.RiverPearl, 2));
+        Fishing(ArmourSlot.Chestplate, 3, 200_000, 24, Of(FishingItems.Sponge, 48), Of(FishingItems.Catfish, 30), Of(FishingItems.TideGem, 1));
         Fishing(ArmourSlot.Leggings, 3, 200_000, 22, Of(FishingItems.Sponge, 40), Of(FishingItems.Eel, 50), Of(FishingItems.RiverPearl, 2));
-        Fishing(ArmourSlot.Boots, 3, 200_000, 22, Of(FishingItems.Sponge, 32), Of(FishingItems.SeaBass, 50), Of(FishingItems.TideGem, 1));
+        Fishing(ArmourSlot.Boots, 3, 200_000, 20, Of(FishingItems.Sponge, 32), Of(FishingItems.SeaBass, 50), Of(FishingItems.TideGem, 1));
 
         return list;
     }

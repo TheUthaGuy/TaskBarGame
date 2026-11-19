@@ -235,13 +235,13 @@ when they come back. Click the button again (it shows your crop) to go back to t
 
 | Lake | How to get there | What bites |
 |---|---|---|
-| **Willow Lake** | On your island: always open | Perch, Carp, Trout (Fishing 3), Pike (6), Eel (10), Catfish (15), Golden Carp (20, rare), and Lily Pads, Clay, Ink Sacs (5) and Sponges (12) |
-| **Driftwood Cove** | A boat trip for 50,000 coins (once) | Mackerel, Sea Bass (8), Snapper (14), Swordfish (22, rare), Ink Sacs, Sponges, and **junk**: Tin Cans, Soggy Boots, Tangled Nets, Broken Bottles and the odd Rusty Anchor |
+| **Willow Lake** | On your island: always open | Perch, Carp, Trout (Fishing 3), Pike (6), Eel (10), Catfish (15), Sturgeon (16), Golden Carp (19, rare), and Lily Pads, Clay, Ink Sacs (5) and Sponges (12) |
+| **Driftwood Cove** | A boat trip for 50,000 coins (once) | Mackerel, Sea Bass (8), Snapper (14), Swordfish (18, rare), Ink Sacs, Sponges, and **junk**: Tin Cans, Soggy Boots, Tangled Nets, Broken Bottles and the odd Rusty Anchor |
 
-Every catch gives **Fishing XP**. Each Fishing level (up to 50) gives +1 Fishing Speed and coins, and
+Every catch gives **Fishing XP**. Each Fishing level (up to 50) gives +1 Fishing Speed and coins (and from level 25, +1% Double Catch), and
 some unlock new fish. Your stats:
 
-- **Fishing Speed**: fish bite every 20 seconds ÷ (1 + Fishing Speed ÷ 100), on average.
+- **Fishing Speed**: fish bite every 12 seconds ÷ (1 + Fishing Speed ÷ 100), on average.
 - **Treasure Chance** (3% to start): the chance a catch is **treasure** instead: Waxed Canvas, Brass
   Hooks and Spools of Line, or a rarer "Great catch!" River Pearl or Tide Gem. Treasure is what rods and
   fishing armour are made from.
@@ -258,7 +258,7 @@ some unlock new fish. Your stats:
 | Tidecaller Rod | Legendary | 24 | +80 | +2.5% |
 
 **Fishing armour** is worn while fishing (your farming armour is worn at the field): **Oilskin** (Fishing
-5), **Mariner** (12) and **Deepwater** (22), with Fishing Speed and Treasure Chance on every piece and a
+5), **Mariner** (12) and **Deepwater** (its hat at 18, boots at 20, waders at 22 and coat at 24), with Fishing Speed and Treasure Chance on every piece and a
 set bonus for all four.
 
 **Bait** is used up one per catch while it's chosen (when it runs out, the farmer fishes without it):
@@ -268,6 +268,7 @@ set bonus for all four.
 | Wriggler Bait | +30 Fishing Speed | 1 Perch + 1 Lily Pad → 25 |
 | Glimmer Bait | +3% Treasure Chance | 2 Carp + 1 Ink Sac → 25 (Fishing 5) |
 | Twin Bait | +20% Double Catch | 2 Pike + 2 Clay → 25 (Fishing 8) |
+| Glowworm Bait | +50 Fishing Speed | 3 Perch + 2 Lily Pads → 25 (Fishing 16) |
 
 **Rusty Rowan** runs a junk shop at Driftwood Cove (he stands on the jetty at the end of the cove). Once
 you've bought the boat trip, he trades the junk you fish up there for bait, treasure (canvas, hooks, line,
@@ -275,7 +276,7 @@ pearls and Tide Gems), a Bucket Hat and the Beachcomber Blue outfit. Reaching Fi
 Sou'wester hat.
 
 Every fish has a **collection** (Collections tab), like the crops: each tier gives +0.05% Treasure
-Chance for good, plus Fishing XP. Rarer fish need fewer for each tier (10 Perch for Tier I, 1 Golden Carp).
+Chance for good, plus Fishing XP. Rarer fish need fewer for each tier: Perch needs 10 for Tier I and 2,500 for Tier X, Golden Carp 1 and 62.
 
 The Fishing tab also shows **what's biting** (each catch's chance at your level and its price), your
 catches per hour, and the **catch log** of everything you've reeled in. Its number counts the rods and

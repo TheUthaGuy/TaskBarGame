@@ -151,7 +151,7 @@ public class FishingTests
         Assert.True(result.First);
         Assert.Equal(1, engine.GetItem(FishingItems.Clay.Id));
         Assert.Equal(1, engine.TimesCaught(result.Item));
-        Assert.Equal(6, engine.State.Fishing.Xp);
+        Assert.Equal(12, engine.State.Fishing.Xp);
         Assert.False(engine.Catch()!.First);
     }
 
@@ -233,7 +233,7 @@ public class FishingTests
         Assert.Equal(FishingItems.Perch.Id, result.Item.Id);
         Assert.Equal(2, result.Count);
         Assert.Equal(2, engine.GetItem(FishingItems.Perch.Id));
-        Assert.Equal(24, result.FishingXp);
+        Assert.Equal(48, result.FishingXp);
     }
 
     [Fact]
@@ -419,6 +419,49 @@ public class FishingTests
         Assert.True(engine.BazaarSellPrice(pike) < before);
     }
 
+    // ================================================================= pacing
+
+    [Fact]
+    public void From_Fishing_10_to_24_something_new_comes_at_least_every_other_level()
+    {
+        bool NewAt(int level) =>
+            Places.Lakes.Any(l => l.Catches.Any(c => c.FishingLevel == level))
+            || Recipes.All.Any(r => r.IsFishing && r.FishingLevel == level)
+            || Trades.All.Any(t => t.FishingLevel == level);
+        for (int level = 10; level < 24; level++)
+            Assert.True(NewAt(level) || NewAt(level + 1), $"Nothing new at Fishing {level} or {level + 1}");
+    }
+
+    [Fact]
+    public void Deepwater_armour_unlocks_one_piece_at_a_time()
+    {
+        var levels = Armour.Slots.Select(s => Recipes.Find(UpgradeKind.FishingArmour, s.ToString(), 3)!.FishingLevel).OrderBy(l => l);
+        Assert.Equal(new[] { 18, 20, 22, 24 }, levels);
+    }
+
+    [Fact]
+    public void From_Fishing_25_each_level_adds_Double_Catch()
+    {
+        Assert.Equal(0, FishingSkill.Bonus(24).DoubleCatch);
+        Assert.Equal(1, FishingSkill.Bonus(25).DoubleCatch);
+        Assert.Equal(26, FishingSkill.Bonus(FishingSkill.MaxLevel).DoubleCatch);
+
+        var engine = AtWillowLake(new FixedRandom(0.5), fishingLevel: 30);
+        Assert.Equal(6, engine.DoubleCatchChance);
+        Assert.Contains(engine.FishingSources(), s => s.Source == "Fishing Level 30" && s.Bonus.DoubleCatch == 6);
+    }
+
+    [Fact]
+    public void Glowworm_Bait_is_the_fastest_bait_and_comes_at_Fishing_16()
+    {
+        Assert.True(Baits.Bonus[FishingItems.GlowwormBait.Id].Speed > Baits.Bonus[FishingItems.WrigglerBait.Id].Speed);
+        Assert.Equal(16, Trades.Find("bait_glowworm")!.FishingLevel);
+        var engine = AtWillowLake(new FixedRandom(0.5));
+        Give(engine, FishingItems.GlowwormBait, 1);
+        engine.SetBait(FishingItems.GlowwormBait.Id);
+        Assert.Equal(5 + 50, engine.FishingSpeed);
+    }
+
     // ================================================================= fish collections
 
     [Fact]
@@ -453,7 +496,7 @@ public class FishingTests
         Assert.NotNull(tierUp);
         Assert.Equal(1, tierUp!.NewTier);
         Assert.Equal(1, engine.FishCollectionTier(FishingItems.Perch));
-        Assert.Equal(12 + FishCollections.FishingXpPerTier, engine.State.Fishing.Xp);
+        Assert.Equal(24 + FishCollections.FishingXpPerTier, engine.State.Fishing.Xp);
         Assert.Equal(treasureBefore + FishCollections.TreasurePerTier, engine.TreasureChance, 6);
     }
 
