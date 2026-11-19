@@ -4,6 +4,11 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      screenshots-in-log:
+        description: Also write the screenshots into the log (for tools that can't download artifacts)
+        type: boolean
+        default: false
 
 jobs:
   build:
@@ -29,3 +34,36 @@ jobs:
         with:
           name: TaskBarGame-win-x64
           path: publish/TaskBarGame.exe
+
+  # Pictures of the real game on Windows (the README's screenshots). Run it by hand:
+  # Actions → Build → Run workflow. The pictures are in the "screenshots" download.
+  screenshots:
+    if: github.event_name == 'workflow_dispatch'
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: TaskBarGame-win-x64
+
+      - name: Take screenshots
+        shell: pwsh
+        run: |
+          $game = Start-Process -FilePath .\TaskBarGame.exe -ArgumentList '--screenshots', "$PWD\screenshots" -PassThru
+          if (-not $game.WaitForExit(300000)) { $game.Kill(); throw "The screenshot tour took too long" }
+          $log = Join-Path $env:APPDATA 'TaskBarGame Harvest Edition\error.log'
+          if (Test-Path $log) { Get-Content $log; throw "The game crashed" }
+          Get-ChildItem screenshots
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: screenshots
+
+      - name: Write the screenshots into the log
+        if: inputs.screenshots-in-log
+        shell: pwsh
+        run: |
+          Compress-Archive -Path screenshots\* -DestinationPath screenshots.zip
+          $text = [Convert]::ToBase64String([IO.File]::ReadAllBytes("$PWD\screenshots.zip"))
+          for ($i = 0; $i -lt $text.Length; $i += 4000) { "SCREENSHOTS:" + $text.Substring($i, [Math]::Min(4000, $text.Length - $i)) }

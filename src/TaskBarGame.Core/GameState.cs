@@ -43,6 +43,9 @@ public sealed class GameState
     /// <summary>Rare finds: how many you've found and are holding, by rare find id.</summary>
     public Dictionary<string, RareFindState> RareFinds { get; set; } = new();
 
+    /// <summary>Where the farmer is, Fishing XP, rods, fishing armour, bait and the catch log.</summary>
+    public FishingState Fishing { get; set; } = new();
+
     /// <summary>Hats and outfits whose unlocking you've been told about.</summary>
     public HashSet<string> UnlockedCosmetics { get; set; } = new();
 
@@ -73,6 +76,7 @@ public sealed class GameState
         Bazaar ??= new();
         UnlockedCosmetics ??= new();
         Garden ??= new();
+        Fishing ??= new();
         RareFinds ??= new();
         foreach (var id in RareFinds.Keys.ToList())
         {
@@ -116,6 +120,7 @@ public sealed class GameState
         Field.Normalize();
         Bazaar.Normalize();
         Garden.Normalize();
+        Fishing.Normalize();
         Settings.Normalize();
 
         if (LastSavedUtc > DateTime.UtcNow || LastSavedUtc == default)
@@ -187,6 +192,9 @@ public sealed class GameSettings
     /// <summary>Crops (by crop id) that are sold straight away when they're harvested.</summary>
     public HashSet<string> AutoSellCrops { get; set; } = new();
 
+    /// <summary>Fishing items (by item id) that are sold straight away when they're caught.</summary>
+    public HashSet<string> AutoSellItems { get; set; } = new();
+
     /// <summary>Items (by item id) that are never sold, by any button.</summary>
     public HashSet<string> LockedItems { get; set; } = new();
 
@@ -239,7 +247,13 @@ public sealed class GameSettings
     public double? PanelLeft { get; set; }
     public double? PanelTop { get; set; }
 
-    /// <summary>The panel tab that was open last.</summary>
+    /// <summary>The panel tab that was open last, by name ("FishingTab").</summary>
+    public string? PanelTabName { get; set; }
+
+    /// <summary>
+    /// Old saves remembered the tab by its number (before the Fishing tab moved them along). Only read
+    /// when <see cref="PanelTabName"/> isn't set.
+    /// </summary>
     public int PanelTab { get; set; }
 
     /// <summary>
@@ -254,6 +268,7 @@ public sealed class GameSettings
     public void Normalize()
     {
         AutoSellCrops ??= new();
+        AutoSellItems ??= new();
         LockedItems ??= new();
         CompactorSkips ??= new();
         HiddenPopups ??= new();
@@ -268,6 +283,7 @@ public sealed class GameSettings
 
         AutoSellCrops.RemoveWhere(id => !Crops.TryGet(id, out _));
         CompactorSkips.RemoveWhere(id => !Crops.TryGet(id, out _));
+        AutoSellItems.RemoveWhere(id => !Items.TryGet(id, out var item) || item.IsCrop || item.Kind == ItemKind.Bait);
         LockedItems.RemoveWhere(id => !Items.TryGet(id, out _));
         if (PanelLeft is { } left && !double.IsFinite(left)) PanelLeft = null;
         if (PanelTop is { } top && !double.IsFinite(top)) PanelTop = null;
@@ -288,6 +304,63 @@ public enum PopupKind
     Cosmetic,
     Visitor,
     RareDrop,
+    Treasure,
+    BaitRanOut,
+}
+
+/// <summary>Everything about fishing that's saved.</summary>
+public sealed class FishingState
+{
+    /// <summary>Where the farmer is: "field", or a lake id (see <see cref="Places"/>).</summary>
+    public string Location { get; set; } = Places.Field;
+
+    /// <summary>The lake the farmer fished on last (where "Go fishing" goes).</summary>
+    public string LastLake { get; set; } = Places.WillowLake.Id;
+
+    public double Xp { get; set; }
+
+    /// <summary>1-5: Fishing Rod, Angler's, Lakewarden, Stormcatcher, Tidecaller.</summary>
+    public int Rod { get; set; } = 1;
+
+    /// <summary>Fishing armour tier worn in each slot (0 = nothing).</summary>
+    public Dictionary<ArmourSlot, int> Armour { get; set; } = new();
+
+    /// <summary>The chosen bait's item id (null = no bait). One is used up on every catch.</summary>
+    public string? Bait { get; set; }
+
+    /// <summary>Lakes on other islands you've bought the boat trip to.</summary>
+    public HashSet<string> BoatTrips { get; set; } = new();
+
+    /// <summary>Everything ever caught, by item id: the catch log.</summary>
+    public Dictionary<string, long> Caught { get; set; } = new();
+
+    /// <summary>Cosmetics bought from Rusty Rowan.</summary>
+    public HashSet<string> OwnedCosmetics { get; set; } = new();
+
+    public long Catches { get; set; }
+    public long Treasures { get; set; }
+
+    public void Normalize()
+    {
+        Armour ??= new();
+        BoatTrips ??= new();
+        Caught ??= new();
+        OwnedCosmetics ??= new();
+        if (!Places.IsKnown(Location)) Location = Places.Field;
+        if (Places.FindLake(LastLake) is not { } last || (last.IsOnAnotherIsland && !BoatTrips.Contains(last.Id)))
+            LastLake = Places.WillowLake.Id;
+        if (Places.FindLake(Location) is { IsOnAnotherIsland: true } && !BoatTrips.Contains(Location)) Location = Places.Field;
+        Xp = double.IsFinite(Xp) ? Math.Max(0, Xp) : 0;
+        Rod = Math.Clamp(Rod, 1, Rods.MaxTier);
+        foreach (var slot in Armour.Keys.ToList())
+            Armour[slot] = Math.Clamp(Armour[slot], 0, FishingArmour.MaxTier);
+        if (!Baits.IsBait(Bait)) Bait = null;
+        BoatTrips.RemoveWhere(id => Places.FindLake(id) is not { IsOnAnotherIsland: true });
+        foreach (var key in Caught.Keys.ToList())
+            if (!Items.TryGet(key, out var item) || item.IsCrop || Caught[key] <= 0) Caught.Remove(key);
+        Catches = Math.Max(0, Catches);
+        Treasures = Math.Max(0, Treasures);
+    }
 }
 
 public sealed class GameStats

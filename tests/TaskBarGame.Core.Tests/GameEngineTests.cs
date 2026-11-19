@@ -292,7 +292,8 @@ public class GameEngineTests
         Assert.Equal(160 * Crops.Melon.SellPrice, packed.SellPrice);
         Assert.Equal(160L * 160 * Crops.Melon.SellPrice, Items.Dense(Crops.Melon).SellPrice);
         Assert.Equal("Packed Melon", packed.Name);
-        Assert.Equal(36, Items.All.Count());
+        Assert.Equal(36, Items.CropItems.Count());
+        Assert.Equal(36 + FishingItems.All.Count, Items.All.Count);
     }
 
     [Fact]
@@ -441,6 +442,7 @@ public class GameEngineTests
     public void Everything_can_be_crafted_with_enough_crops()
     {
         var engine = RichEngine();
+        engine.State.Fishing.Xp = FishingSkill.TotalXpFor(FishingSkill.MaxLevel);
         foreach (var item in Items.All) Give(engine, item, 100_000);
 
         foreach (var recipe in Recipes.All.OrderBy(r => r.Tier))

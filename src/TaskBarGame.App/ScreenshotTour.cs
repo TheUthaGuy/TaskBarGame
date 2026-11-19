@@ -105,6 +105,30 @@ internal sealed class ScreenshotTour
         state.RareFinds["clover"] = new RareFindState { Found = 3, Held = 2 };
         state.RareFinds["seed"] = new RareFindState { Found = 1, Held = 1 };
 
+        // Fishing: Level 12 with an Angler's Rod, Oilskin armour, bait, and the boat trip to Driftwood Cove.
+        var fishing = state.Fishing;
+        fishing.Xp = FishingSkill.TotalXpFor(12) + 4_000;
+        fishing.Rod = 2;
+        foreach (var slot in Armour.Slots) fishing.Armour[slot] = 1;
+        fishing.Armour[ArmourSlot.Helmet] = 2;
+        fishing.BoatTrips.Add(Places.DriftwoodCove.Id);
+        fishing.Bait = FishingItems.WrigglerBait.Id;
+        fishing.Catches = 1_150;
+        state.Settings.AutoSellItems.Add("tincan");
+        fishing.Treasures = 21;
+        foreach (var (id, held, caught) in new (string, long, long)[]
+        {
+            ("perch", 46, 300), ("carp", 120, 280), ("trout", 64, 150), ("pike", 38, 90), ("eel", 4, 12),
+            ("lilypad", 30, 80), ("clay", 22, 60), ("inksac", 18, 40), ("mackerel", 12, 30), ("seabass", 2, 3),
+            ("waxedcanvas", 3, 9), ("brasshook", 2, 6), ("spool", 1, 4), ("riverpearl", 1, 1),
+            ("tincan", 14, 25), ("soggyboot", 9, 18), ("tanglednet", 7, 12), ("brokenbottle", 5, 10),
+            ("wrigglerbait", 140, 0), ("glimmerbait", 25, 0),
+        })
+        {
+            state.Inventory[id] = held;
+            if (caught > 0) fishing.Caught[id] = caught;
+        }
+
         Cosmetics.TakeNewlyUnlocked(new GameEngine(state, new Random(1))); // no "new hat" pop-up in the pictures
         state.LastSavedUtc = DateTime.UtcNow;
         return state;
@@ -125,16 +149,39 @@ internal sealed class ScreenshotTour
         await Wait(FarmerAgent.TeleportDuration * 0.75);
         SaveStrip("strip-teleport.png");
 
+        // Off to Willow Lake: a fish biting, then the catch flying back to the pontoon.
+        _host.Engine.TravelTo(Places.WillowLake.Id, out _);
+        await Wait(0.5);
+        await NextPhase(AnglerPhase.Biting, 0.3, TimeSpan.FromSeconds(40));
+        SaveStrip("strip-lake.png");
+        await NextPhase(AnglerPhase.Reeling, 0.45, TimeSpan.FromSeconds(5));
+        SaveStrip("strip-lake-catch.png");
+
+        // Driftwood Cove, with Rusty Rowan on his jetty.
+        _host.Engine.TravelTo(Places.DriftwoodCove.Id, out _);
+        await Wait(0.5);
+        await NextPhase(AnglerPhase.Waiting, 0.1, TimeSpan.FromSeconds(10));
+        SaveStrip("strip-cove.png");
+
         _strip.TogglePanel();
         await Wait(0.8);
         var panel = _strip.Panel ?? throw new InvalidOperationException("The garden panel didn't open.");
-        string[] tabs = { "garden", "farming", "upgrades", "collections", "visitors", "bazaar", "inventory", "wardrobe", "settings" };
-        string[] alsoScrolledDown = { "garden", "farming", "upgrades", "visitors", "inventory", "settings" };
+        string[] tabs = { "garden", "farming", "fishing", "upgrades", "collections", "visitors", "bazaar", "inventory", "wardrobe", "settings" };
+        string[] alsoScrolledDown = { "garden", "farming", "fishing", "upgrades", "collections", "visitors", "inventory", "settings" };
         for (int i = 0; i < tabs.Length; i++)
         {
             panel.Tabs.SelectedIndex = i;
             await Wait(0.5);
             SaveElement((FrameworkElement)panel.Content, $"panel-{tabs[i]}.png");
+
+            // The Fishing tab is long: the bait and the junk shop in the middle, too.
+            if (tabs[i] == "fishing" && panel.Tabs.SelectedContent is ScrollViewer middle)
+            {
+                middle.ScrollToVerticalOffset(middle.ScrollableHeight * 0.55);
+                await Wait(0.4);
+                SaveElement((FrameworkElement)panel.Content, "panel-fishing-middle.png");
+                middle.ScrollToHome();
+            }
 
             // ...and the bottom of the longer tabs (the crop guide, the Compactor, auto-sell, pop-ups).
             if (Array.IndexOf(alsoScrolledDown, tabs[i]) >= 0 && panel.Tabs.SelectedContent is ScrollViewer scroller)
@@ -146,6 +193,7 @@ internal sealed class ScreenshotTour
             }
         }
         panel.Close();
+        _host.Engine.TravelTo(Places.Field, out _);
 
         // "Only show it when I hover" mode: just the farmer and the ripe-crop badge.
         _host.Settings.StripMode = StripMode.OnHover;
@@ -163,6 +211,14 @@ internal sealed class ScreenshotTour
         _host.Engine.Broke += OnHarvest;
         return Task.WhenAny(done.Task, Task.Delay(timeout))
             .ContinueWith(_ => _host.Engine.Broke -= OnHarvest, TaskScheduler.FromCurrentSynchronizationContext());
+    }
+
+    /// <summary>Waits until the angler is <paramref name="progress"/> of the way through a phase.</summary>
+    private async Task NextPhase(AnglerPhase phase, double progress, TimeSpan timeout)
+    {
+        var until = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < until && !(_host.Angler.Phase == phase && _host.Angler.Progress >= progress))
+            await Task.Delay(30);
     }
 
     private Task NextTeleport(TimeSpan timeout)

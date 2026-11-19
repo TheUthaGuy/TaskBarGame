@@ -37,6 +37,8 @@ public static class Cosmetics
         new("crown", CosmeticSlot.Hat, "Golden Crown", "Reach Farming Level 50", e => (e.FarmingLevel, FarmingSkill.MaxLevel)),
         Bought("hood", CosmeticSlot.Hat, "Traveller's Hood"),
         Bought("starhat", CosmeticSlot.Hat, "Stargazer's Hat"),
+        new("souwester", CosmeticSlot.Hat, "Sou'wester", "Reach Fishing Level 10", e => (e.FishingLevel, 10)),
+        Traded("buckethat", CosmeticSlot.Hat, "Bucket Hat"),
     };
 
     public static readonly IReadOnlyList<Cosmetic> Outfits = new Cosmetic[]
@@ -47,6 +49,7 @@ public static class Cosmetics
         new("twilight", CosmeticSlot.Outfit, "Twilight Purple", "Reach Garden Level 10", e => (e.GardenLevel, 10)),
         new("golden", CosmeticSlot.Outfit, "Golden Harvest", "Wear a full Verdant armour set", e => (e.FullSetTier, Armour.MaxTier)),
         Bought("wanderer", CosmeticSlot.Outfit, "Wanderer's Garb"),
+        Traded("beachcomber", CosmeticSlot.Outfit, "Beachcomber Blue"),
     };
 
     /// <summary>A cosmetic sold in the Visitor Shop for Garden Tokens.</summary>
@@ -56,6 +59,11 @@ public static class Cosmetics
         return new Cosmetic(id, slot, name, $"Buy it in the Visitor Shop ({price} tokens)",
             e => (e.State.Garden.OwnedCosmetics.Contains(id) ? 1 : 0, 1));
     }
+
+    /// <summary>A cosmetic Rusty Rowan trades for junk at Driftwood Cove.</summary>
+    private static Cosmetic Traded(string id, CosmeticSlot slot, string name) =>
+        new(id, slot, name, $"Trade junk for it with {Trades.ShopkeeperName} at Driftwood Cove",
+            e => (e.OwnsFishingCosmetic(id) ? 1 : 0, 1));
 
     public static IEnumerable<Cosmetic> All => Hats.Concat(Outfits);
 

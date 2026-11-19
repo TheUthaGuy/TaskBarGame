@@ -134,6 +134,8 @@ public sealed class UpgradeRow : ObservableObject
         UpgradeKind.Tool => _host.Sprites.ToolIcon(Crops.Get(Target), tier),
         UpgradeKind.Armour => _host.Sprites.ArmourIcon(Enum.Parse<ArmourSlot>(Target), tier),
         UpgradeKind.Compactor => _host.Sprites.CompactorIcon(tier),
+        UpgradeKind.Rod => _host.Sprites.RodIcon(tier),
+        UpgradeKind.FishingArmour => _host.Sprites.FishingArmourIcon(Enum.Parse<ArmourSlot>(Target), tier),
         _ => _host.Sprites.TalismanIcon(Enum.Parse<TalismanFamily>(Target), tier),
     };
 
@@ -142,6 +144,8 @@ public sealed class UpgradeRow : ObservableObject
         UpgradeKind.Tool => Tools.Name(Crops.Get(Target), tier) + (tier == 0 ? $" for {Crops.Get(Target).Name}" : ""),
         UpgradeKind.Armour => Armour.Name(Enum.Parse<ArmourSlot>(Target), tier),
         UpgradeKind.Compactor => Compactors.Name(tier),
+        UpgradeKind.Rod => Rods.Name(tier),
+        UpgradeKind.FishingArmour => FishingArmour.Name(Enum.Parse<ArmourSlot>(Target), tier),
         _ => Talismans.Name(Enum.Parse<TalismanFamily>(Target), tier),
     };
 }
@@ -430,10 +434,15 @@ internal static class CropBrushes
 {
     private static readonly System.Collections.Generic.Dictionary<string, Brush> ByCrop = new();
 
-    public static Brush Get(CropDef crop)
+    public static Brush Get(CropDef crop) => ForColour(crop.ColorHex);
+
+    /// <summary>An item's colour: its crop's, or the fishing item's own.</summary>
+    public static Brush Get(ItemDef item) => ForColour(item.ColorHex);
+
+    private static Brush ForColour(string hex)
     {
-        if (!ByCrop.TryGetValue(crop.Id, out var brush))
-            ByCrop[crop.Id] = brush = Format.Brush(crop.ColorHex);
+        if (!ByCrop.TryGetValue(hex, out var brush))
+            ByCrop[hex] = brush = Format.Brush(hex);
         return brush;
     }
 }

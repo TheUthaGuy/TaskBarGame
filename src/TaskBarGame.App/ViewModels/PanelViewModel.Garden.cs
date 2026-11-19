@@ -103,7 +103,7 @@ public sealed partial class PanelViewModel
 
     /// <summary>Items you could put in the Composter, for the Add ▾ menu.</summary>
     public IEnumerable<(ItemDef Item, long Count)> ComposterChoices =>
-        Items.All.Where(i => Engine.GetItem(i) > 0 && !Engine.IsLocked(i)).Select(i => (i, Engine.GetItem(i)));
+        Items.CropItems.Where(i => Engine.GetItem(i) > 0 && !Engine.IsLocked(i)).Select(i => (i, Engine.GetItem(i)));
 
     private void RefreshGarden()
     {

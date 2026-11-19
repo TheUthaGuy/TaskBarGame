@@ -194,8 +194,12 @@ public partial class StripWindow : Window
         _host.Farmer.Teleported += () => SpawnTeleportSparkles(Engine.FieldLength);
         Engine.Changed += () =>
         {
-            if (Engine.FieldLength != _builtLength || Engine.VisitorsUnlocked != _builtVisitors) RequestLayout();
+            if (Engine.FieldLength != _builtLength || Engine.VisitorsUnlocked != _builtVisitors
+                || Engine.Location != _builtLocation) RequestLayout();
         };
+        Engine.Travelled += RequestLayout;
+        _host.Angler.Caught += OnCaught;
+        Engine.FishCollectionTierReached += OnFishCollectionTier;
         Engine.VisitorArrived += OnVisitorArrived;
         Engine.RareFound += OnRareFound;
     }
@@ -243,14 +247,16 @@ public partial class StripWindow : Window
         _fontSize = baseScale switch { 1 => 10, 2 => 12, _ => 14 };
 
         int length = Engine.FieldLength;
-        bool canGrow = FieldProgression.Next(length) is not null;
-        double rowWidth = (length + 2) * _tile; // the row plus a teleport pad at each end
+        var lake = Engine.CurrentLake;
+        bool canGrow = lake is null && FieldProgression.Next(length) is not null;
+        double rowWidth = (length + 2) * _tile; // the row plus a teleport pad at each end (or the lake)
         double lockWidth = canGrow ? _tile + _pad : 0;
         bool visitors = Engine.VisitorsUnlocked;
         double visitorWidth = visitors ? _tile + _pad : 0;
+        double travelWidth = _tile + _pad;
         double hudWidth = _fontSize * 10.5;
 
-        _stripWidth = _pad + rowWidth + lockWidth + visitorWidth + 2 * _pad + hudWidth + _pad;
+        _stripWidth = _pad + rowWidth + lockWidth + visitorWidth + travelWidth + 2 * _pad + hudWidth + _pad;
         _stripHeight = Math.Max(20 * _unit, _fontSize * 2.9 + 8);
         _tileTop = PopupSpace + _stripHeight - _tile - 2 * _unit;
 
@@ -286,10 +292,12 @@ public partial class StripWindow : Window
         Root.Children.Add(_stripLayer);
         Root.Children.Add(_homeLayer);
 
-        BuildStrip(length, canGrow, rowWidth + lockWidth + visitorWidth, hudWidth);
+        BuildStrip(length, lake, canGrow, rowWidth + lockWidth + visitorWidth + travelWidth, hudWidth);
         if (visitors) BuildVisitorSpot(TileLeft(length + 1) + _pad + lockWidth);
         else _visitorSpot = null;
         _builtVisitors = visitors;
+        BuildTravelButton(TileLeft(length + 1) + _pad + lockWidth + visitorWidth);
+        _builtLocation = Engine.Location;
         BuildHomePad(homePadLeft, homePadWidth);
         BuildFarmer();
         Root.Children.Add(_fxLayer);
@@ -302,7 +310,7 @@ public partial class StripWindow : Window
         if (_toast is not null) ShowToastElement(_toast);
     }
 
-    private void BuildStrip(int length, bool canGrow, double rowWidth, double hudWidth)
+    private void BuildStrip(int length, LakeDef? lake, bool canGrow, double rowWidth, double hudWidth)
     {
         var panel = new Border
         {
@@ -316,15 +324,23 @@ public partial class StripWindow : Window
         panel.MouseRightButtonUp += (_, e) => { OpenMainMenu(panel); e.Handled = true; };
         Place(_stripLayer, panel, _stripLeft, PopupSpace);
 
-        for (int i = 0; i < length; i++)
-            _tiles.Add(BuildTile(i));
-
-        // Teleport pads: the farmer steps on the end pad and comes out of the start pad.
-        foreach (int slot in new[] { -1, length })
+        if (lake is not null)
         {
-            var pad = SpriteImage(_host.Sprites["pad"], _tile);
-            pad.ToolTip = slot < 0 ? "Teleport pad: the farmer arrives here" : "Teleport pad: back to the start of the row";
-            Place(_stripLayer, pad, TileLeft(slot), _tileTop);
+            BuildLake(lake, length);
+        }
+        else
+        {
+            _lakeArea = null;
+            for (int i = 0; i < length; i++)
+                _tiles.Add(BuildTile(i));
+
+            // Teleport pads: the farmer steps on the end pad and comes out of the start pad.
+            foreach (int slot in new[] { -1, length })
+            {
+                var pad = SpriteImage(_host.Sprites["pad"], _tile);
+                pad.ToolTip = slot < 0 ? "Teleport pad: the farmer arrives here" : "Teleport pad: back to the start of the row";
+                Place(_stripLayer, pad, TileLeft(slot), _tileTop);
+            }
         }
 
         if (canGrow)
@@ -701,6 +717,7 @@ public partial class StripWindow : Window
         _time += dt;
         UpdateTiles();
         UpdateFarmer();
+        if (_expanded && Engine.IsFishing && _lakeArea is not null) UpdateLake(dt);
         _lockBob.Y = _lockReady ? -Math.Round(Math.Abs(Math.Sin(_time * 3)) * 2) * _unit : 0;
         UpdateFloaters(dt);
         UpdateParticles(dt);
@@ -749,6 +766,14 @@ public partial class StripWindow : Window
         string frame;
         double x;
         int facing;
+
+        if (_expanded && Engine.IsFishing && _lakeArea is not null)
+        {
+            UpdateAnglerFarmer();
+            return;
+        }
+        Canvas.SetTop(_farmer, _tileTop);
+        Canvas.SetTop(_farmerHit, _tileTop + 2 * _unit);
 
         if (!_expanded)
         {
@@ -854,9 +879,17 @@ public partial class StripWindow : Window
         }
         else
         {
-            _levelsText.Text = $"Farming {Engine.FarmingLevel} · Garden {Engine.GardenLevel}";
+            _levelsText.Text = Engine.IsFishing
+                ? $"Fishing {Engine.FishingLevel} · Garden {Engine.GardenLevel}"
+                : $"Farming {Engine.FarmingLevel} · Garden {Engine.GardenLevel}";
             _levelsText.Foreground = TextBrush;
         }
+        UpdateTravelButton();
+        if (_lakeArea?.ToolTip is ToolTip { Content: TextBlock lakeTip } && Engine.CurrentLake is { } lake)
+            lakeTip.Text = $"{lake.Name}: the farmer is fishing (about {Format.Number((long)Engine.CatchesPerHour)} catches an hour)\n"
+                           + $"Fishing Speed {Engine.FishingSpeed} · Treasure Chance {Engine.TreasureChance:0.##}%"
+                           + (Engine.ActiveBait is { } bait ? $" · {bait.Name}: {Format.Number(Engine.GetItem(bait))} left" : "")
+                           + "\nClick to open the Fishing tab";
 
         foreach (var view in _tiles)
             if (view.Index < Engine.FieldLength) view.Tip.Text = DescribeTile(view.Index);
@@ -928,7 +961,7 @@ public partial class StripWindow : Window
     private void OnDragFarmingMove(object sender, MouseEventArgs e)
     {
         if (!_dragFarming) return;
-        if (e.LeftButton != MouseButtonState.Pressed || !_expanded)
+        if (e.LeftButton != MouseButtonState.Pressed || !_expanded || Engine.IsFishing)
         {
             _dragFarming = false;
             return;
@@ -979,6 +1012,10 @@ public partial class StripWindow : Window
         var open = MakeItem(_panel is null ? "Open the panel" : "Close the panel", TogglePanel);
         open.FontWeight = FontWeights.Bold;
         menu.Items.Add(open);
+
+        var travel = new MenuItem { Header = "Go to" };
+        foreach (var place in TravelItems()) travel.Items.Add(place);
+        menu.Items.Add(travel);
 
         var plant = new MenuItem { Header = "Plant the field with" };
         foreach (var crop in Crops.All)
@@ -1367,11 +1404,14 @@ public partial class StripWindow : Window
 
     private void OnLeveledUp(LevelUp levelUp)
     {
-        string title = levelUp.Skill == SkillKind.Farming
-            ? $"FARMING LEVEL {levelUp.NewLevel}!"
-            : $"GARDEN LEVEL {levelUp.NewLevel}!";
-        var brush = levelUp.Skill == SkillKind.Farming ? XpBrush : GardenBrush;
-        string body = levelUp.Rewards.Count > 0 ? string.Join(" · ", levelUp.Rewards) : "Keep farming!";
+        string title = $"{levelUp.Skill.ToString().ToUpperInvariant()} LEVEL {levelUp.NewLevel}!";
+        var brush = levelUp.Skill switch
+        {
+            SkillKind.Farming => XpBrush,
+            SkillKind.Fishing => FishingBrush,
+            _ => GardenBrush,
+        };
+        string body = levelUp.Rewards.Count > 0 ? string.Join(" · ", levelUp.Rewards) : "Keep going!";
         QueueToast(title, body, brush, 4.5, PopupKind.LevelUp);
     }
 
@@ -1402,9 +1442,27 @@ public partial class StripWindow : Window
 
     public void ShowOfflineReport(OfflineReport report)
     {
-        string body = $"Your farmer broke {Format.Number(report.Breaks)} crops while you were away "
-                      + $"({Format.Duration(report.Away.TotalSeconds)}): +{Format.Number(report.Drops)} items, "
-                      + $"+{Format.Number((long)report.FarmingXp)} Farming XP.";
+        string body = report.Catches > 0
+            ? $"Your farmer reeled in {Format.Number(report.Catches)} catches while you were away "
+              + $"({Format.Duration(report.Away.TotalSeconds)}): +{Format.Number(report.FishCaught)} items, "
+              + $"+{Format.Number((long)report.FishingXp)} Fishing XP"
+              + (report.Treasures > 0 ? $", {Format.Number(report.Treasures)} treasure." : ".")
+            : $"Your farmer broke {Format.Number(report.Breaks)} crops while you were away "
+              + $"({Format.Duration(report.Away.TotalSeconds)}): +{Format.Number(report.Drops)} items, "
+              + $"+{Format.Number((long)report.FarmingXp)} Farming XP.";
+        if (report.Caught.Count > 0)
+        {
+            // The three best catches by what they're worth.
+            var best = report.Caught
+                .Select(c => (Item: Items.Get(c.Key), Count: c.Value))
+                .OrderByDescending(c => c.Count * Engine.MarketPrice(c.Item))
+                .Take(3)
+                .Select(c => $"{Format.Number(c.Count)} {c.Item.Name}");
+            body += $" Best: {string.Join(", ", best)}.";
+        }
+        if (report.BaitRanOut is { } bait) body += $" The {bait} ran out.";
+        if (report.FishingLevelAfter > report.FishingLevelBefore)
+            body += $" Fishing {report.FishingLevelBefore} → {report.FishingLevelAfter}!";
         if (report.FarmingLevelAfter > report.FarmingLevelBefore)
             body += $" Farming {report.FarmingLevelBefore} → {report.FarmingLevelAfter}!";
         if (report.GardenLevelAfter > report.GardenLevelBefore)
@@ -1470,18 +1528,31 @@ public partial class StripWindow : Window
     /// </summary>
     private void CheckReadyUpgrades(bool quietly = false)
     {
-        var ready = Engine.ReadyRecipes().ToList();
+        // Upgrades you could craft, and the treasure and clothes Rusty Rowan could trade you.
+        var ready = Engine.ReadyRecipes().Select(r => (Id: r.Id, Name: r.ResultName, Fishing: r.IsFishing))
+            .Concat(Engine.ReadyJunkTrades().Select(t => (Id: "trade:" + t.Id, Name: TradeName(t), Fishing: true)))
+            .ToList();
         var ids = ready.Select(r => r.Id).ToHashSet();
         bool first = _readyUpgrades is null;
-        var fresh = first ? new List<Recipe>() : ready.Where(r => !_readyUpgrades!.Contains(r.Id)).ToList();
+        var fresh = first ? new List<(string Id, string Name, bool Fishing)>() : ready.Where(r => !_readyUpgrades!.Contains(r.Id)).ToList();
         _readyUpgrades = ids;
         if (quietly || fresh.Count == 0) return;
 
+        bool allFishing = fresh.All(r => r.Fishing);
+        string tab = allFishing ? "Fishing" : fresh.Any(r => r.Fishing) ? "Upgrades and Fishing" : "Upgrades";
         string body = fresh.Count == 1
-            ? $"You can craft the {fresh[0].ResultName}. Open the panel's Upgrades tab."
-            : $"You can craft {fresh.Count} upgrades: {string.Join(", ", fresh.Select(r => r.ResultName))}.";
-        QueueToast("UPGRADE READY!", body, CraftBrush, 5, PopupKind.UpgradeReady);
+            ? (fresh[0].Id.StartsWith("trade:", StringComparison.Ordinal)
+                ? $"{Trades.ShopkeeperName} can trade you {fresh[0].Name} for your junk. Open the panel's Fishing tab."
+                : $"You can craft the {fresh[0].Name}. Open the panel's {tab} tab.")
+            : $"You can get {fresh.Count} upgrades: {string.Join(", ", fresh.Select(r => r.Name))}.";
+        QueueToast("UPGRADE READY!", body, CraftBrush, 5, PopupKind.UpgradeReady,
+            ("Show me", () => OpenPanelOn(allFishing ? "FishingTab" : "UpgradesTab")));
     }
+
+    /// <summary>"a Brass Hook", "the Bucket Hat".</summary>
+    private static string TradeName(TradeDef trade) =>
+        Cosmetics.Find(trade.Cosmetic) is { } cosmetic ? $"the {cosmetic.Name}"
+        : trade.ResultCount == 1 ? $"a {trade.Result!.Name}" : $"{trade.ResultCount} {trade.Result!.Name}";
 
     /// <param name="kind">Which pop-up setting this follows; null for replies to something you just did (always shown).</param>
     /// <param name="action">A button on the pop-up, e.g. ("Update now", ...).</param>

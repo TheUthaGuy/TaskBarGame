@@ -154,7 +154,7 @@ public sealed partial class PanelViewModel
         foreach (var item in Items.All)
         {
             BazaarRow? row = null;
-            row = new BazaarRow(item, _host.Sprites.CropIcon(item.Crop), _host.Sprites.ItemContainer(item),
+            row = new BazaarRow(item, _host.Sprites.ItemIcon(item), _host.Sprites.ItemContainer(item),
                 new RelayCommand(() => Select(row!)));
             rows.Add(row);
         }
@@ -259,7 +259,7 @@ public sealed partial class PanelViewModel
             {
                 var item = Items.Get(order.ItemId);
                 long id = order.Id;
-                Orders.Add(new OrderRow(order, _host.Sprites.CropIcon(item.Crop), _host.Sprites.ItemContainer(item),
+                Orders.Add(new OrderRow(order, _host.Sprites.ItemIcon(item), _host.Sprites.ItemContainer(item),
                     new RelayCommand(() =>
                     {
                         Engine.CancelOrder(id);

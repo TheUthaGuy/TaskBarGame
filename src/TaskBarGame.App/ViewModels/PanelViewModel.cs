@@ -22,7 +22,7 @@ public sealed partial class PanelViewModel : ObservableObject
         nameof(AutoHarvest), nameof(KeepForUpgrades), nameof(FloatingText), nameof(HideInFullscreen),
         nameof(StartWithWindows), nameof(ShortNumbers), nameof(BatterySaver),
         nameof(PausePopups), nameof(PopupLevelUps), nameof(PopupCollections), nameof(PopupCrafted),
-        nameof(PopupBazaar), nameof(PopupUpgradeReady), nameof(PopupWelcomeBack), nameof(PopupUpdates), nameof(PopupCosmetics), nameof(PopupVisitors), nameof(PopupRareDrops),
+        nameof(PopupBazaar), nameof(PopupUpgradeReady), nameof(PopupWelcomeBack), nameof(PopupUpdates), nameof(PopupCosmetics), nameof(PopupVisitors), nameof(PopupRareDrops), nameof(PopupTreasure), nameof(PopupBaitRanOut),
         nameof(CheckForUpdates), nameof(InstallUpdatesAutomatically),
     };
 
@@ -100,6 +100,7 @@ public sealed partial class PanelViewModel : ObservableObject
         InitUpdates();
         InitBuddy();
         InitGarden();
+        InitFishing();
         Refresh();
     }
 
@@ -281,6 +282,8 @@ public sealed partial class PanelViewModel : ObservableObject
     public bool PopupCosmetics { get => ShowsPopup(PopupKind.Cosmetic); set => ShowPopup(PopupKind.Cosmetic, value); }
     public bool PopupVisitors { get => ShowsPopup(PopupKind.Visitor); set => ShowPopup(PopupKind.Visitor, value); }
     public bool PopupRareDrops { get => ShowsPopup(PopupKind.RareDrop); set => ShowPopup(PopupKind.RareDrop, value); }
+    public bool PopupTreasure { get => ShowsPopup(PopupKind.Treasure); set => ShowPopup(PopupKind.Treasure, value); }
+    public bool PopupBaitRanOut { get => ShowsPopup(PopupKind.BaitRanOut); set => ShowPopup(PopupKind.BaitRanOut, value); }
 
     private bool ShowsPopup(PopupKind kind) => !Settings.HiddenPopups.Contains(kind);
 
@@ -353,6 +356,7 @@ public sealed partial class PanelViewModel : ObservableObject
         RefreshUpdates();
         RefreshBuddy();
         RefreshGarden();
+        RefreshFishing();
     }
 
     private void RefreshField()
@@ -450,7 +454,7 @@ public sealed partial class PanelViewModel : ObservableObject
             foreach (var row in unlocked) UnlockedToolRows.Add(row);
         }
         foreach (var row in UnlockedToolRows.Concat(ArmourRows).Concat(TalismanRows).Concat(CompactorRows)) row.Update();
-        ReadyUpgrades = Engine.ReadyRecipes().Count();
+        ReadyUpgrades = Engine.ReadyRecipes().Count(r => !r.IsFishing);
     }
 
     private void RefreshMarket()
@@ -462,7 +466,7 @@ public sealed partial class PanelViewModel : ObservableObject
             foreach (var item in held)
             {
                 var id = item.Id;
-                Inventory.Add(new InventoryRow(_host, item, _host.Sprites.CropIcon(item.Crop), _host.Sprites.ItemContainer(item),
+                Inventory.Add(new InventoryRow(_host, item, _host.Sprites.ItemIcon(item), _host.Sprites.ItemContainer(item),
                     new RelayCommand(() =>
                     {
                         Engine.Sell(id, long.MaxValue);
@@ -481,7 +485,7 @@ public sealed partial class PanelViewModel : ObservableObject
         double keptValue = Items.All.Sum(i => Engine.KeptForUpgrades(i) * Engine.MarketPrice(i));
         int locked = Items.All.Count(i => Engine.IsLocked(i) && Engine.GetItem(i) > 0);
         var parts = new List<string>();
-        if (keptValue >= 1) parts.Add($"crops worth {Format.Number((long)keptValue)} coins are kept for your next upgrades");
+        if (keptValue >= 1) parts.Add($"items worth {Format.Number((long)keptValue)} coins are kept for your next upgrades");
         if (locked > 0) parts.Add($"{locked} locked item{(locked == 1 ? " is" : "s are")} never sold");
         KeptSummary = parts.Count == 0 ? "" : char.ToUpperInvariant(parts[0][0]) + string.Join(", and ", parts)[1..] + ".";
     }

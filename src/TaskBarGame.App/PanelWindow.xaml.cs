@@ -26,10 +26,10 @@ public partial class PanelWindow : Window
         DataContext = _vm;
 
         // Open on the tab you had open last time, and remember where you drag the panel.
-        Tabs.SelectedIndex = Math.Clamp(host.Settings.PanelTab, 0, Tabs.Items.Count - 1);
+        Tabs.SelectedItem = LastTab(host.Settings) ?? Tabs.Items[0];
         Tabs.SelectionChanged += (_, e) =>
         {
-            if (e.Source == Tabs) _host.Settings.PanelTab = Tabs.SelectedIndex;
+            if (e.Source == Tabs && Tabs.SelectedItem is TabItem tab) _host.Settings.PanelTabName = tab.Name;
         };
         ContentRendered += (_, _) => _shown = true;
         LocationChanged += (_, _) =>
@@ -67,6 +67,18 @@ public partial class PanelWindow : Window
             if (e.Key == Key.Escape) Close();
         };
         Closed += (_, _) => _host.HotkeysPaused = false;
+    }
+
+    /// <summary>The tab order before the Fishing tab, for saves that remembered the tab by its number.</summary>
+    private static readonly string[] OldTabOrder =
+    {
+        "GardenTab", "FarmingTab", "UpgradesTab", "CollectionsTab", "VisitorsTab", "BazaarTab", "InventoryTab", "WardrobeTab", "SettingsTab",
+    };
+
+    private TabItem? LastTab(GameSettings settings)
+    {
+        string? name = settings.PanelTabName ?? OldTabOrder[Math.Clamp(settings.PanelTab, 0, OldTabOrder.Length - 1)];
+        return FindName(name) as TabItem;
     }
 
     private void OnGameChanged() => _vm.Refresh();

@@ -19,7 +19,9 @@ public sealed partial class GameEngine
         Crops.All.Select(c => (UpgradeKind.Tool, c.Id))
             .Concat(Armour.Slots.Select(s => (UpgradeKind.Armour, s.ToString())))
             .Concat(Talismans.Families.Select(f => (UpgradeKind.Talisman, f.ToString())))
-            .Append((UpgradeKind.Compactor, Compactors.Target));
+            .Append((UpgradeKind.Compactor, Compactors.Target))
+            .Append((UpgradeKind.Rod, Rods.Target))
+            .Concat(Armour.Slots.Select(s => (UpgradeKind.FishingArmour, s.ToString())));
 
     /// <summary>
     /// The next upgrade of everything you could craft right now if you had the ingredients and coins
@@ -49,7 +51,14 @@ public sealed partial class GameEngine
     {
         var hash = new HashCode();
         hash.Add(GardenLevel);
+        hash.Add(FishingLevel);
         hash.Add(State.Compactor);
+        hash.Add(State.Fishing.Rod);
+        foreach (var (slot, tier) in State.Fishing.Armour)
+        {
+            hash.Add(slot);
+            hash.Add(tier + 10);
+        }
         foreach (var (id, tool) in State.Tools)
         {
             hash.Add(id);
@@ -101,6 +110,7 @@ public sealed partial class GameEngine
     public long KeptForUpgrades(ItemDef item)
     {
         if (!State.Settings.KeepForUpgrades) return 0;
+        if (item.Crop is null) return Math.Min(DirectNeed(item), GetItem(item));
         var needs = UpgradeNeeds(item.Crop);
         long need = item.Kind switch
         {
